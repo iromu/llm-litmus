@@ -124,14 +124,14 @@ function setupLighting() {
   scene.add(dirLight);
   scene.add(dirLight.target);
 
-  // City glow point lights
+  // City glow point lights (limited count to avoid uniform overflow)
   const colors = [0x00d4ff, 0x7b2ff7, 0xff2d95, 0x00ff88];
-  for (let i = 0; i < 8; i++) {
+  for (let i = 0; i < 4; i++) {
     const pl = new THREE.PointLight(colors[i % colors.length], 2, 30, 2);
     pl.position.set(
-      (Math.random() - 0.5) * 80,
+      (Math.random() - 0.5) * 60,
       2 + Math.random() * 3,
-      (Math.random() - 0.5) * 80
+      (Math.random() - 0.5) * 60
     );
     scene.add(pl);
   }
@@ -183,10 +183,10 @@ function createGround() {
     scene.add(roadZ);
   }
 
-  // Road markings (dashed center lines)
+  // Road markings (dashed center lines — reduced frequency)
   const markMat = new THREE.MeshStandardMaterial({ color: 0x666688, roughness: 0.5 });
   for (let i = -citySize; i <= citySize; i += gridSize) {
-    for (let j = -citySize; j < citySize; j += 3) {
+    for (let j = -citySize; j < citySize; j += 6) {
       const mark = new THREE.Mesh(
         new THREE.PlaneGeometry(1.5, 0.15),
         markMat
@@ -212,32 +212,24 @@ function createCity() {
   const citySize = 80;
   const roadWidth = 6;
 
-  // Building materials pool
-  const buildingMats = [
-    new THREE.MeshStandardMaterial({ color: 0x2a3a5c, roughness: 0.3, metalness: 0.7 }),
-    new THREE.MeshStandardMaterial({ color: 0x3a2a4c, roughness: 0.4, metalness: 0.6 }),
-    new THREE.MeshStandardMaterial({ color: 0x1a2a3c, roughness: 0.5, metalness: 0.5 }),
-    new THREE.MeshStandardMaterial({ color: 0x2a2a4c, roughness: 0.2, metalness: 0.8 }),
-    new THREE.MeshStandardMaterial({ color: 0x3c2a3a, roughness: 0.35, metalness: 0.65 }),
-  ];
-
-  // Window light material (emissive)
-  const windowMat = new THREE.MeshStandardMaterial({
-    color: 0xffffcc,
-    emissive: 0xffdd88,
-    emissiveIntensity: 0.8,
+  // Single shared building material (avoids uniform overflow)
+  const buildingMat = new THREE.MeshStandardMaterial({
+    color: 0x2a3a5c, roughness: 0.4, metalness: 0.6,
   });
-  const windowMatBlue = new THREE.MeshStandardMaterial({
-    color: 0x88ccff,
-    emissive: 0x4488cc,
-    emissiveIntensity: 0.6,
+
+  // Shared window materials (created once, reused by all buildings)
+  const windowWarmMat = new THREE.MeshStandardMaterial({
+    color: 0xffffcc, emissive: 0xffdd88, emissiveIntensity: 0.5, side: THREE.DoubleSide,
+  });
+  const windowCoolMat = new THREE.MeshStandardMaterial({
+    color: 0x88ccff, emissive: 0x4488cc, emissiveIntensity: 0.5, side: THREE.DoubleSide,
   });
 
   // Generate buildings in grid blocks
   for (let gx = -citySize; gx < citySize; gx += gridSize) {
     for (let gz = -citySize; gz < citySize; gz += gridSize) {
       // Skip some blocks for variety
-      if (Math.random() < 0.15) continue;
+      if (Math.random() < 0.2) continue;
 
       // Building dimensions
       const bw = 3 + Math.random() * 6;
@@ -248,23 +240,31 @@ function createCity() {
       const bx = gx + gridSize / 2 + (Math.random() - 0.5) * 4;
       const bz = gz + gridSize / 2 + (Math.random() - 0.5) * 4;
 
-      createBuilding(bx, bz, bw, bd, bh, buildingMats, windowMat, windowMatBlue);
+      createBuilding(bx, bz, bw, bd, bh, buildingMat, windowWarmMat, windowCoolMat);
     }
   }
 
-  // Street lights along roads
+  // Shared street light materials (created once, reused by all street lights)
+  const streetLightMat = new THREE.MeshStandardMaterial({
+    color: 0x444466, metalness: 0.7,
+  });
+  const streetLightHousingMat = new THREE.MeshStandardMaterial({
+    color: 0xffffcc, emissive: 0xffdd88, emissiveIntensity: 3,
+  });
+
+  // Street lights along roads (every other intersection to reduce draw calls)
   for (let i = -citySize; i <= citySize; i += gridSize) {
-    for (let j = -citySize; j <= citySize; j += 8) {
-      createStreetLight(j + 4, i);
-      createStreetLight(j - 4, i);
-      createStreetLight(i, j + 4);
-      createStreetLight(i, j - 4);
+    for (let j = -citySize; j <= citySize; j += 16) {
+      createStreetLight(j + 4, i, streetLightMat, streetLightHousingMat);
+      createStreetLight(j - 4, i, streetLightMat, streetLightHousingMat);
+      createStreetLight(i, j + 4, streetLightMat, streetLightHousingMat);
+      createStreetLight(i, j - 4, streetLightMat, streetLightHousingMat);
     }
   }
 
-  // Glowing signs on some buildings
+  // Glowing signs on some buildings (reduced count)
   const signColors = [0x00d4ff, 0x7b2ff7, 0xff2d95, 0x00ff88, 0xffaa00];
-  for (let i = 0; i < 30; i++) {
+  for (let i = 0; i < 10; i++) {
     const sign = new THREE.Mesh(
       new THREE.BoxGeometry(1.5 + Math.random(), 0.5 + Math.random() * 0.5, 0.1),
       new THREE.MeshStandardMaterial({
@@ -277,20 +277,19 @@ function createCity() {
     const bldg = buildings[Math.floor(Math.random() * buildings.length)];
     if (bldg) {
       sign.position.set(
-        bldg.position.x + (Math.random() - 0.5) * bldg.scale.x * 0.5,
-        bldg.position.y + Math.random() * bldg.scale.y * 0.5,
-        bldg.position.z + bldg.scale.z / 2 + 0.06
+        bldg.mesh.position.x + (Math.random() - 0.5) * bldg.width * 0.5,
+        bldg.mesh.position.y + Math.random() * bldg.height * 0.5,
+        bldg.mesh.position.z + bldg.depth / 2 + 0.06
       );
       scene.add(sign);
     }
   }
 }
 
-function createBuilding(x, z, w, d, h, mats, winMat, winMatBlue) {
+function createBuilding(x, z, w, d, h, buildingMat, windowWarmMat, windowCoolMat) {
   // Main structure
   const geo = new THREE.BoxGeometry(w, h, d);
-  const mat = mats[Math.floor(Math.random() * mats.length)].clone();
-  const building = new THREE.Mesh(geo, mat);
+  const building = new THREE.Mesh(geo, buildingMat);
   building.position.set(x, h / 2, z);
   building.castShadow = true;
   building.receiveShadow = true;
@@ -304,35 +303,29 @@ function createBuilding(x, z, w, d, h, mats, winMat, winMatBlue) {
     minZ: z - d / 2 - PLAYER_RADIUS,
     maxZ: z + d / 2 + PLAYER_RADIUS,
     height: h,
+    width: w,
+    depth: d,
   });
 
-  // Windows (emissive planes on faces)
+  // Windows (emissive planes on faces) — use shared materials
   const windowRows = Math.floor(h / 2);
   const windowColsX = Math.floor(w / 2);
   const windowColsZ = Math.floor(d / 2);
 
   for (let row = 0; row < windowRows; row++) {
     for (let col = 0; col < windowColsX; col++) {
-      if (Math.random() < 0.4) continue; // Some windows dark
+      if (Math.random() < 0.4) continue;
 
-      const wm = Math.random() < 0.7 ? winMat : winMatBlue;
-      const win = new THREE.Mesh(
-        new THREE.PlaneGeometry(0.8, 1.2),
-        wm.clone()
-      );
-      win.material.emissiveIntensity = 0.3 + Math.random() * 1;
+      const winMat = Math.random() < 0.7 ? windowWarmMat : windowCoolMat;
+      const win = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 1.2), winMat);
 
       // Front face
-      win.position.set(
-        x - w / 2 + 1 + col * 2,
-        1 + row * 2,
-        z + d / 2 + 0.01
-      );
+      win.position.set(x - w / 2 + 1 + col * 2, 1 + row * 2, z + d / 2 + 0.01);
       scene.add(win);
 
       // Back face
-      const winBack = win.clone();
-      winBack.position.z = z - d / 2 - 0.01;
+      const winBack = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 1.2), winMat);
+      winBack.position.set(x - w / 2 + 1 + col * 2, 1 + row * 2, z - d / 2 - 0.01);
       winBack.rotation.y = Math.PI;
       scene.add(winBack);
     }
@@ -340,27 +333,19 @@ function createBuilding(x, z, w, d, h, mats, winMat, winMatBlue) {
     for (let col = 0; col < windowColsZ; col++) {
       if (Math.random() < 0.4) continue;
 
-      const wm = Math.random() < 0.7 ? winMat : winMatBlue;
-      const win = new THREE.Mesh(
-        new THREE.PlaneGeometry(0.8, 1.2),
-        wm.clone()
-      );
-      win.material.emissiveIntensity = 0.3 + Math.random() * 1;
+      const winMat = Math.random() < 0.7 ? windowWarmMat : windowCoolMat;
 
       // Right face
-      win.position.set(
-        x + w / 2 + 0.01,
-        1 + row * 2,
-        z - d / 2 + 1 + col * 2
-      );
-      win.rotation.y = Math.PI / 2;
-      scene.add(win);
+      const winR = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 1.2), winMat);
+      winR.position.set(x + w / 2 + 0.01, 1 + row * 2, z - d / 2 + 1 + col * 2);
+      winR.rotation.y = Math.PI / 2;
+      scene.add(winR);
 
       // Left face
-      const winLeft = win.clone();
-      winLeft.position.x = x - w / 2 - 0.01;
-      winLeft.rotation.y = -Math.PI / 2;
-      scene.add(winLeft);
+      const winL = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 1.2), winMat);
+      winL.position.set(x - w / 2 - 0.01, 1 + row * 2, z - d / 2 + 1 + col * 2);
+      winL.rotation.y = -Math.PI / 2;
+      scene.add(winL);
     }
   }
 
@@ -390,13 +375,13 @@ function createBuilding(x, z, w, d, h, mats, winMat, winMatBlue) {
   }
 }
 
-function createStreetLight(x, z) {
+function createStreetLight(x, z, poleMat, housingMat) {
   const group = new THREE.Group();
 
   // Pole
   const pole = new THREE.Mesh(
     new THREE.CylinderGeometry(0.08, 0.1, 5),
-    new THREE.MeshStandardMaterial({ color: 0x444466, metalness: 0.7 })
+    poleMat
   );
   pole.position.y = 2.5;
   pole.castShadow = true;
@@ -405,29 +390,19 @@ function createStreetLight(x, z) {
   // Arm
   const arm = new THREE.Mesh(
     new THREE.CylinderGeometry(0.05, 0.05, 1.5),
-    new THREE.MeshStandardMaterial({ color: 0x444466, metalness: 0.7 })
+    poleMat
   );
   arm.rotation.z = Math.PI / 2;
   arm.position.set(0.5, 5, 0);
   group.add(arm);
 
-  // Light housing
+  // Light housing (emissive visual only — no actual light to avoid uniform overflow)
   const housing = new THREE.Mesh(
     new THREE.BoxGeometry(0.6, 0.15, 0.3),
-    new THREE.MeshStandardMaterial({
-      color: 0xffffcc,
-      emissive: 0xffdd88,
-      emissiveIntensity: 3,
-    })
+    housingMat
   );
   housing.position.set(0.8, 4.85, 0);
   group.add(housing);
-
-  // Actual light
-  const light = new THREE.PointLight(0xffdd88, 1.5, 15, 2);
-  light.position.set(0.8, 4.8, 0);
-  light.castShadow = false;
-  group.add(light);
 
   group.position.set(x, 0, z);
   scene.add(group);
