@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NEON TETRIS</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0a0a0f;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    font-family: 'Courier New', monospace;
+    overflow: hidden;
+  }
+  #game-container {
+    position: relative;
+    display: flex;
+    gap: 24px;
+    align-items: flex-start;
+  }
+  canvas { display: block; }
+  #board {
+    border: 2px solid #fff;
+    box-shadow: 0 0 30px rgba(0, 255, 255, 0.4), 0 0 60px rgba(0, 255, 255, 0.15), inset 0 0 30px rgba(0, 0, 0, 0.5);
+    border-radius: 4px;
+  }
+  #side-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    color: #fff;
+    text-align: right;
+  }
+  .panel-box {
+    background: rgba(0, 255, 255, 0.03);
+    border: 1px solid rgba(0, 255, 255, 0.2);
+    border-radius: 6px;
+    padding: 12px 16px;
+    box-shadow: 0 0 15px rgba(0, 255, 255, 0.08);
+  }
+  .panel-box h3 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 3px;
+    color: rgba(0, 255, 255, 0.6);
+    margin-bottom: 8px;
+  }
+  .panel-box .value {
+    font-size: 24px;
+    font-weight: bold;
+    background: linear-gradient(90deg, #0ff, #f0f);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-shadow: none;
+  }
+  #next-canvas { border-radius: 4px; }
+  #overlay {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    background: rgba(0, 0, 0, 0.8);
+    z-index: 10;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  #overlay.active { opacity: 1; pointer-events: auto; }
+  #overlay h1 {
+    font-size: 42px;
+    background: linear-gradient(90deg, #f0f, #0ff, #ff0, #f0f);
+    background-size: 300% 100%;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: gradient-shift 2s linear infinite;
+    margin-bottom: 16px;
+  }
+  #overlay p {
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 14px;
+    letter-spacing: 2px;
+  }
+  @keyframes gradient-shift {
+    0% { background-position: 0% 50%; }
+    100% { background-position: 300% 50%; }
+  }
+  #bg-canvas {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    z-index: -1;
+  }
+  #controls-hint {
+    position: fixed;
+    bottom: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: rgba(255, 255, 255, 0.25);
+    font-size: 11px;
+    letter-spacing: 1px;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+<canvas id="bg-canvas"></canvas>
+<div id="game-container">
+  <canvas id="board" width="300" height="600"></canvas>
+  <div id="side-panel">
+    <div class="panel-box">
+      <h3>Score</h3>
+      <div class="value" id="score">0</div>
+    </div>
+    <div class="panel-box">
+      <h3>Level</h3>
+      <div class="value" id="level">1</div>
+    </div>
+    <div class="panel-box">
+      <h3>Lines</h3>
+      <div class="value" id="lines">0</div>
+    </div>
+    <div class="panel-box">
+      <h3>Next</h3>
+      <canvas id="next-canvas" width="120" height="120"></canvas>
+    </div>
+  </div>
+  <div id="overlay">
+    <h1 id="overlay-title">NEON TETRIS</h1>
+    <p id="overlay-msg">Press SPACE to start</p>
+  </div>
+</div>
+<div id="controls-hint">← → MOVE &nbsp;|&nbsp; ↑ ROTATE &nbsp;|&nbsp; ↓ SOFT DROP &nbsp;|&nbsp; SPACE HARD DROP &nbsp;|&nbsp; P PAUSE</div>
+
+<script>
+// ==================== CONFIG ====================
+const COLS = 10, ROWS = 20, BLOCK = 30;
+const canvas = document.getElementById('board');
+const ctx = canvas.getContext('2d');
+const nextCanvas = document.getElementById('next-canvas');
+const nextCtx = nextCanvas.getContext('2d');
+const bgCanvas = document.getElementById('bg-canvas');
+const bgCtx = bgCanvas.getContext('2d');
+const overlay = document.getElementById('overlay');
+const overlayTitle = document.getElementById('overlay-title');
+const overlayMsg = document.getElementById('overlay-msg');
+
+// ==================== COLORS ====================
+const COLORS = {
+  I: { fill: '#00f5ff', glow: '#00f5ff', dark: '#005f66' },
+  O: { fill: '#ffe600', glow: '#ffe600', dark: '#665400' },
+  T: { fill: '#bf00ff', glow: '#bf00ff', dark: '#4d0066' },
+  S: { fill: '#00ff6a', glow: '#00ff6a', dark: '#00662a' },
+  Z: { fill: '#ff0055', glow: '#ff0055', dark: '#660022' },
+  J: { fill: '#3366ff', glow: '#3366ff', dark: '#112266' },
+  L: { fill: '#ff8800', glow: '#ff8800', dark: '#663600' },
+};
+
+const SHAPES = {
+  I: [[0,0],[1,0],[2,0],[3,0]],
+  O: [[0,0],[1,0],[0,1],[1,1]],
+  T: [[0,0],[1,0],[2,0],[1,1]],
+  S: [[1,0],[2,0],[0,1],[1,1]],
+  Z: [[0,0],[1,0],[1,1],[2,1]],
+  J: [[0,0],[0,1],[1,1],[2,1]],
+  L: [[2,0],[0,1],[1,1],[2,1]],
+};
+
+// ==================== GAME STATE ====================
+let board = [];
+let current = null;
+let next = null;
+let score = 0, level = 1, lines = 0;
+let gameOver = false, paused = false, started = false;
+let dropInterval = 800, dropCounter = 0, lastTime = 0;
+let particles = [];
+let shakeX = 0, shakeY = 0, shakeTime = 0;
+let flashAlpha = 0;
+let combo = 0;
+
+// ==================== BACKGROUND STARS ====================
+let stars = [];
+function initStars() {
+  bgCanvas.width = window.innerWidth;
+  bgCanvas.height = window.innerHeight;
+  stars = [];
+  for (let i = 0; i < 200; i++) {
+    stars.push({
+      x: Math.random() * bgCanvas.width,
+      y: Math.random() * bgCanvas.height,
+      r: Math.random() * 1.5 + 0.3,
+      speed: Math.random() * 0.3 + 0.05,
+      alpha: Math.random() * 0.6 + 0.2,
+      pulse: Math.random() * Math.PI * 2,
+    });
+  }
+}
+initStars();
+window.addEventListener('resize', initStars);
+
+function drawBackground(time) {
+  bgCtx.fillStyle = '#0a0a0f';
+  bgCtx.fillRect(0, 0, bgCanvas.width, bgCanvas.height);
+  for (const s of stars) {
+    s.pulse += 0.01;
+    const a = s.alpha * (0.6 + 0.4 * Math.sin(s.pulse));
+    bgCtx.beginPath();
+    bgCtx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+    bgCtx.fillStyle = `rgba(180, 200, 255, ${a})`;
+    bgCtx.fill();
+    s.y += s.speed;
+    if (s.y > bgCanvas.height) { s.y = 0; s.x = Math.random() * bgCanvas.width; }
+  }
+}
+
+// ==================== BOARD ====================
+function createBoard() {
+  board = [];
+  for (let r = 0; r < ROWS; r++) {
+    board.push(new Array(COLS).fill(null));
+  }
+}
+
+// ==================== PIECES ====================
+function randomType() {
+  const types = 'IJOTSZL';
+  return types[Math.floor(Math.random() * types.length)];
+}
+
+function createPiece(type) {
+  const cells = SHAPES[type].map(([x, y]) => [x, y]);
+  return { type, cells, x: Math.floor(COLS / 2) - 2, y: 0 };
+}
+
+function rotateCells(cells) {
+  // Find bounding box center and rotate 90° clockwise
+  let maxX = 0, maxY = 0;
+  for (const [x, y] of cells) { maxX = Math.max(maxX, x); maxY = Math.max(maxY, y); }
+  return cells.map(([x, y]) => [maxY - y, x]);
+}
+
+function valid(cells, ox, oy) {
+  return cells.every(([cx, cy]) => {
+    const x = cx + ox, y = cy + oy;
+    return x >= 0 && x < COLS && y < ROWS && (y < 0 || !board[y][x]);
+  });
+}
+
+function lock() {
+  for (const [cx, cy] of current.cells) {
+    const y = cy + current.y;
+    const x = cx + current.x;
+    if (y < 0) { gameOver = true; return; }
+    board[y][x] = current.type;
+  }
+  combo = 0;
+  clearLines();
+  spawn();
+}
+
+function spawn() {
+  current = next || createPiece(randomType());
+  next = createPiece(randomType());
+  if (!valid(current.cells, current.x, current.y)) {
+    gameOver = true;
+  }
+  drawNext();
+}
+
+// ==================== LINES & SCORING ====================
+function clearLines() {
+  let cleared = [];
+  for (let r = ROWS - 1; r >= 0; r--) {
+    if (board[r].every(c => c !== null)) {
+      cleared.push(r);
+    }
+  }
+  if (cleared.length > 0) {
+    combo++;
+    // Spawn massive particles for each cleared line
+    for (const r of cleared) {
+      for (let c = 0; c < COLS; c++) {
+        spawnBlockParticles(c * BLOCK + BLOCK / 2, r * BLOCK + BLOCK / 2, board[r][c], 6);
+      }
+    }
+    // Remove lines
+    for (const r of cleared.sort((a, b) => a - b)) {
+      board.splice(r, 1);
+      board.unshift(new Array(COLS).fill(null));
+    }
+    const pts = [0, 100, 300, 500, 800];
+    score += (pts[cleared.length] || 800) * level;
+    if (combo > 1) score += 50 * combo * level;
+    lines += cleared.length;
+    level = Math.floor(lines / 10) + 1;
+    dropInterval = Math.max(80, 800 - (level - 1) * 70);
+    updateUI();
+    flashAlpha = 0.3 + cleared.length * 0.1;
+    shakeTime = 15 + cleared.length * 8;
+  } else {
+    combo = 0;
+  }
+}
+
+function updateUI() {
+  document.getElementById('score').textContent = score.toLocaleString();
+  document.getElementById('level').textContent = level;
+  document.getElementById('lines').textContent = lines;
+}
+
+// ==================== PARTICLES ====================
+function spawnBlockParticles(x, y, type, count = 4) {
+  const color = COLORS[type] ? COLORS[type].fill : '#fff';
+  for (let i = 0; i < count; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = Math.random() * 4 + 2;
+    particles.push({
+      x, y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed - 2,
+      life: 1,
+      decay: Math.random() * 0.02 + 0.015,
+      size: Math.random() * 4 + 2,
+      color,
+      gravity: 0.12,
+    });
+  }
+}
+
+function spawnExplosion(x, y, color, count = 20) {
+  for (let i = 0; i < count; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = Math.random() * 6 + 2;
+    particles.push({
+      x, y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      life: 1,
+      decay: Math.random() * 0.015 + 0.01,
+      size: Math.random() * 5 + 2,
+      color,
+      gravity: 0.08,
+    });
+  }
+}
+
+function spawnHardDropParticles() {
+  if (!current) return;
+  for (const [cx, cy] of current.cells) {
+    const x = (cx + current.x) * BLOCK + BLOCK / 2;
+    const y = (cy + current.y + 1) * BLOCK;
+    spawnExplosion(x, y, COLORS[current.type].fill, 8);
+  }
+}
+
+function updateParticles() {
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx;
+    p.y += p.vy;
+    p.vy += p.gravity;
+    p.life -= p.decay;
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+}
+
+function drawParticles() {
+  for (const p of particles) {
+    ctx.save();
+    ctx.globalAlpha = p.life;
+    ctx.shadowColor = p.color;
+    ctx.shadowBlur = 12;
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2);
+    ctx.fill();
+    // Inner bright core
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#fff';
+    ctx.globalAlpha = p.life * 0.7;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size * p.life * 0.4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
+// ==================== DRAWING ====================
+function drawBlock(context, x, y, type, alpha = 1, size = BLOCK) {
+  const c = COLORS[type];
+  if (!c) return;
+  const px = x * size, py = y * size;
+
+  context.save();
+  context.globalAlpha = alpha;
+
+  // Glow
+  context.shadowColor = c.glow;
+  context.shadowBlur = 15;
+
+  // Fill
+  context.fillStyle = c.fill;
+  context.fillRect(px + 1, py + 1, size - 2, size - 2);
+
+  context.shadowBlur = 0;
+
+  // Gradient overlay
+  const grad = context.createLinearGradient(px, py, px + size, py + size);
+  grad.addColorStop(0, 'rgba(255,255,255,0.25)');
+  grad.addColorStop(0.5, 'rgba(255,255,255,0)');
+  grad.addColorStop(1, 'rgba(0,0,0,0.25)');
+  context.fillStyle = grad;
+  context.fillRect(px + 1, py + 1, size - 2, size - 2);
+
+  // Inner border highlight
+  context.strokeStyle = `rgba(255,255,255,0.3)`;
+  context.lineWidth = 1;
+  context.strokeRect(px + 2, py + 2, size - 4, size - 4);
+
+  // Neon edge glow
+  context.strokeStyle = c.glow;
+  context.lineWidth = 1.5;
+  context.globalAlpha = 0.5 * alpha;
+  context.strokeRect(px + 0.5, py + 0.5, size - 1, size - 1);
+
+  context.restore();
+}
+
+function drawBoard() {
+  // Background
+  ctx.fillStyle = '#0d0d14';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Grid lines
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
+  ctx.lineWidth = 0.5;
+  for (let r = 0; r <= ROWS; r++) {
+    ctx.beginPath(); ctx.moveTo(0, r * BLOCK); ctx.lineTo(canvas.width, r * BLOCK); ctx.stroke();
+  }
+  for (let c = 0; c <= COLS; c++) {
+    ctx.beginPath(); ctx.moveTo(c * BLOCK, 0); ctx.lineTo(c * BLOCK, canvas.height); ctx.stroke();
+  }
+
+  // Locked blocks
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      if (board[r][c]) drawBlock(ctx, c, r, board[r][c]);
+    }
+  }
+}
+
+function drawGhost() {
+  if (!current) return;
+  let gy = current.y;
+  while (valid(current.cells, current.x, gy + 1)) gy++;
+  if (gy !== current.y) {
+    for (const [cx, cy] of current.cells) {
+      drawBlock(ctx, cx + current.x, cy + gy, current.type, 0.15);
+    }
+  }
+}
+
+function drawCurrent() {
+  if (!current) return;
+  for (const [cx, cy] of current.cells) {
+    drawBlock(ctx, cx + current.x, cy + current.y, current.type);
+  }
+}
+
+function drawNext() {
+  nextCtx.fillStyle = 'rgba(13, 13, 20, 0.8)';
+  nextCtx.fillRect(0, 0, nextCanvas.width, nextCanvas.height);
+  if (!next) return;
+  // Center the piece
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (const [x, y] of next.cells) { minX = Math.min(minX, x); maxX = Math.max(maxX, x); minY = Math.min(minY, y); maxY = Math.max(maxY, y); }
+  const pw = (maxX - minX + 1) * BLOCK, ph = (maxY - minY + 1) * BLOCK;
+  const ox = (nextCanvas.width - pw) / 2 - minX * BLOCK;
+  const oy = (nextCanvas.height - ph) / 2 - minY * BLOCK;
+  for (const [cx, cy] of next.cells) {
+    nextCtx.save();
+    nextCtx.translate(ox / BLOCK, oy / BLOCK);
+    drawBlock(nextCtx, cx, cy, next.type, 1, BLOCK);
+    nextCtx.setTransform(1, 0, 0, 1, 0, 0);
+  }
+}
+
+// ==================== EFFECTS ====================
+function drawFlash() {
+  if (flashAlpha > 0) {
+    ctx.save();
+    ctx.globalAlpha = flashAlpha;
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.restore();
+    flashAlpha *= 0.85;
+    if (flashAlpha < 0.01) flashAlpha = 0;
+  }
+}
+
+function drawScanlines() {
+  ctx.save();
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.04)';
+  for (let y = 0; y < canvas.height; y += 3) {
+    ctx.fillRect(0, y, canvas.width, 1);
+  }
+  ctx.restore();
+}
+
+function drawVignette() {
+  const grad = ctx.createRadialGradient(
+    canvas.width / 2, canvas.height / 2, canvas.width * 0.3,
+    canvas.width / 2, canvas.height / 2, canvas.width * 0.8
+  );
+  grad.addColorStop(0, 'rgba(0,0,0,0)');
+  grad.addColorStop(1, 'rgba(0,0,0,0.4)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+}
+
+// ==================== INPUT ====================
+document.addEventListener('keydown', e => {
+  if (!started || gameOver) {
+    if (e.code === 'Space') { e.preventDefault(); startGame(); }
+    return;
+  }
+  if (e.code === 'KeyP') { paused = !paused; return; }
+  if (paused) return;
+
+  switch (e.code) {
+    case 'ArrowLeft':
+      if (valid(current.cells, current.x - 1, current.y)) current.x--;
+      break;
+    case 'ArrowRight':
+      if (valid(current.cells, current.x + 1, current.y)) current.x++;
+      break;
+    case 'ArrowDown':
+      if (valid(current.cells, current.x, current.y + 1)) { current.y++; score += 1; }
+      break;
+    case 'ArrowUp':
+      const rotated = rotateCells(current.cells);
+      // Wall kick attempts
+      const kicks = [0, -1, 1, -2, 2];
+      for (const kick of kicks) {
+        if (valid(rotated, current.x + kick, current.y)) {
+          current.cells = rotated;
+          current.x += kick;
+          break;
+        }
+      }
+      break;
+    case 'Space':
+      e.preventDefault();
+      let drop = 0;
+      while (valid(current.cells, current.x, current.y + 1)) { current.y++; drop++; }
+      score += drop * 2;
+      spawnHardDropParticles();
+      lock();
+      dropCounter = 0;
+      break;
+  }
+  updateUI();
+});
+
+// ==================== GAME LOOP ====================
+function startGame() {
+  createBoard();
+  score = 0; level = 1; lines = 0; combo = 0;
+  dropInterval = 800; gameOver = false; paused = false; started = true;
+  particles = [];
+  updateUI();
+  overlay.classList.remove('active');
+  next = null;
+  spawn();
+  lastTime = performance.now();
+}
+
+function showOverlay(title, msg) {
+  overlayTitle.textContent = title;
+  overlayMsg.textContent = msg;
+  overlay.classList.add('active');
+}
+
+function gameLoop(time) {
+  requestAnimationFrame(gameLoop);
+  const dt = time - lastTime;
+  lastTime = time;
+
+  drawBackground(time);
+
+  // Screen shake
+  if (shakeTime > 0) {
+    shakeX = (Math.random() - 0.5) * shakeTime * 0.5;
+    shakeY = (Math.random() - 0.5) * shakeTime * 0.5;
+    shakeTime--;
+  } else {
+    shakeX = shakeY = 0;
+  }
+
+  ctx.save();
+  ctx.translate(shakeX, shakeY);
+
+  drawBoard();
+  if (started && !gameOver && !paused) {
+    drawGhost();
+    drawCurrent();
+
+    dropCounter += dt;
+    if (dropCounter > dropInterval) {
+      dropCounter = 0;
+      if (valid(current.cells, current.x, current.y + 1)) {
+        current.y++;
+      } else {
+        lock();
+      }
+      updateUI();
+    }
+  } else if (started && gameOver) {
+    drawCurrent();
+  }
+
+  updateParticles();
+  drawParticles();
+  drawFlash();
+  drawScanlines();
+  drawVignette();
+
+  ctx.restore();
+
+  // Pause overlay
+  if (paused) {
+    ctx.save();
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#0ff';
+    ctx.font = 'bold 28px Courier New';
+    ctx.textAlign = 'center';
+    ctx.fillText('PAUSED', canvas.width / 2, canvas.height / 2);
+    ctx.restore();
+  }
+}
+
+// ==================== INIT ====================
+createBoard();
+showOverlay('NEON TETRIS', 'Press SPACE to start');
+requestAnimationFrame(gameLoop);
+</script>
+</body>
+</html>
