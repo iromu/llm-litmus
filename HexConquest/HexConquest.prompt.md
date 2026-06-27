@@ -1,0 +1,1 @@
+design a simple turn based strategy base building game using 2d shapes and stuff, using HTML. Design the units and everything, and the world, and hexes or whatever. Make a working game first, but also make sure it looks nice and is somewhat complex
