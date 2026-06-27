@@ -1,0 +1,1 @@
+Use ThreeJS and Javascript to create a city, with details, where I can control a character with WASD, jump with SPACE. there should be some NPCs I can interact with. I should be able to orbit around the character and zoom in/out, camera should collide with buildings. Add a main title and a pause screen with ESC
