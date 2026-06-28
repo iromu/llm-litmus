@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sol — Interactive Solar System</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: #000;
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      color: #fff;
+    }
+    canvas { display: block; }
+
+    /* Tooltip */
+    #tooltip {
+      position: fixed;
+      pointer-events: none;
+      background: rgba(10, 10, 20, 0.85);
+      backdrop-filter: blur(6px);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 10px;
+      padding: 12px 18px;
+      min-width: 160px;
+      opacity: 0;
+      transition: opacity 0.25s ease;
+      z-index: 100;
+    }
+    #tooltip.visible { opacity: 1; }
+    #tooltip h3 {
+      margin: 0 0 4px 0;
+      font-size: 16px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+    }
+    #tooltip .distance {
+      font-size: 13px;
+      color: #8cf;
+    }
+    #tooltip .fact {
+      font-size: 12px;
+      color: #bbb;
+      margin-top: 4px;
+      line-height: 1.4;
+    }
+
+    /* Controls */
+    #controls {
+      position: fixed;
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      background: rgba(10, 10, 20, 0.75);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 16px;
+      padding: 14px 28px;
+      z-index: 200;
+      user-select: none;
+    }
+    #controls button {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 8px;
+      color: #fff;
+      font-size: 20px;
+      padding: 8px 16px;
+      cursor: pointer;
+      transition: background 0.2s;
+      line-height: 1;
+    }
+    #controls button:hover { background: rgba(255, 255, 255, 0.18); }
+    #controls label {
+      font-size: 13px;
+      color: #aaa;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    #controls input[type=range] {
+      -webkit-appearance: none;
+      appearance: none;
+      background: transparent;
+      width: 100px;
+      cursor: pointer;
+    }
+    #controls input[type=range]::-webkit-slider-runnable-track {
+      height: 4px;
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 2px;
+    }
+    #controls input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      height: 14px;
+      width: 14px;
+      border-radius: 50%;
+      background: #8cf;
+      border: 1px solid #fff;
+      margin-top: -5px;
+    }
+    #controls input[type=range]::-moz-range-track {
+      height: 4px;
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 2px;
+    }
+    #controls input[type=range]::-moz-range-thumb {
+      height: 14px;
+      width: 14px;
+      border-radius: 50%;
+      background: #8cf;
+      border: 1px solid #fff;
+    }
+    #speed-value {
+      font-size: 13px;
+      color: #fff;
+      min-width: 32px;
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+    }
+    #pause-indicator {
+      font-size: 13px;
+      color: #8cf;
+      min-width: 60px;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="tooltip">
+    <h3 id="tip-name">—</h3>
+    <div class="distance" id="tip-distance">—</div>
+    <div class="fact" id="tip-fact">—</div>
+  </div>
+
+  <div id="controls">
+    <button id="pause-btn">⏸</button>
+    <span id="pause-indicator">playing</span>
+    <label>
+      Speed
+      <input type="range" id="speed-slider" min="0" max="300" value="100" step="1" />
+      <span id="speed-value">1.0×</span>
+    </label>
+  </div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// ─── Scene ───
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x050510);
+
+const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 2000);
+camera.position.set(60, 45, 80);
+camera.lookAt(0, 0, 0);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+document.body.prepend(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.minDistance = 20;
+controls.maxDistance = 400;
+controls.target.set(0, 0, 0);
+
+// ─── Lighting ───
+const ambient = new THREE.AmbientLight(0x222244, 0.3);
+scene.add(ambient);
+
+// ─── Starfield ───
+const starCount = 12000;
+const starGeo = new THREE.BufferGeometry();
+const starPos = new Float32Array(starCount * 3);
+for (let i = 0; i < starCount * 3; i++) {
+  starPos[i] = (Math.random() - 0.5) * 1600;
+}
+starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+
+const starMat = new THREE.PointsMaterial({
+  color: 0xffffff,
+  size: 0.35 + Math.random() * 0.65,
+  sizeAttenuation: true,
+  transparent: true,
+  opacity: 0.9,
+});
+const stars = new THREE.Points(starGeo, starMat);
+scene.add(stars);
+
+// ─── Planetary data ───
+// Orbital distance (scaled visually), radius, color, orbital period (Earth days), axial tilt, fact
+const PLANET_DATA = [
+  {
+    name: 'Mercury', dist: 10, radius: 0.6, color: 0x8c7e6b,
+    period: 88, tilt: 0.03,
+    fact: 'Smallest planet; closest to the Sun. A year here is just 88 Earth days.'
+  },
+  {
+    name: 'Venus', dist: 16, radius: 0.95, color: 0xd4a05a,
+    period: 225, tilt: 2.64,
+    fact: 'Hottest planet; rotates backwards. Thick CO₂ atmosphere traps heat.'
+  },
+  {
+    name: 'Earth', dist: 22, radius: 1.0, color: 0x4c8bf5,
+    period: 365, tilt: 0.41,
+    fact: 'Our home — the only known planet with liquid water and life.'
+  },
+  {
+    name: 'Mars', dist: 30, radius: 0.7, color: 0xe27c4d,
+    period: 687, tilt: 0.44,
+    fact: 'Red planet; has the largest volcano in the solar system — Olympus Mons.'
+  },
+  {
+    name: 'Jupiter', dist: 48, radius: 3.2, color: 0xc8a060,
+    period: 4333, tilt: 0.05,
+    fact: 'Largest planet; its Great Red Spot is a storm larger than Earth.'
+  },
+  {
+    name: 'Saturn', dist: 64, radius: 2.7, color: 0xd4c8a0,
+    period: 10759, tilt: 0.47, rings: true,
+    fact: 'Adorned with spectacular rings made of ice and rock particles.'
+  },
+  {
+    name: 'Uranus', dist: 80, radius: 1.8, color: 0x7bcdd4,
+    period: 30689, tilt: 1.71,
+    fact: 'Rotates on its side — axial tilt of 98°. A true sideways world.'
+  },
+  {
+    name: 'Neptune', dist: 96, radius: 1.7, color: 0x3f7fd4,
+    period: 60182, tilt: 0.33,
+    fact: 'Farthest planet; has the strongest winds of any planet in the solar system.'
+  },
+];
+
+// Angular speed = Earth baseline / period
+const EARTH_PERIOD = 365;
+
+// ─── Build Sun ───
+const sunGeo = new THREE.SphereGeometry(6, 48, 48);
+const sunMat = new THREE.MeshStandardMaterial({
+  color: 0xffdd77,
+  emissive: 0xff8800,
+  emissiveIntensity: 0.8,
+});
+const sun = new THREE.Mesh(sunGeo, sunMat);
+sun.name = 'Sun';
+scene.add(sun);
+
+// Sun glow sprite
+const glowCanvas = document.createElement('canvas');
+glowCanvas.width = 128;
+glowCanvas.height = 128;
+const ctx = glowCanvas.getContext('2d');
+const gradient = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+gradient.addColorStop(0, 'rgba(255, 200, 100, 1)');
+gradient.addColorStop(0.3, 'rgba(255, 150, 50, 0.6)');
+gradient.addColorStop(0.7, 'rgba(200, 80, 20, 0.2)');
+gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+ctx.fillStyle = gradient;
+ctx.fillRect(0, 0, 128, 128);
+const glowTexture = new THREE.CanvasTexture(glowCanvas);
+const glowMat = new THREE.SpriteMaterial({
+  map: glowTexture,
+  blending: THREE.AdditiveBlending,
+  transparent: true,
+  opacity: 0.7,
+  depthWrite: false,
+});
+const glow = new THREE.Sprite(glowMat);
+glow.scale.set(40, 40, 1);
+glow.position.set(0, 0, 0);
+scene.add(glow);
+
+// Sun light
+const sunLight = new THREE.PointLight(0xffaa66, 2.5, 400);
+sunLight.position.set(0, 0, 0);
+sunLight.castShadow = true;
+scene.add(sunLight);
+
+// ─── Build planets ───
+const planets = [];
+const orbitLines = [];
+
+PLANET_DATA.forEach((pd, i) => {
+  // Orbit ring
+  const points = [];
+  const segments = 96;
+  const r = pd.dist;
+  for (let j = 0; j <= segments; j++) {
+    const theta = (j / segments) * Math.PI * 2;
+    points.push(new THREE.Vector3(r * Math.cos(theta), 0, r * Math.sin(theta)));
+  }
+  const orbitGeo = new THREE.BufferGeometry().setFromPoints(points);
+  const orbitMat = new THREE.LineBasicMaterial({
+    color: 0xffffff,
+    transparent: true,
+    opacity: 0.08 + (pd.dist / 120) * 0.06,
+    depthWrite: false,
+  });
+  const orbitLine = new THREE.Line(orbitGeo, orbitMat);
+  scene.add(orbitLine);
+  orbitLines.push(orbitLine);
+
+  // Planet mesh
+  const geo = new THREE.SphereGeometry(pd.radius, 32, 32);
+  const mat = new THREE.MeshStandardMaterial({
+    color: pd.color,
+    roughness: 0.7,
+    metalness: 0.1,
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.name = pd.name;
+  mesh.userData = { ...pd, index: i };
+
+  // Position on orbit
+  const startAngle = (i / PLANET_DATA.length) * Math.PI * 2;
+  mesh.position.set(
+    pd.dist * Math.cos(startAngle),
+    0,
+    pd.dist * Math.sin(startAngle),
+  );
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  scene.add(mesh);
+
+  // Saturn rings
+  if (pd.rings) {
+    const ringGeo = new THREE.RingGeometry(pd.radius * 1.4, pd.radius * 2.4, 64);
+    const ringMat = new THREE.MeshBasicMaterial({
+      color: 0xc8b888,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.5,
+      depthWrite: false,
+    });
+    const ring = new THREE.Mesh(ringGeo, ringMat);
+    ring.rotation.x = Math.PI / 2.6;
+    ring.userData.isRing = true;
+    mesh.add(ring);
+  }
+
+  planets.push(mesh);
+});
+
+// ─── Animation state ───
+let paused = false;
+let speedFactor = 1;
+let time = 0;
+
+// ─── Tooltip ───
+const tooltipEl = document.getElementById('tooltip');
+const tipName = document.getElementById('tip-name');
+const tipDist = document.getElementById('tip-distance');
+const tipFact = document.getElementById('tip-fact');
+let hoveredObject = null;
+
+const raycaster = new THREE.Raycaster();
+const pointer = new THREE.Vector2();
+
+function onPointerMove(event) {
+  pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
+  pointer.y = -(event.clientY / window.innerHeight) * 2 + 1;
+  updateHover();
+}
+
+function updateHover() {
+  raycaster.setFromCamera(pointer, camera);
+  const intersects = raycaster.intersectObjects(planets, false);
+  const sunIntersects = raycaster.intersectObject(sun);
+
+  let target = null;
+  if (intersects.length > 0) {
+    target = intersects[0].object;
+  } else if (sunIntersects.length > 0) {
+    target = sun;
+  }
+
+  if (target !== hoveredObject) {
+    hoveredObject = target;
+    if (target && target.userData && target.name) {
+      const ud = target.userData;
+      const distAU = ud.dist ? (ud.dist / 22 * 1).toFixed(2) : '—';
+      tipName.textContent = target.name === 'Sun' ? '☀ Sun' : target.name;
+      tipDist.textContent = target.name === 'Sun'
+        ? 'Center of the solar system'
+        : `Distance: ~${distAU} AU (${ud.dist} scaled units)`;
+      tipFact.textContent = target.name === 'Sun'
+        ? 'A yellow-dwarf star — 99.86% of all mass in the solar system.'
+        : ud.fact || '—';
+      tooltipEl.classList.add('visible');
+    } else {
+      tooltipEl.classList.remove('visible');
+    }
+  }
+}
+
+window.addEventListener('pointermove', onPointerMove);
+window.addEventListener('pointerleave', () => {
+  hoveredObject = null;
+  tooltipEl.classList.remove('visible');
+});
+
+// ─── UI Controls ───
+const pauseBtn = document.getElementById('pause-btn');
+const pauseIndicator = document.getElementById('pause-indicator');
+const speedSlider = document.getElementById('speed-slider');
+const speedValue = document.getElementById('speed-value');
+
+pauseBtn.addEventListener('click', () => {
+  paused = !paused;
+  pauseBtn.textContent = paused ? '▶' : '⏸';
+  pauseIndicator.textContent = paused ? 'paused' : 'playing';
+});
+
+speedSlider.addEventListener('input', () => {
+  speedFactor = speedSlider.value / 100;
+  speedValue.textContent = speedFactor.toFixed(1) + '×';
+});
+
+// ─── Resize ───
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// ─── Animation loop ───
+function animate() {
+  requestAnimationFrame(animate);
+
+  if (!paused) {
+    time += 0.005 * speedFactor;
+
+    planets.forEach((mesh, i) => {
+      const pd = PLANET_DATA[i];
+      const angSpeed = EARTH_PERIOD / pd.period;
+      const angle = time * angSpeed;
+      const r = pd.dist;
+      mesh.position.x = r * Math.cos(angle);
+      mesh.position.z = r * Math.sin(angle);
+      // Axial tilt
+      mesh.rotation.y = time * angSpeed * 0.5;
+    });
+
+    // Slow rotation of starfield
+    stars.rotation.y += 0.0001 * speedFactor;
+  }
+
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+animate();
+
+// ─── Keyboard shortcuts ───
+window.addEventListener('keydown', (e) => {
+  if (e.key === ' ' || e.code === 'Space') {
+    e.preventDefault();
+    pauseBtn.click();
+  }
+});
+
+console.log('🌌 Sol — Interactive Solar System loaded. Drag to orbit, scroll to zoom.');
+</script>
+
+</body>
+</html>
