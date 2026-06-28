@@ -12,9 +12,9 @@ SKILL_GROUPS=(
 )
 
 TARGET_PROJECTS=(
-  "HexGL threejs"
-  "HexConquest threejs"
-  "Sol threejs"
+  "Qwen3.6-35B-A3B/HexGL threejs"
+  "Qwen3.6-35B-A3B/HexConquest threejs"
+  "Qwen3.6-35B-A3B/Sol threejs"
 )
 
 SKILLS_SOURCE="."
@@ -49,7 +49,7 @@ resolve_skills() {
 link_one() {
   local project="$1" skill="$2"
   local target="$ROOT/$project/.agents/skills/$skill"
-  local rel_path="../../../$SKILLS_SOURCE/.agents/skills/$skill"
+  local rel_path="../../../../$SKILLS_SOURCE/.agents/skills/$skill"
 
   mkdir -p "$(dirname "$target")"
 
