@@ -12,6 +12,8 @@ SKILL_GROUPS=(
 )
 
 TARGET_PROJECTS=(
+  "Qwen3.6-35B-A3B/CityPulse threejs"
+  "deepseek-v4-flash/CityPulse threejs"
   "Qwen3.6-35B-A3B/HexGL threejs"
   "Qwen3.6-35B-A3B/HexConquest threejs"
   "Qwen3.6-35B-A3B/Sol threejs"
