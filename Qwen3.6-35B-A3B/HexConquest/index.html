@@ -1,0 +1,1448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HexConquest — Turn-Based Strategy</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#1a1a2e;font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;color:#e0d8c8;overflow:hidden;height:100vh;display:flex;flex-direction:column}
+
+/* ── Title Screen ── */
+#title-screen{position:fixed;inset:0;background:linear-gradient(135deg,#1a1a2e 0%,#16213e 50%,#0f3460 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:1000}
+#title-screen h1{font-size:3.6rem;color:#e2b857;text-shadow:0 0 20px rgba(226,184,87,.5);letter-spacing:4px;margin-bottom:.3rem}
+#title-screen .sub{color:#8a8a7a;font-size:1rem;margin-bottom:2.2rem;font-style:italic}
+#title-screen button{background:linear-gradient(135deg,#e2b857,#c49a30);color:#1a1a2e;border:none;padding:14px 48px;font-size:1.15rem;font-weight:700;border-radius:8px;cursor:pointer;transition:transform .2s,box-shadow .2s;letter-spacing:1px}
+#title-screen button:hover{transform:scale(1.05);box-shadow:0 0 25px rgba(226,184,87,.6)}
+
+/* ── Victory Screen ── */
+#victory-screen{position:fixed;inset:0;background:rgba(10,10,21,.92);display:none;flex-direction:column;align-items:center;justify-content:center;z-index:1000}
+#victory-screen h1{font-size:3rem;margin-bottom:.5rem}
+#victory-screen p{font-size:1.2rem;color:#8a8a7a;margin-bottom:2rem}
+#victory-screen button{background:linear-gradient(135deg,#e2b857,#c49a30);color:#1a1a2e;border:none;padding:12px 36px;font-size:1rem;font-weight:700;border-radius:6px;cursor:pointer}
+
+/* ── Game Layout ── */
+#game-container{display:none;flex:1;flex-direction:row;overflow:hidden}
+#game-container.active{display:flex}
+
+/* ── Canvas Area ── */
+#canvas-area{flex:1;position:relative;overflow:hidden;background:#0d1117}
+#game-canvas{display:block;cursor:crosshair}
+
+/* ── Zoom Controls ── */
+#zoom-controls{position:absolute;bottom:16px;right:16px;display:flex;flex-direction:column;gap:4px;z-index:10}
+#zoom-controls button{width:36px;height:36px;background:rgba(15,52,96,.9);color:#e0d8c8;border:1px solid #0f3460;font-size:1.2rem;cursor:pointer;border-radius:4px;display:flex;align-items:center;justify-content:center}
+#zoom-controls button:hover{background:#2a5a8c}
+
+/* ── Resources Bar ── */
+#resources-bar{background:#0f3460;padding:8px 16px;display:flex;gap:18px;align-items:center;font-size:.85rem;border-bottom:2px solid #e2b857;flex-shrink:0}
+.resource{display:flex;align-items:center;gap:5px}
+.resource .icon{font-size:1rem}
+.resource .val{font-weight:700;color:#e2b857}
+#end-turn-btn{background:linear-gradient(135deg,#4a9e6e,#2d6b4a);color:#fff;border:none;padding:8px 22px;font-size:.92rem;font-weight:700;border-radius:6px;cursor:pointer;transition:transform .15s;margin-left:auto}
+#end-turn-btn:hover{transform:scale(1.05)}
+
+/* ── Sidebar ── */
+#sidebar{width:290px;background:#16213e;border-left:2px solid #0f3460;display:flex;flex-direction:column;overflow-y:auto;flex-shrink:0}
+.panel{padding:12px;border-bottom:1px solid #0f3460}
+.panel h3{color:#e2b857;font-size:.9rem;margin-bottom:8px;text-transform:uppercase;letter-spacing:1px}
+.panel-row{display:flex;justify-content:space-between;padding:3px 0;font-size:.82rem}
+.panel-row .label{color:#8a8a7a}
+.panel-row .value{font-weight:600}
+
+/* ── Buttons ── */
+.action-btn{background:#1a3a5c;color:#e0d8c8;border:1px solid #0f3460;padding:7px 12px;font-size:.78rem;border-radius:4px;cursor:pointer;transition:background .2s;margin:2px}
+.action-btn:hover{background:#2a5a8c}
+.action-btn:disabled{opacity:.4;cursor:not-allowed}
+.action-btn.primary{background:#e2b857;color:#1a1a2e;font-weight:700}
+
+/* ── Build Items ── */
+.build-item{display:flex;justify-content:space-between;align-items:center;padding:5px 8px;margin:3px 0;background:#0d1117;border-radius:4px;font-size:.78rem;cursor:pointer;border:1px solid transparent}
+.build-item:hover{border-color:#e2b857}
+.build-item .cost{color:#e2b857}
+
+/* ── Tech Items ── */
+.tech-item{padding:6px 8px;margin:3px 0;background:#0d1117;border-radius:4px;font-size:.78rem;cursor:pointer;border:1px solid transparent}
+.tech-item:hover{border-color:#e2b857}
+.tech-item.researched{border-color:#4a9e6e;opacity:.7}
+.tech-item.available{border-color:#e2b857}
+.tech-item .req{color:#6a6a5a;font-size:.73rem}
+
+/* ── Minimap ── */
+#minimap-container{padding:10px}
+#minimap{border:1px solid #0f3460;border-radius:4px;cursor:pointer;width:100%}
+
+/* ── Combat Log ── */
+#combat-log{max-height:110px;overflow-y:auto;font-size:.73rem}
+#combat-log .log-entry{padding:2px 0;color:#8a8a7a;border-bottom:1px solid rgba(15,52,96,.3)}
+#combat-log .log-entry:last-child{border:none}
+
+/* ── Notification ── */
+#notification{position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#e2b857;color:#1a1a2e;padding:10px 24px;border-radius:6px;font-weight:700;font-size:.88rem;z-index:200;opacity:0;transition:opacity .3s;pointer-events:none}
+#notification.show{opacity:1}
+</style>
+</head>
+<body>
+
+<!-- ═══ Title Screen ═══ -->
+<div id="title-screen">
+  <h1>⬡ HexConquest</h1>
+  <p class="sub">A Turn-Based Strategy Game</p>
+  <button onclick="startGame()">Start New Game</button>
+</div>
+
+<!-- ═══ Victory Screen ═══ -->
+<div id="victory-screen">
+  <h1 id="victory-title">Victory!</h1>
+  <p id="victory-text"></p>
+  <button onclick="startGame()">Play Again</button>
+</div>
+
+<!-- ═══ Game Container ═══ -->
+<div id="game-container">
+  <div id="canvas-area">
+    <canvas id="game-canvas"></canvas>
+    <div id="zoom-controls">
+      <button onclick="zoomIn()">+</button>
+      <button onclick="zoomOut()">−</button>
+      <button onclick="resetView()">⌂</button>
+    </div>
+  </div>
+
+  <div id="sidebar">
+    <!-- Resources -->
+    <div id="resources-bar" style="flex-direction:column;gap:6px;padding:10px;border:none">
+      <div class="resource"><span class="icon">🌾</span> Food: <span class="val" id="res-food">0</span></div>
+      <div class="resource"><span class="icon">⚒️</span> Production: <span class="val" id="res-production">0</span></div>
+      <div class="resource"><span class="icon">💰</span> Gold: <span class="val" id="res-gold">0</span></div>
+      <div class="resource"><span class="icon">🔬</span> Science: <span class="val" id="res-science">0</span></div>
+      <div class="resource"><span class="icon">📅</span> Turn: <span class="val" id="res-turn">1</span></div>
+      <button id="end-turn-btn" onclick="endTurn()">End Turn →</button>
+    </div>
+
+    <!-- Civ List -->
+    <div class="panel">
+      <h3>Civilizations</h3>
+      <div id="civ-list"></div>
+    </div>
+
+    <!-- Terrain Info -->
+    <div class="panel" id="terrain-panel" style="display:none">
+      <h3>Terrain</h3>
+      <div class="panel-row"><span class="label">Type:</span><span class="value" id="terr-type">—</span></div>
+      <div class="panel-row"><span class="label">Resource:</span><span class="value" id="terr-resource">—</span></div>
+      <div class="panel-row"><span class="label">Food:</span><span class="value" id="terr-food">0</span></div>
+      <div class="panel-row"><span class="label">Prod:</span><span class="value" id="terr-prod">0</span></div>
+      <div class="panel-row"><span class="label">Gold:</span><span class="value" id="terr-gold">0</span></div>
+      <div class="panel-row"><span class="label">Move Cost:</span><span class="value" id="terr-move">1</span></div>
+    </div>
+
+    <!-- Unit Panel -->
+    <div class="panel" id="unit-panel" style="display:none">
+      <h3>Unit</h3>
+      <div class="panel-row"><span class="label">Type:</span><span class="value" id="unit-type">—</span></div>
+      <div class="panel-row"><span class="label">Civilization:</span><span class="value" id="unit-civ">—</span></div>
+      <div class="panel-row"><span class="label">Attack:</span><span class="value" id="unit-atk">0</span></div>
+      <div class="panel-row"><span class="label">Defense:</span><span class="value" id="unit-def">0</span></div>
+      <div class="panel-row"><span class="label">Moves:</span><span class="value" id="unit-moves">0/0</span></div>
+      <div class="panel-row"><span class="label">HP:</span><span class="value" id="unit-hp">0/0</span></div>
+      <div id="unit-actions" style="margin-top:6px"></div>
+    </div>
+
+    <!-- City Panel -->
+    <div class="panel" id="city-panel" style="display:none">
+      <h3>City</h3>
+      <div class="panel-row"><span class="label">Name:</span><span class="value" id="city-name">—</span></div>
+      <div class="panel-row"><span class="label">Pop:</span><span class="value" id="city-pop">0</span></div>
+      <div class="panel-row"><span class="label">Food:</span><span class="value" id="city-food">0</span></div>
+      <div class="panel-row"><span class="label">Production:</span><span class="value" id="city-production">0</span></div>
+      <div class="panel-row"><span class="label">Gold:</span><span class="value" id="city-gold">0</span></div>
+      <div class="panel-row"><span class="label">Science:</span><span class="value" id="city-science">0</span></div>
+      <div class="panel-row"><span class="label">Worked Hexes:</span><span class="value" id="city-worked">0</span></div>
+      <div id="build-options" style="margin-top:6px"></div>
+      <h3 style="margin-top:8px">Build Queue</h3>
+      <div id="build-queue"></div>
+    </div>
+
+    <!-- Tech Tree -->
+    <div class="panel">
+      <h3>Technology</h3>
+      <div id="research-options" style="margin-bottom:6px"></div>
+      <div id="tech-list"></div>
+    </div>
+
+    <!-- Combat Log -->
+    <div class="panel">
+      <h3>Combat Log</h3>
+      <div id="combat-log"></div>
+    </div>
+
+    <!-- Minimap -->
+    <div id="minimap-container">
+      <h3 style="color:#e2b857;font-size:.9rem;margin-bottom:6px;text-transform:uppercase;letter-spacing:1px">Minimap</h3>
+      <canvas id="minimap" width="260" height="200"></canvas>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════
+   CONSTANTS
+   ═══════════════════════════════════════════════════════════ */
+const GRID_COLS = 17;
+const GRID_ROWS = 13;
+const HEX_SIZE = 28;
+const HEX_W = Math.sqrt(3) * HEX_SIZE;
+const HEX_H = 2 * HEX_SIZE;
+const FOV_RADIUS = 2;
+
+const TERRAIN = {
+  GRASSLAND: { id:'grassland', name:'Grassland', color:'#6b8f4a', food:2, prod:1, gold:1, moveCost:1 },
+  FOREST:    { id:'forest',    name:'Forest',    color:'#3d6b35', food:1, prod:2, gold:0, moveCost:2 },
+  MOUNTAINS: { id:'mountains', name:'Mountains', color:'#7a7a7a', food:0, prod:3, gold:1, moveCost:99 },
+  WATER:     { id:'water',     name:'Water',     color:'#2a6090', food:0, prod:0, gold:0, moveCost:99 },
+  DESERT:    { id:'desert',    name:'Desert',    color:'#c4a84a', food:1, prod:1, gold:2, moveCost:1 },
+  HILLS:     { id:'hills',     name:'Hills',     color:'#8a7a5a', food:1, prod:2, gold:1, moveCost:2 },
+};
+
+const UNIT_TYPES = {
+  settler:  { name:'Settler',  atk:0,  def:1, moves:2, hp:10, canFound:true,  cost:{ prod:80 } },
+  warrior:  { name:'Warrior',  atk:8,  def:5, moves:2, hp:20, cost:{ prod:40 } },
+  archer:   { name:'Archer',   atk:10, def:3, moves:2, hp:15, cost:{ prod:55 } },
+  worker:   { name:'Worker',   atk:0,  def:1, moves:3, hp:10, canImprove:true, cost:{ prod:50 } },
+};
+
+const BUILDING_TYPES = {
+  granary:  { name:'Granary',  cost:60,  effect:{ foodBonus:2 } },
+  barracks: { name:'Barracks', cost:80,  effect:{ atkBonus:3 } },
+  market:   { name:'Market',   cost:70,  effect:{ goldBonus:3 } },
+};
+
+const TECHS = [
+  { id:'archery',       name:'Archery',       cost:30, prereq:null,        unlocks:{ units:['archer'] } },
+  { id:'construction',  name:'Construction',  cost:40, prereq:null,        unlocks:{ buildings:['granary','barracks'] } },
+  { id:'mining',        name:'Mining',        cost:50, prereq:'construction', unlocks:{ buildings:['market'] } },
+  { id:'strategy',      name:'Strategy',      cost:60, prereq:'archery',  unlocks:{ atkBonus:2 } },
+  { id:'organization',  name:'Organization',  cost:70, prereq:'construction', unlocks:{ movesBonus:1 } },
+  { id:'trade',         name:'Trade',         cost:55, prereq:'mining',   unlocks:{ goldBonus:2 } },
+];
+
+/* ═══════════════════════════════════════════════════════════
+   HEX UTILITIES
+   ═══════════════════════════════════════════════════════════ */
+function hexToPixel(q, r) {
+  return { x: HEX_W * (q + r / 2), y: HEX_H * 0.75 * r };
+}
+
+function pixelToHex(px, py) {
+  const q = (Math.sqrt(3)/3 * px - 1/3 * py) / HEX_SIZE;
+  const r = (2/3 * py) / HEX_SIZE;
+  return hexRound(q, r);
+}
+
+function hexRound(q, r) {
+  let s = -q - r;
+  let rq = Math.round(q), rr = Math.round(r), rs = Math.round(s);
+  const dq = Math.abs(rq - q), dr = Math.abs(rr - r), ds = Math.abs(rs - s);
+  if (dq > dr && dq > ds) rq = -rr - rs;
+  else if (dr > ds) rr = -rq - rs;
+  return { q: rq, r: rr };
+}
+
+function hexKey(q, r) { return `${q},${r}`; }
+
+function hexDistance(a, b) {
+  return (Math.abs(a.q - b.q) + Math.abs(a.q + a.r - b.q - b.r) + Math.abs(a.r - b.r)) / 2;
+}
+
+function hexNeighbors(q, r) {
+  return [{q:1,r:0},{q:-1,r:0},{q:0,r:1},{q:0,r:-1},{q:1,r:-1},{q:-1,r:1}]
+    .map(d => ({ q: q+d.q, r: r+d.r }));
+}
+
+function hexInRange(center, range) {
+  const results = [];
+  for (let q = -range; q <= range; q++)
+    for (let r = Math.max(-range, -q - range); r <= Math.min(range, -q + range); r++)
+      results.push({ q: center.q + q, r: center.r + r });
+  return results;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   GAME STATE
+   ═══════════════════════════════════════════════════════════ */
+let game, canvas, ctx, minimapCanvas, minimapCtx;
+let hoveredHex = null, isDragging = false, dragStart = {x:0,y:0}, dragCam = {x:0,y:0};
+
+function createGameState() {
+  return {
+    turn: 1, grid: [], civs: [], units: [], cities: [],
+    selectedHex: null, selectedUnit: null, selectedCity: null,
+    camera: { x: 0, y: 0, zoom: 1 },
+    isPlayerTurn: true, gameOver: false,
+    combatLog: [], moveRange: new Set(),
+    buildQueue: {}, researching: null, researchProgress: 0,
+    pendingSettler: null,
+  };
+}
+
+/* ═══════════════════════════════════════════════════════════
+   MAP GENERATION
+   ═══════════════════════════════════════════════════════════ */
+function generateMap() {
+  const grid = [];
+  const halfQ = Math.floor(GRID_COLS / 2);
+  const halfR = Math.floor(GRID_ROWS / 2);
+
+  for (let q = -halfQ; q <= halfQ; q++) {
+    for (let r = -halfR; r <= halfR; r++) {
+      const v1 = Math.sin(q * 0.8 + 1.3) * Math.cos(r * 0.6 + 0.7);
+      const v2 = Math.sin((q + r) * 0.5 + 2.1) * 0.5;
+      const v3 = Math.cos(q * 0.3 - r * 0.4) * 0.3;
+      const val = (v1 + v2 + v3) / 1.8;
+
+      const distFromCenter = hexDistance({q,r}, {q:0,r:0});
+      const maxDist = hexDistance({q:-halfQ,r:-halfR},{q:0,r:0});
+      const edgeFactor = distFromCenter / maxDist;
+
+      let terrain;
+      if (val > 0.5 && edgeFactor < 0.65) terrain = TERRAIN.MOUNTAINS;
+      else if (val > 0.2) terrain = TERRAIN.FOREST;
+      else if (val < -0.5) terrain = TERRAIN.WATER;
+      else if (edgeFactor > 0.65) terrain = TERRAIN.DESERT;
+      else if (val > 0) terrain = TERRAIN.HILLS;
+      else terrain = TERRAIN.GRASSLAND;
+
+      if (terrain === TERRAIN.WATER && distFromCenter < 3 && Math.random() < 0.3)
+        terrain = TERRAIN.GRASSLAND;
+
+      let resource = null;
+      if (terrain === TERRAIN.GRASSLAND && Math.random() < 0.15) resource = 'wheat';
+      else if (terrain === TERRAIN.FOREST && Math.random() < 0.1) resource = 'horses';
+      else if (terrain === TERRAIN.HILLS && Math.random() < 0.12) resource = 'iron';
+      else if (terrain === TERRAIN.DESERT && Math.random() < 0.1) resource = 'gems';
+      else if (terrain === TERRAIN.WATER && Math.random() < 0.08) resource = 'fish';
+
+      grid.push({ q, r, terrain, resource, explored: false, visible: false, improved: false, improvement: null });
+    }
+  }
+  return grid;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   CIVILIZATIONS
+   ═══════════════════════════════════════════════════════════ */
+function setupCivilizations() {
+  game.civs = [
+    { id:'player', name:'Player', color:'#4a9e6e', colorDark:'#2d6b4a', gold:50, science:0, food:0, production:0, population:0, techs:[], atkBonus:0, movesBonus:0, goldBonus:0, foodBonus:0, prodBonus:0 },
+    { id:'ai1', name:'Red Empire', color:'#c0392b', colorDark:'#922b21', gold:30, science:0, food:0, production:0, population:0, techs:[], atkBonus:0, movesBonus:0, goldBonus:0, foodBonus:0, prodBonus:0 },
+    { id:'ai2', name:'Blue Republic', color:'#2980b9', colorDark:'#1a5276', gold:30, science:0, food:0, production:0, population:0, techs:[], atkBonus:0, movesBonus:0, goldBonus:0, foodBonus:0, prodBonus:0 },
+  ];
+
+  const spawnPoints = [{q:1,r:0},{q:-2,r:1},{q:2,r:-1}];
+  const unitDefs = [
+    [{type:'settler'},{type:'warrior'}],
+    [{type:'settler'},{type:'warrior'}],
+    [{type:'settler'},{type:'warrior'}],
+  ];
+
+  game.civs.forEach((civ, i) => {
+    const spawn = spawnPoints[i];
+    const hex = game.grid.find(h => h.q === spawn.q && h.r === spawn.r && h.terrain !== TERRAIN.WATER);
+    if (!hex) return;
+
+    unitDefs[i].forEach((def, j) => {
+      const q = hex.q + (j === 1 ? (i === 0 ? 1 : -1) : 0);
+      const r = hex.r + (j === 1 ? 1 : 0);
+      const ut = UNIT_TYPES[def.type];
+      game.units.push({
+        id: `${civ.id}_${def.type}_${i}_${j}`,
+        type: def.type, civ: civ.id, q, r,
+        hp: ut.hp, movesLeft: ut.moves, maxMoves: ut.moves,
+        atk: ut.atk, def: ut.def,
+      });
+    });
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════
+   FOG OF WAR
+   ═══════════════════════════════════════════════════════════ */
+function updateFogOfWar() {
+  game.grid.forEach(h => h.visible = false);
+
+  const sources = [
+    ...game.cities.filter(c => c.civ === 'player').map(c => ({q:c.q, r:c.r})),
+    ...game.units.filter(u => u.civ === 'player').map(u => ({q:u.q, r:u.r})),
+  ];
+
+  sources.forEach(src => {
+    hexInRange(src, FOV_RADIUS).forEach(h => {
+      const hex = game.hexByKey(hexKey(h.q, h.r));
+      if (hex) { hex.visible = true; hex.explored = true; }
+    });
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════
+   RENDERING
+   ═══════════════════════════════════════════════════════════ */
+function resizeCanvas() {
+  const area = document.getElementById('canvas-area');
+  canvas.width = area.clientWidth;
+  canvas.height = area.clientHeight;
+  draw();
+}
+
+function draw() {
+  if (!game) return;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.save();
+  ctx.translate(canvas.width/2, canvas.height/2);
+  ctx.scale(game.camera.zoom, game.camera.zoom);
+  ctx.translate(-game.camera.x, -game.camera.y);
+
+  game.grid.forEach(hex => { if (hex.explored) drawHex(hex); });
+
+  // Move range
+  if (game.selectedUnit && game.isPlayerTurn) {
+    game.moveRange.forEach(key => {
+      const [q,r] = key.split(',').map(Number);
+      const pos = hexToPixel(q, r);
+      ctx.beginPath(); drawHexPath(pos.x, pos.y);
+      ctx.fillStyle = 'rgba(74,158,110,.2)'; ctx.fill();
+      ctx.strokeStyle = 'rgba(74,158,110,.5)'; ctx.lineWidth = 1; ctx.stroke();
+    });
+  }
+
+  game.units.forEach(u => { if (isUnitVisible(u)) drawUnit(u); });
+  game.cities.forEach(c => { if (isCityVisible(c)) drawCity(c); });
+
+  // Selection
+  if (game.selectedHex) {
+    const pos = hexToPixel(game.selectedHex.q, game.selectedHex.r);
+    ctx.beginPath(); drawHexPath(pos.x, pos.y);
+    ctx.strokeStyle = '#e2b857'; ctx.lineWidth = 3; ctx.stroke();
+  }
+
+  // Hover
+  if (hoveredHex && !game.selectedHex) {
+    const pos = hexToPixel(hoveredHex.q, hoveredHex.r);
+    ctx.beginPath(); drawHexPath(pos.x, pos.y);
+    ctx.strokeStyle = 'rgba(255,255,255,.4)'; ctx.lineWidth = 2; ctx.stroke();
+  }
+
+  ctx.restore();
+  drawMinimap();
+}
+
+function drawHexPath(x, y) {
+  for (let i = 0; i < 6; i++) {
+    const angle = Math.PI / 180 * (60 * i - 30);
+    const hx = x + HEX_SIZE * Math.cos(angle);
+    const hy = y + HEX_SIZE * Math.sin(angle);
+    i === 0 ? ctx.moveTo(hx, hy) : ctx.lineTo(hx, hy);
+  }
+  ctx.closePath();
+}
+
+function drawHex(hex) {
+  const pos = hexToPixel(hex.q, hex.r);
+  const t = hex.terrain;
+
+  ctx.beginPath(); drawHexPath(pos.x, pos.y);
+  ctx.fillStyle = t.color; ctx.fill();
+  ctx.strokeStyle = 'rgba(0,0,0,.2)'; ctx.lineWidth = .5; ctx.stroke();
+
+  // Resource
+  if (hex.resource) {
+    const icons = {wheat:'🌾',horses:'🐴',iron:'⛏️',gems:'💎',fish:'🐟'};
+    ctx.font = `${HEX_SIZE * .45}px serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(icons[hex.resource] || '', pos.x, pos.y - 2);
+  }
+
+  // Improvement
+  if (hex.improved) {
+    ctx.beginPath(); drawHexPath(pos.x, pos.y);
+    ctx.fillStyle = 'rgba(226,184,87,.15)'; ctx.fill();
+  }
+
+  // Fog
+  if (!hex.explored) {
+    ctx.beginPath(); drawHexPath(pos.x, pos.y);
+    ctx.fillStyle = '#0a0a15'; ctx.fill();
+  } else if (!hex.visible) {
+    ctx.beginPath(); drawHexPath(pos.x, pos.y);
+    ctx.fillStyle = 'rgba(10,10,21,.5)'; ctx.fill();
+  }
+}
+
+function drawUnit(unit) {
+  const pos = hexToPixel(unit.q, unit.r);
+  const civ = game.civs.find(c => c.id === unit.civ);
+  const color = civ ? civ.color : '#fff';
+  const size = HEX_SIZE * 0.45;
+
+  ctx.beginPath();
+  if (unit.type === 'warrior' || unit.type === 'archer') {
+    ctx.moveTo(pos.x, pos.y - size);
+    ctx.lineTo(pos.x + size*.8, pos.y - size*.3);
+    ctx.lineTo(pos.x + size*.6, pos.y + size*.7);
+    ctx.lineTo(pos.x, pos.y + size);
+    ctx.lineTo(pos.x - size*.6, pos.y + size*.7);
+    ctx.lineTo(pos.x - size*.8, pos.y - size*.3);
+    ctx.closePath();
+  } else if (unit.type === 'settler') {
+    ctx.arc(pos.x, pos.y, size, 0, Math.PI * 2);
+  } else {
+    ctx.moveTo(pos.x, pos.y - size);
+    ctx.lineTo(pos.x + size, pos.y);
+    ctx.lineTo(pos.x, pos.y + size);
+    ctx.lineTo(pos.x - size, pos.y);
+    ctx.closePath();
+  }
+  ctx.fillStyle = color; ctx.fill();
+  ctx.strokeStyle = 'rgba(0,0,0,.5)'; ctx.lineWidth = 1.5; ctx.stroke();
+
+  // Symbol
+  ctx.font = `${size * .9}px serif`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const symbols = {settler:'🏠',warrior:'⚔️',archer:'🏹',worker:'🔨'};
+  ctx.fillText(symbols[unit.type] || '?', pos.x, pos.y);
+
+  // HP bar
+  const maxHp = UNIT_TYPES[unit.type]?.hp || 10;
+  const pct = unit.hp / maxHp;
+  const bw = HEX_SIZE * .6;
+  ctx.fillStyle = '#333';
+  ctx.fillRect(pos.x - bw/2, pos.y - HEX_SIZE*.55, bw, 3);
+  ctx.fillStyle = pct > .5 ? '#4a9e6e' : pct > .25 ? '#c49a30' : '#c0392b';
+  ctx.fillRect(pos.x - bw/2, pos.y - HEX_SIZE*.55, bw * pct, 3);
+
+  // Selection ring
+  if (game.selectedUnit && game.selectedUnit.id === unit.id) {
+    ctx.beginPath(); drawHexPath(pos.x, pos.y);
+    ctx.strokeStyle = '#e2b857'; ctx.lineWidth = 2; ctx.stroke();
+  }
+}
+
+function drawCity(city) {
+  const pos = hexToPixel(city.q, city.r);
+  const civ = game.civs.find(c => c.id === city.civ);
+  const color = civ ? civ.color : '#fff';
+  const s = HEX_SIZE * 0.55;
+
+  ctx.fillStyle = color;
+  ctx.fillRect(pos.x - s*.6, pos.y - s*.8, s*1.2, s*1.2);
+
+  ctx.beginPath();
+  ctx.moveTo(pos.x - s*.7, pos.y - s*.8);
+  ctx.lineTo(pos.x, pos.y - s*1.3);
+  ctx.lineTo(pos.x + s*.7, pos.y - s*.8);
+  ctx.closePath();
+  ctx.fillStyle = civ ? civ.colorDark : '#333';
+  ctx.fill();
+
+  ctx.strokeStyle = 'rgba(0,0,0,.5)'; ctx.lineWidth = 1.5;
+  ctx.strokeRect(pos.x - s*.6, pos.y - s*.8, s*1.2, s*1.2);
+
+  ctx.font = `bold ${HEX_SIZE*.32}px sans-serif`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#fff';
+  ctx.fillText(city.name, pos.x, pos.y + s*.25);
+
+  ctx.font = `${HEX_SIZE*.28}px sans-serif`;
+  ctx.fillText(`👥${city.population}`, pos.x, pos.y + s*.6);
+
+  if (game.selectedCity && game.selectedCity.id === city.id) {
+    ctx.beginPath(); drawHexPath(pos.x, pos.y);
+    ctx.strokeStyle = '#e2b857'; ctx.lineWidth = 2; ctx.stroke();
+  }
+}
+
+function drawMinimap() {
+  const mw = minimapCanvas.width, mh = minimapCanvas.height;
+  minimapCtx.fillStyle = '#0d1117';
+  minimapCtx.fillRect(0, 0, mw, mh);
+
+  const cw = mw / GRID_COLS, ch = mh / GRID_ROWS;
+  const halfQ = Math.floor(GRID_COLS/2), halfR = Math.floor(GRID_ROWS/2);
+
+  game.grid.forEach(hex => {
+    if (!hex.explored) return;
+    minimapCtx.fillStyle = hex.visible ? hex.terrain.color : shadeColor(hex.terrain.color, -40);
+    minimapCtx.fillRect((hex.q+halfQ)*cw, (hex.r+halfR)*ch, cw-.5, ch-.5);
+  });
+
+  game.units.filter(u => u.civ === 'player').forEach(u => {
+    minimapCtx.fillStyle = '#fff';
+    minimapCtx.fillRect((u.q+halfQ)*cw, (u.r+halfR)*ch, cw, ch);
+  });
+
+  game.cities.filter(c => c.civ === 'player').forEach(c => {
+    minimapCtx.fillStyle = '#e2b857';
+    minimapCtx.fillRect((c.q+halfQ)*cw-1, (c.r+halfR)*ch-1, cw+2, ch+2);
+  });
+
+  // Camera viewport
+  const area = document.getElementById('canvas-area');
+  const vw = area.clientWidth / (game.camera.zoom * HEX_W);
+  const vh = area.clientHeight / (game.camera.zoom * HEX_H * .75);
+  const vq = game.camera.x / HEX_W;
+  const vr = game.camera.y / (HEX_H * .75);
+
+  minimapCtx.strokeStyle = 'rgba(255,255,255,.5)';
+  minimapCtx.lineWidth = 1;
+  minimapCtx.strokeRect(
+    (vq - vw/2 + halfQ) * cw, (vr - vh/2 + halfR) * ch, vw * cw, vh * ch
+  );
+}
+
+function shadeColor(color, percent) {
+  const num = parseInt(color.replace('#',''), 16);
+  const amt = Math.round(2.55 * percent);
+  const R = Math.max(0, Math.min(255, (num>>16) + amt));
+  const G = Math.max(0, Math.min(255, ((num>>8)&0xFF) + amt));
+  const B = Math.max(0, Math.min(255, (num&0xFF) + amt));
+  return `#${(0x1000000 + R*0x10000 + G*0x100 + B).toString(16).slice(1)}`;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   INPUT
+   ═══════════════════════════════════════════════════════════ */
+function initInput() {
+  canvas.addEventListener('mousedown', onMouseDown);
+  canvas.addEventListener('mousemove', onMouseMove);
+  canvas.addEventListener('mouseup', onMouseUp);
+  canvas.addEventListener('click', onCanvasClick);
+  canvas.addEventListener('wheel', onWheel);
+  canvas.addEventListener('contextmenu', e => e.preventDefault());
+}
+
+function getHexAtMouse(e) {
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  const px = (mx - canvas.width/2) / game.camera.zoom + game.camera.x;
+  const py = (my - canvas.height/2) / game.camera.zoom + game.camera.y;
+  return pixelToHex(px, py);
+}
+
+function onMouseDown(e) {
+  if (e.button === 2 || e.button === 1) {
+    isDragging = true;
+    dragStart = {x: e.clientX, y: e.clientY};
+    dragCam = {x: game.camera.x, y: game.camera.y};
+  }
+}
+
+function onMouseMove(e) {
+  if (isDragging) {
+    const dx = (e.clientX - dragStart.x) / game.camera.zoom;
+    const dy = (e.clientY - dragStart.y) / game.camera.zoom;
+    game.camera.x = dragCam.x + dx;
+    game.camera.y = dragCam.y + dy;
+    draw();
+    return;
+  }
+  const hex = getHexAtMouse(e);
+  const key = hexKey(hex.q, hex.r);
+  const hexObj = game.hexByKey(key);
+  if (hexObj && hexObj.explored) {
+    hoveredHex = hexObj;
+    updateTerrainPanel(hexObj);
+  } else {
+    hoveredHex = null;
+    hidePanel('terrain-panel');
+  }
+  draw();
+}
+
+function onMouseUp() { isDragging = false; }
+
+function onCanvasClick(e) {
+  if (isDragging || e.button === 2 || e.button === 1) return;
+
+  const hex = getHexAtMouse(e);
+  const key = hexKey(hex.q, hex.r);
+  const hexObj = game.hexByKey(key);
+
+  if (!hexObj || !hexObj.explored) {
+    deselectAll(); draw(); return;
+  }
+
+  game.selectedHex = hexObj;
+  updateTerrainPanel(hexObj);
+
+  // Unit on hex?
+  const unitOnHex = game.units.find(u => u.q === hex.q && u.r === hex.r);
+  if (unitOnHex) {
+    if (unitOnHex.civ === 'player' && game.isPlayerTurn) {
+      selectUnit(unitOnHex); draw(); return;
+    }
+    if (game.selectedUnit && game.selectedUnit.civ !== unitOnHex.civ) {
+      attemptAttack(game.selectedUnit, unitOnHex);
+      draw(); return;
+    }
+  }
+
+  // City on hex?
+  const cityOnHex = game.cities.find(c => c.q === hex.q && c.r === hex.r);
+  if (cityOnHex) {
+    if (cityOnHex.civ === 'player') { selectCity(cityOnHex); draw(); return; }
+  }
+
+  // Move selected unit
+  if (game.selectedUnit && game.isPlayerTurn && game.moveRange.has(key)) {
+    moveUnit(game.selectedUnit, hex.q, hex.r);
+    game.selectedHex = hexObj;
+    draw(); return;
+  }
+
+  deselectAll(); draw();
+}
+
+function onWheel(e) {
+  e.preventDefault();
+  game.camera.zoom = Math.max(.3, Math.min(3, game.camera.zoom * (e.deltaY > 0 ? .9 : 1.1)));
+  draw();
+}
+
+/* ═══════════════════════════════════════════════════════════
+   SELECTION
+   ═══════════════════════════════════════════════════════════ */
+function selectUnit(unit) {
+  game.selectedUnit = unit;
+  game.selectedCity = null;
+  game.selectedHex = {q: unit.q, r: unit.r};
+
+  game.moveRange = new Set();
+  if (unit.civ === 'player' && game.isPlayerTurn) {
+    hexInRange({q:unit.q, r:unit.r}, unit.maxMoves).forEach(h => {
+      if (canMoveTo(h)) game.moveRange.add(hexKey(h.q, h.r));
+    });
+  }
+
+  updateUnitPanel(unit);
+  hidePanel('city-panel');
+  draw();
+}
+
+function selectCity(city) {
+  game.selectedCity = city;
+  game.selectedUnit = null;
+  game.selectedHex = {q: city.q, r: city.r};
+  game.moveRange = new Set();
+  updateCityPanel(city);
+  hidePanel('unit-panel');
+  draw();
+}
+
+function deselectAll() {
+  game.selectedUnit = null;
+  game.selectedCity = null;
+  game.selectedHex = null;
+  game.moveRange = new Set();
+  hidePanel('city-panel');
+  hidePanel('unit-panel');
+  hidePanel('terrain-panel');
+}
+
+/* ═══════════════════════════════════════════════════════════
+   MOVEMENT
+   ═══════════════════════════════════════════════════════════ */
+function canMoveTo(hex) {
+  if (hex.terrain === TERRAIN.WATER || hex.terrain === TERRAIN.MOUNTAINS) return false;
+  if (game.units.find(u => u.q === hex.q && u.r === hex.r && u.civ === 'player')) return false;
+  if (game.cities.find(c => c.q === hex.q && c.r === hex.r && c.civ === 'player')) return false;
+  return true;
+}
+
+function moveUnit(unit, q, r) {
+  const dist = hexDistance({q:unit.q, r:unit.r}, {q, r});
+
+  // Settler founding check
+  if (unit.type === 'settler' && dist <= 1) {
+    if (!game.cities.find(c => c.q === q && c.r === r)) {
+      const adjOwn = game.cities.filter(c => c.civ === 'player' && hexDistance({q:c.q,r:c.r},{q,r}) <= 2);
+      if (adjOwn.length > 0 || game.cities.length === 0) {
+        unit.q = q; unit.r = r; unit.movesLeft = 0;
+        showFoundCityOption(unit);
+        draw(); return;
+      }
+    }
+  }
+
+  unit.q = q; unit.r = r;
+  unit.movesLeft = Math.max(0, unit.movesLeft - dist);
+
+  checkAdjacentCombat(unit);
+
+  if (unit.movesLeft <= 0) {
+    game.selectedUnit = null;
+    game.moveRange = new Set();
+    hidePanel('unit-panel');
+  } else {
+    selectUnit(unit);
+  }
+
+  updateFogOfWar();
+  draw();
+}
+
+function showFoundCityOption(settler) {
+  const panel = document.getElementById('city-panel');
+  panel.style.display = 'block'; panel.classList.add('active');
+
+  document.getElementById('city-name').textContent = '(New City)';
+  document.getElementById('city-pop').textContent = '1';
+  document.getElementById('city-food').textContent = '0';
+  document.getElementById('city-production').textContent = '0';
+  document.getElementById('city-gold').textContent = '0';
+  document.getElementById('city-science').textContent = '0';
+  document.getElementById('city-worked').textContent = '1';
+
+  document.getElementById('build-options').innerHTML = `
+    <button class="action-btn primary" onclick="foundCity()">🏛️ Found City</button>
+    <button class="action-btn" onclick="cancelCityFound()">Cancel</button>
+  `;
+
+  game.pendingSettler = settler;
+  draw();
+}
+
+function foundCity() {
+  if (!game.pendingSettler) return;
+  const s = game.pendingSettler;
+  const name = `City ${game.cities.length + 1}`;
+  const city = {
+    id: `city_player_${game.cities.length}`, name, civ:'player',
+    q: s.q, r: s.r, population: 1, food: 0, production: 0, gold: 0, science: 0,
+    buildings: [], buildQueue: [],
+  };
+  game.cities.push(city);
+  game.civs.find(c => c.id === 'player').population++;
+  game.units = game.units.filter(u => u.id !== s.id);
+  game.pendingSettler = null;
+  selectCity(city);
+  showNotification(`Founded ${name}!`);
+  draw();
+}
+
+function cancelCityFound() {
+  game.pendingSettler = null;
+  hidePanel('city-panel');
+  const settler = game.units.find(u => u.type === 'settler' && u.civ === 'player');
+  if (settler) { game.selectedHex = {q:settler.q, r:settler.r}; }
+  draw();
+}
+
+/* ═══════════════════════════════════════════════════════════
+   COMBAT
+   ═══════════════════════════════════════════════════════════ */
+function checkAdjacentCombat(unit) {
+  if (unit.type === 'settler' || unit.type === 'worker') return;
+  hexNeighbors(unit.q, unit.r).forEach(n => {
+    const enemy = game.units.find(u => u.q === n.q && u.r === n.r && u.civ !== unit.civ && u.type !== 'settler' && u.type !== 'worker');
+    if (enemy && unit.movesLeft > 0) attemptAttack(unit, enemy);
+  });
+}
+
+function attemptAttack(attacker, defender) {
+  const atkD = UNIT_TYPES[attacker.type];
+  const defD = UNIT_TYPES[defender.type];
+  if (!atkD || !defD) return;
+
+  const civA = game.civs.find(c => c.id === attacker.civ);
+  const civD = game.civs.find(c => c.id === defender.civ);
+
+  let atkPower = atkD.atk + (civA?.atkBonus || 0) + attacker.atk;
+  let defPower = defD.def + (civD?.def || 0) + defender.def;
+
+  // Adjacent city defense bonus
+  if (game.cities.find(c => c.q === defender.q && c.r === defender.r && c.civ === defender.civ))
+    defPower += 2;
+
+  atkPower *= (.8 + Math.random() * .4);
+  defPower *= (.8 + Math.random() * .4);
+
+  const civNameA = civA?.name || 'Unknown';
+  const civNameD = civD?.name || 'Unknown';
+  const nameA = atkD.name;
+  const nameD = defD.name;
+
+  if (atkPower > defPower) {
+    const dmg = Math.ceil(atkPower - defPower);
+    defender.hp -= dmg;
+    addCombatLog(`${civNameA}'s ${nameA} attacks ${civNameD}'s ${nameD} for ${dmg} dmg`);
+    if (defender.hp <= 0) {
+      addCombatLog(`${civNameD}'s ${nameD} destroyed!`);
+      game.units = game.units.filter(u => u.id !== defender.id);
+      if (game.selectedUnit?.id === defender.id) { game.selectedUnit = null; hidePanel('unit-panel'); }
+    }
+  } else {
+    const dmg = Math.ceil(defPower - atkPower);
+    attacker.hp -= dmg;
+    addCombatLog(`${civNameA}'s ${nameA} attacks but ${civNameD}'s ${nameD} counters for ${dmg} dmg`);
+    if (attacker.hp <= 0) {
+      addCombatLog(`${civNameA}'s ${nameA} destroyed!`);
+      game.units = game.units.filter(u => u.id !== attacker.id);
+      if (game.selectedUnit?.id === attacker.id) { game.selectedUnit = null; hidePanel('unit-panel'); }
+    }
+  }
+
+  attacker.movesLeft = 0;
+  draw();
+}
+
+/* ═══════════════════════════════════════════════════════════
+   CITY MANAGEMENT
+   ═══════════════════════════════════════════════════════════ */
+function updateCityPanel(city) {
+  const panel = document.getElementById('city-panel');
+  panel.style.display = 'block'; panel.classList.add('active');
+
+  document.getElementById('city-name').textContent = city.name;
+  document.getElementById('city-pop').textContent = city.population;
+  document.getElementById('city-food').textContent = city.food;
+  document.getElementById('city-production').textContent = city.production;
+  document.getElementById('city-gold').textContent = city.gold;
+  document.getElementById('city-science').textContent = city.science;
+
+  const worked = getWorkedHexes(city);
+  document.getElementById('city-worked').textContent = worked.length;
+
+  updateBuildQueue(city);
+  updateBuildOptions(city);
+}
+
+function getWorkedHexes(city) {
+  return hexInRange({q:city.q, r:city.r}, city.population)
+    .map(h => game.hexByKey(hexKey(h.q, h.r)))
+    .filter(h => h && h.explored && h.terrain !== TERRAIN.WATER);
+}
+
+function updateBuildQueue(city) {
+  const el = document.getElementById('build-queue');
+  if (city.buildQueue.length === 0) {
+    el.innerHTML = '<div style="color:#6a6a5a;font-size:.78rem">No items in queue</div>';
+  } else {
+    el.innerHTML = city.buildQueue.map(item => {
+      if (item.type === 'unit') {
+        const ut = UNIT_TYPES[item.unitType];
+        return `<div class="build-item"><span>⚔️ ${ut.name}</span><span class="cost">⚒️${item.progress}/${item.cost}</span></div>`;
+      } else {
+        const bt = BUILDING_TYPES[item.building];
+        return `<div class="build-item"><span>🏗️ ${bt.name}</span><span class="cost">⚒️${item.progress}/${item.cost}</span></div>`;
+      }
+    }).join('');
+  }
+}
+
+function updateBuildOptions(city) {
+  const el = document.getElementById('build-options');
+  const civ = game.civs.find(c => c.id === 'player');
+  let html = '';
+
+  ['settler','warrior','archer','worker'].forEach(type => {
+    const ut = UNIT_TYPES[type];
+    if (!ut) return;
+    // Check tech unlock for units
+    const requiresTech = TECHS.find(t => t.unlocks?.units?.includes(type));
+    if (requiresTech && !civ.techs.includes(requiresTech.id)) return;
+    const canAfford = city.production >= ut.cost.prod;
+    html += `<button class="action-btn" ${canAfford?'':'disabled'} onclick="queueBuild('${city.id}','unit','${type}')">⚔️ ${ut.name} (⚒️${ut.cost.prod})</button>`;
+  });
+
+  Object.entries(BUILDING_TYPES).forEach(([id, bt]) => {
+    const requiresTech = TECHS.find(t => t.unlocks?.buildings?.includes(id));
+    const unlocked = !requiresTech || civ.techs.includes(requiresTech.id);
+    const canAfford = city.production >= bt.cost;
+    if (unlocked && !city.buildings.includes(id)) {
+      html += `<button class="action-btn" ${canAfford?'':'disabled'} onclick="queueBuild('${city.id}','building','${id}')">🏗️ ${bt.name} (⚒️${bt.cost})</button>`;
+    }
+  });
+
+  el.innerHTML = html;
+}
+
+function queueBuild(cityId, buildType, buildId) {
+  const city = game.cities.find(c => c.id === cityId);
+  if (!city) return;
+  const cost = buildType === 'unit' ? (UNIT_TYPES[buildId]?.cost.prod || 0) : (BUILDING_TYPES[buildId]?.cost || 0);
+  if (city.production < cost) { showNotification('Not enough production!'); return; }
+
+  city.buildQueue.push({ type: buildType, [buildType+'Type']: buildId, cost, progress: 0 });
+  updateCityPanel(city);
+  draw();
+}
+
+/* ═══════════════════════════════════════════════════════════
+   TECH TREE
+   ═══════════════════════════════════════════════════════════ */
+function updateTechPanel() {
+  const civ = game.civs.find(c => c.id === 'player');
+  const el = document.getElementById('tech-list');
+  el.innerHTML = TECHS.map(tech => {
+    const researched = civ.techs.includes(tech.id);
+    const available = !researched && (!tech.prereq || civ.techs.includes(tech.prereq));
+    const researching = game.researching === tech.id;
+    const cls = researched ? 'researched' : (available || researching ? 'available' : '');
+    return `<div class="tech-item ${cls}" onclick="${available ? `startResearch('${tech.id}')` : ''}">
+      <div>${researched ? '✅' : researching ? '🔬' : '🔒'} ${tech.name}</div>
+      <div class="req">Cost: ${tech.cost} 🔬 ${tech.prereq ? 'Requires: ' + (TECHS.find(t=>t.id===tech.prereq)?.name||'') : ''}</div>
+      ${researching ? `<div class="req">Researching: ${game.researchProgress}/${tech.cost}</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+function startResearch(techId) {
+  const civ = game.civs.find(c => c.id === 'player');
+  const tech = TECHS.find(t => t.id === techId);
+  if (!tech || civ.techs.includes(techId)) return;
+  if (tech.prereq && !civ.techs.includes(tech.prereq)) return;
+  if (game.researching && game.researching !== techId) return;
+
+  game.researching = techId;
+  game.researchProgress = 0;
+  updateTechPanel();
+  updateResearchOptions();
+}
+
+function updateResearchOptions() {
+  const el = document.getElementById('research-options');
+  el.innerHTML = game.researching ? `<button class="action-btn" onclick="stopResearch()">Stop Researching</button>` : '';
+}
+
+function stopResearch() {
+  game.researching = null;
+  game.researchProgress = 0;
+  updateTechPanel();
+  updateResearchOptions();
+}
+
+/* ═══════════════════════════════════════════════════════════
+   AI
+   ═══════════════════════════════════════════════════════════ */
+function processAITurn() {
+  const aiCivs = game.civs.filter(c => c.id !== 'player');
+
+  aiCivs.forEach(ai => {
+    const aiUnits = game.units.filter(u => u.civ === ai.id);
+    const aiCities = game.cities.filter(c => c.civ === ai.id);
+
+    aiUnits.forEach(unit => {
+      unit.movesLeft = unit.maxMoves;
+
+      if (unit.type === 'settler') {
+        // Try to found city
+        let founded = false;
+        hexNeighbors(unit.q, unit.r).forEach(n => {
+          if (founded) return;
+          const hex = game.hexByKey(hexKey(n.q, n.r));
+          if (hex && hex.terrain !== TERRAIN.WATER && hex.terrain !== TERRAIN.MOUNTAINS) {
+            if (!game.cities.find(c => c.q === n.q && c.r === n.r)) {
+              const city = {
+                id: `city_${ai.id}_${aiCities.length}`,
+                name: ai.name.split(' ')[0] + ' ' + ['Prime','Hold','Keep','Watch','Post'][Math.floor(Math.random()*5)],
+                civ: ai.id, q: n.q, r: n.r,
+                population: 1, food: 0, production: 0, gold: 0, science: 0,
+                buildings: [], buildQueue: [],
+              };
+              game.cities.push(city);
+              aiCities.push(city);
+              game.units = game.units.filter(u => u.id !== unit.id);
+              founded = true;
+            }
+          }
+        });
+
+        if (!founded) {
+          // Move toward empty land
+          const target = findAITarget(unit);
+          if (target) {
+            const dist = hexDistance({q:unit.q,r:unit.r}, target);
+            if (dist <= unit.maxMoves) {
+              const hex = game.hexByKey(hexKey(target.q, target.r));
+              if (hex && hex.terrain !== TERRAIN.WATER && hex.terrain !== TERRAIN.MOUNTAINS) {
+                if (!game.units.find(u => u.q === target.q && u.r === target.r && u.civ !== ai.id)) {
+                  unit.q = target.q; unit.r = target.r; unit.movesLeft = 0;
+                }
+              }
+            }
+          }
+        }
+      } else if (unit.type !== 'worker') {
+        // Attack player units
+        let attacked = false;
+        hexNeighbors(unit.q, unit.r).forEach(n => {
+          if (attacked) return;
+          const pu = game.units.find(u => u.q === n.q && u.r === n.r && u.civ === 'player' && u.type !== 'settler' && u.type !== 'worker');
+          if (pu) { attemptAttack(unit, pu); attacked = true; }
+        });
+
+        // Move toward target if not attacked
+        if (!attacked && unit.movesLeft > 0) {
+          const target = findAITarget(unit);
+          if (target) {
+            const dist = hexDistance({q:unit.q,r:unit.r}, target);
+            if (dist <= unit.maxMoves) {
+              const hex = game.hexByKey(hexKey(target.q, target.r));
+              if (hex && hex.terrain !== TERRAIN.WATER && hex.terrain !== TERRAIN.MOUNTAINS) {
+                if (!game.units.find(u => u.q === target.q && u.r === target.r && u.civ !== ai.id)) {
+                  unit.q = target.q; unit.r = target.r; unit.movesLeft = 0;
+                }
+              }
+            }
+          }
+        }
+      } else {
+        // Worker: improve terrain
+        let improved = false;
+        hexNeighbors(unit.q, unit.r).forEach(n => {
+          if (improved) return;
+          const hex = game.hexByKey(hexKey(n.q, n.r));
+          if (hex && !hex.improved && hex.terrain === TERRAIN.GRASSLAND && Math.random() < 0.3) {
+            hex.improved = true; hex.improvement = 'farm'; improved = true;
+          }
+        });
+        unit.movesLeft = 0;
+      }
+    });
+
+    // AI: Build
+    aiCities.forEach(city => {
+      const yields = calculateCityYields(city, ai);
+      city.production += yields.prod;
+      city.food += yields.food;
+      city.gold += yields.gold;
+      city.science += yields.science;
+
+      if (city.food >= city.population * 10) { city.food -= city.population * 10; city.population++; }
+
+      if (city.buildQueue.length > 0) {
+        const item = city.buildQueue[0];
+        item.progress += city.production;
+        if (item.progress >= item.cost) {
+          city.buildQueue.shift();
+          if (item.type === 'unit') {
+            const ut = UNIT_TYPES[item.unitType];
+            game.units.push({
+              id: `${ai.id}_${Date.now()}_${Math.random()}`, type: item.unitType, civ: ai.id,
+              q: city.q, r: city.r, hp: ut.hp, movesLeft: ut.moves, maxMoves: ut.moves,
+              atk: ut.atk, def: ut.def,
+            });
+          } else {
+            city.buildings.push(item.building);
+            if (item.building === 'barracks') ai.atkBonus = (ai.atkBonus||0) + 3;
+          }
+        }
+      } else {
+        const aiUnitCount = game.units.filter(u => u.civ === ai.id).length;
+        if (aiUnitCount < aiCities.length * 2) {
+          const type = Math.random() < 0.5 ? 'warrior' : 'archer';
+          const ut = UNIT_TYPES[type];
+          if (ut) city.buildQueue.push({type:'unit',unitType:type,cost:ut.cost.prod,progress:0});
+        } else {
+          const ut = UNIT_TYPES.settler;
+          city.buildQueue.push({type:'unit',unitType:'settler',cost:ut.cost.prod,progress:0});
+        }
+      }
+    });
+
+    // AI: Research
+    if (Math.random() < 0.25 && !ai.techs.includes('archery')) ai.techs.push('archery');
+    else if (Math.random() < 0.15 && ai.techs.includes('archery') && !ai.techs.includes('construction')) ai.techs.push('construction');
+  });
+
+  updateFogOfWar();
+}
+
+function findAITarget(unit) {
+  let best = null, bestDist = Infinity;
+
+  game.cities.filter(c => c.civ === 'player').forEach(city => {
+    const d = hexDistance({q:unit.q,r:unit.r}, {q:city.q,r:city.r});
+    if (d < bestDist) { bestDist = d; best = {q:city.q,r:city.r}; }
+  });
+
+  game.units.filter(u => u.civ === 'player' && u.type !== 'settler').forEach(u => {
+    const d = hexDistance({q:unit.q,r:unit.r}, {q:u.q,r:u.r});
+    if (d < bestDist) { bestDist = d; best = {q:u.q,r:u.r}; }
+  });
+
+  return best;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   TURN PROCESSING
+   ═══════════════════════════════════════════════════════════ */
+function calculateCityYields(city, civ) {
+  let food = 0, prod = 0, gold = 0, science = 2;
+
+  getWorkedHexes(city).forEach(h => {
+    food += h.terrain.food; prod += h.terrain.prod; gold += h.terrain.gold;
+    if (h.improved) {
+      if (h.improvement === 'farm') food += 1;
+      else if (h.improvement === 'mine') prod += 1;
+    }
+  });
+
+  city.buildings.forEach(b => {
+    if (b === 'granary') food += 2;
+    if (b === 'market') gold += 3;
+  });
+
+  food += (civ.foodBonus||0); prod += (civ.prodBonus||0); gold += (civ.goldBonus||0);
+  return { food, prod, gold, science };
+}
+
+function endTurn() {
+  if (!game.isPlayerTurn || game.gameOver) return;
+  game.isPlayerTurn = false;
+
+  // Player city yields
+  game.cities.filter(c => c.civ === 'player').forEach(city => {
+    const yields = calculateCityYields(city, game.civs.find(c => c.id === 'player'));
+    city.production += yields.prod;
+    city.food += yields.food;
+    city.gold += yields.gold;
+    city.science += yields.science;
+
+    if (city.food >= city.population * 10) { city.food -= city.population * 10; city.population++; }
+
+    if (city.buildQueue.length > 0) {
+      const item = city.buildQueue[0];
+      item.progress += city.production;
+      if (item.progress >= item.cost) {
+        city.buildQueue.shift();
+        if (item.type === 'unit') {
+          const ut = UNIT_TYPES[item.unitType];
+          game.units.push({
+            id: `player_${Date.now()}_${Math.random()}`, type: item.unitType, civ:'player',
+            q: city.q, r: city.r, hp: ut.hp, movesLeft: ut.moves, maxMoves: ut.moves,
+            atk: ut.atk, def: ut.def,
+          });
+          showNotification(`Built ${ut.name}!`);
+        } else {
+          city.buildings.push(item.building);
+          showNotification(`Built ${BUILDING_TYPES[item.building]?.name}!`);
+        }
+      }
+    }
+  });
+
+  // Research
+  if (game.researching) {
+    const tech = TECHS.find(t => t.id === game.researching);
+    game.researchProgress += 2 + game.cities.filter(c => c.civ === 'player').length;
+    if (game.researchProgress >= tech.cost) {
+      game.civs.find(c => c.id === 'player').techs.push(tech.id);
+      game.researching = null; game.researchProgress = 0;
+      showNotification(`Researched ${tech.name}!`);
+    }
+  }
+
+  // Reset player unit moves
+  game.units.filter(u => u.civ === 'player').forEach(u => { u.movesLeft = u.maxMoves; });
+
+  // AI turn
+  processAITurn();
+
+  game.turn++;
+  game.isPlayerTurn = true;
+  checkVictory();
+
+  updateResourcesBar();
+  updateTechPanel();
+  updateCivList();
+  updateResearchOptions();
+  if (game.selectedCity) updateCityPanel(game.selectedCity);
+  draw();
+}
+
+function checkVictory() {
+  const pc = game.cities.filter(c => c.civ === 'player').length;
+  const pu = game.units.filter(u => u.civ === 'player').length;
+  const ac = game.cities.filter(c => c.civ !== 'player').length;
+  const au = game.units.filter(u => u.civ !== 'player').length;
+
+  if (ac === 0 && au === 0 && game.cities.length > 0) {
+    game.gameOver = true;
+    document.getElementById('victory-title').textContent = '🏆 Victory!';
+    document.getElementById('victory-text').textContent = `Your civilization has conquered the world on turn ${game.turn}!`;
+    document.getElementById('victory-screen').style.display = 'flex';
+  } else if (pc === 0 && pu === 0 && game.turn > 5) {
+    game.gameOver = true;
+    document.getElementById('victory-title').textContent = '💀 Defeat';
+    document.getElementById('victory-text').textContent = `Your civilization has fallen on turn ${game.turn}.`;
+    document.getElementById('victory-screen').style.display = 'flex';
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   UI UPDATES
+   ═══════════════════════════════════════════════════════════ */
+function updateResourcesBar() {
+  const playerCiv = game.civs.find(c => c.id === 'player');
+  document.getElementById('res-food').textContent = game.cities.filter(c=>c.civ==='player').reduce((s,c)=>s+c.food,0);
+  document.getElementById('res-production').textContent = game.cities.filter(c=>c.civ==='player').reduce((s,c)=>s+c.production,0);
+  document.getElementById('res-gold').textContent = playerCiv.gold;
+  document.getElementById('res-science').textContent = game.cities.filter(c=>c.civ==='player').reduce((s,c)=>s+c.science,0);
+  document.getElementById('res-turn').textContent = game.turn;
+}
+
+function updateCivList() {
+  document.getElementById('civ-list').innerHTML = game.civs.map(civ =>
+    `<div class="panel-row"><span class="label" style="color:${civ.color}">● ${civ.name}</span><span class="value">${game.cities.filter(c=>c.civ===civ.id).length} cities, ${game.units.filter(u=>u.civ===civ.id).length} units</span></div>`
+  ).join('');
+}
+
+function updateUnitPanel(unit) {
+  const panel = document.getElementById('unit-panel');
+  panel.style.display = 'block'; panel.classList.add('active');
+
+  const type = UNIT_TYPES[unit.type];
+  const civ = game.civs.find(c => c.id === unit.civ);
+
+  document.getElementById('unit-type').textContent = type?.name || unit.type;
+  document.getElementById('unit-civ').textContent = civ?.name || 'Unknown';
+  document.getElementById('unit-atk').textContent = type?.atk || 0;
+  document.getElementById('unit-def').textContent = type?.def || 0;
+  document.getElementById('unit-moves').textContent = `${unit.movesLeft}/${unit.maxMoves}`;
+  document.getElementById('unit-hp').textContent = `${unit.hp}/${type?.hp||10}`;
+
+  const actions = document.getElementById('unit-actions');
+  if (unit.civ === 'player' && game.isPlayerTurn && type) {
+    let html = '';
+    if (type.canFound) html += `<button class="action-btn" onclick="showFoundCityOption(game.selectedUnit)">🏛️ Found City</button>`;
+    if (type.canImprove) html += `<button class="action-btn" onclick="improveTerrain()">🔨 Improve Terrain</button>`;
+    actions.innerHTML = html;
+  } else { actions.innerHTML = ''; }
+}
+
+function improveTerrain() {
+  if (!game.selectedUnit || game.selectedUnit.type !== 'worker') return;
+  const unit = game.selectedUnit;
+  for (const n of hexNeighbors(unit.q, unit.r)) {
+    const hex = game.hexByKey(hexKey(n.q, n.r));
+    if (hex && !hex.improved && (hex.terrain === TERRAIN.GRASSLAND || hex.terrain === TERRAIN.HILLS)) {
+      hex.improved = true;
+      hex.improvement = Math.random() < 0.5 ? 'farm' : 'mine';
+      unit.movesLeft = 0;
+      showNotification(`Improved terrain to ${hex.improvement}!`);
+      updateUnitPanel(unit); draw(); return;
+    }
+  }
+  showNotification('No valid terrain to improve nearby.');
+}
+
+function updateTerrainPanel(hex) {
+  const panel = document.getElementById('terrain-panel');
+  panel.style.display = 'block'; panel.classList.add('active');
+
+  document.getElementById('terr-type').textContent = hex.terrain.name;
+  document.getElementById('terr-resource').textContent = hex.resource || '—';
+  document.getElementById('terr-food').textContent = hex.terrain.food;
+  document.getElementById('terr-prod').textContent = hex.terrain.prod;
+  document.getElementById('terr-gold').textContent = hex.terrain.gold;
+  document.getElementById('terr-move').textContent = hex.terrain.moveCost === 99 ? 'Blocked' : hex.terrain.moveCost;
+}
+
+function hidePanel(id) {
+  const el = document.getElementById(id);
+  if (el) { el.style.display = 'none'; el.classList.remove('active'); }
+}
+
+function showNotification(text) {
+  const el = document.getElementById('notification');
+  el.textContent = text; el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2500);
+}
+
+function addCombatLog(text) {
+  game.combatLog.push(text);
+  if (game.combatLog.length > 50) game.combatLog.shift();
+  document.getElementById('combat-log').innerHTML = game.combatLog.map(m => `<div class="log-entry">${m}</div>`).join('');
+  document.getElementById('combat-log').scrollTop = 99999;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   CAMERA HELPERS
+   ═══════════════════════════════════════════════════════════ */
+function zoomIn() { game.camera.zoom = Math.min(3, game.camera.zoom * 1.2); draw(); }
+function zoomOut() { game.camera.zoom = Math.max(.3, game.camera.zoom / 1.2); draw(); }
+function resetView() { game.camera = {x:0,y:0,zoom:1}; draw(); }
+
+/* ═══════════════════════════════════════════════════════════
+   HELPERS
+   ═══════════════════════════════════════════════════════════ */
+game = createGameState();
+game.hexByKey = function(key) { return this.grid.find(h => hexKey(h.q, h.r) === key); };
+
+function isUnitVisible(unit) {
+  if (unit.civ === 'player') return true;
+  const hex = game.hexByKey(hexKey(unit.q, unit.r));
+  return hex && hex.visible;
+}
+
+function isCityVisible(city) {
+  if (city.civ === 'player') return true;
+  const hex = game.hexByKey(hexKey(city.q, city.r));
+  return hex && hex.visible;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   GAME START
+   ═══════════════════════════════════════════════════════════ */
+function startGame() {
+  document.getElementById('title-screen').style.display = 'none';
+  document.getElementById('victory-screen').style.display = 'none';
+  document.getElementById('game-container').classList.add('active');
+
+  game = createGameState();
+  game.grid = generateMap();
+  setupCivilizations();
+
+  // Center camera on map center
+  const centerHex = game.grid[Math.floor(game.grid.length / 2)];
+  if (centerHex) {
+    const pos = hexToPixel(centerHex.q, centerHex.r);
+    game.camera.x = pos.x;
+    game.camera.y = pos.y;
+  }
+
+  initCanvas();
+  initInput();
+
+  updateResourcesBar();
+  updateTechPanel();
+  updateCivList();
+  updateResearchOptions();
+
+  draw();
+}
+
+function initCanvas() {
+  canvas = document.getElementById('game-canvas');
+  ctx = canvas.getContext('2d');
+  minimapCanvas = document.getElementById('minimap');
+  minimapCtx = minimapCanvas.getContext('2d');
+  resizeCanvas();
+  window.addEventListener('resize', resizeCanvas);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   KEYBOARD SHORTCUTS
+   ═══════════════════════════════════════════════════════════ */
+document.addEventListener('keydown', e => {
+  if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); endTurn(); }
+  if (e.key === 'Escape') { deselectAll(); draw(); }
+  if (e.key === '+' || e.key === '=') zoomIn();
+  if (e.key === '-') zoomOut();
+  if (e.key === '0') resetView();
+});
+</script>
+</body>
+</html>
