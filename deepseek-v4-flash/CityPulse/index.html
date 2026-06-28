@@ -196,17 +196,23 @@ body { overflow:hidden; background:#000; font-family:'IM Fell English', serif; }
   </div>
 </div>
 
-<script type="importmap">
-{
-  "imports": {
-    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
-    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
-  }
-}
+<script>
+// Fallback: if Three.js CDN fails, show an error
+window.addEventListener('DOMContentLoaded', () => {
+  setTimeout(() => {
+    if (typeof THREE === 'undefined' && !window.__threeLoaded) {
+      document.getElementById('loading').innerHTML = '<span style="color:#c44">⚠ Failed to load Three.js — check internet connection</span>';
+    }
+  }, 15000);
+});
 </script>
-
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" onload="window.__threeLoaded=true"></script>
 <script type="module">
-import * as THREE from 'three';
+const THREE = window.THREE; // Three.js loaded via script tag
+if (!THREE) {
+  document.getElementById('loading').innerHTML = '<span style="color:#c44">⚠ Three.js not available — refresh the page</span>';
+  throw new Error('Three.js not loaded');
+}
 
 // ───── CONFIG ─────
 const CONFIG = {
@@ -1565,6 +1571,12 @@ window.addEventListener('resize', () => {
 buildCity();
 scene.add(cityVisual);
 scene.add(cityCollision);
+
+// Rebuild collision BBs now that cityCollision is populated
+rebuildCollisionBBs();
+
+// Hide loading screen — game is initialized, title screen is visible underneath
+loadingEl.style.display = 'none';
 
 // ───── RENDER LOOP ─────
 function animate() {
