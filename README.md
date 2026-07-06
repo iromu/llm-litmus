@@ -17,7 +17,7 @@ The generated HTML output is evaluated for:
 |---|---|
 | [deepseek-v4-flash](https://huggingface.co/deepseek-ai/DeepSeek-V4-Flash) | CityPulse, HexGL, Sol, Tetris |
 | [Qwen3.6-35B-A3B](https://qwenlm.github.io/blog/qwen3.6/) | BlueMarble, CityPulse, HexConquest, HexGL, Sol, Tetris |
-| [Qwen3.6-27B](https://qwenlm.github.io/blog/qwen3.6/) | Sol, Tetris |
+| [Qwen3.6-27B](https://qwenlm.github.io/blog/qwen3.6/) | CityPulse, Sol, Tetris |
 
 ## Test scenarios
 
@@ -35,11 +35,12 @@ The generated HTML output is evaluated for:
 | Test | Model | Result                                                    | Bug fix iterations |
 |---|---|-----------------------------------------------------------|---|
 | CityPulse | deepseek-v4-flash | Partial — no collisions, minimal compass, no NPC dialogue | 2 |
+| CityPulse | Qwen3.6-27B | Controls inverted, no compass                             | 0 |
 | CityPulse | Qwen3.6-35B-A3B | Partial — no collisions, broken compass                   | ? |
 | HexGL | deepseek-v4-flash | —                                                         | 0 |
 | HexGL | Qwen3.6-35B-A3B | *not generated*                                           | — |
 | Sol | deepseek-v4-flash | —                                                         | 0 |
-| Sol | Qwen3.6-27B | —                                                         | 0 |
+| Sol | Qwen3.6-27B | No Moon                                                   | 0 |
 | Sol | Qwen3.6-35B-A3B | —                                                         | 0 |
 | Tetris | deepseek-v4-flash | Working                                                   | 0 |
 | Tetris | Qwen3.6-27B | Working                                                   | 0 |
@@ -58,6 +59,7 @@ All generated HTML files are hosted on GitHub Pages:
 - [deepseek-v4-flash — Sol](https://html-preview.github.io/?url=https://github.com/iromu/llm-litmus/blob/main/deepseek-v4-flash/Sol/sol.html)
 - [deepseek-v4-flash — Tetris](https://html-preview.github.io/?url=https://github.com/iromu/llm-litmus/blob/main/deepseek-v4-flash/Tetris/index.html)
 - [Qwen3.6-27B — Sol](https://html-preview.github.io/?url=https://github.com/iromu/llm-litmus/blob/main/Qwen3.6-27B/Sol/Sol.html)
+- [Qwen3.6-27B — CityPulse](https://html-preview.github.io/?url=https://github.com/iromu/llm-litmus/blob/main/Qwen3.6-27B/CityPulse/CityPulse.html)
 - [Qwen3.6-27B — Tetris](https://html-preview.github.io/?url=https://github.com/iromu/llm-litmus/blob/main/Qwen3.6-27B/Tetris/Tetris.html)
 - [Qwen3.6-35B-A3B — CityPulse](https://html-preview.github.io/?url=https://github.com/iromu/llm-litmus/blob/main/Qwen3.6-35B-A3B/CityPulse/index.html)
 - [Qwen3.6-35B-A3B — HexConquest](https://html-preview.github.io/?url=https://github.com/iromu/llm-litmus/blob/main/Qwen3.6-35B-A3B/HexConquest/index.html)
@@ -131,8 +133,11 @@ Three.js skills are symlinked into each test directory:
 │   ├── Sol/
 │   └── Tetris/
 ├── Qwen3.6-27B/           # Generated outputs for Qwen3.6-27B
+│   ├── CityPulse/
+│   ├── Sol/
 │   └── Tetris/
 ├── Qwen3.6-35B-A3B/       # Generated outputs for Qwen3.6-35B-A3B
+│   ├── BlueMarble/
 │   ├── CityPulse/
 │   ├── HexConquest/
 │   ├── HexGL/

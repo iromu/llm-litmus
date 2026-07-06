@@ -1,0 +1,1704 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CityPulse - Medieval City Exploration</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=MedievalSharp&family=Cinzel:wght@400;700&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { overflow: hidden; background: #000; font-family: 'Cinzel', serif; }
+  canvas { display: block; }
+
+  /* Title Screen */
+  #title-screen {
+    position: fixed; inset: 0; z-index: 1000;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background: linear-gradient(180deg, #1a0f0a 0%, #2d1810 40%, #3d2117 100%);
+  }
+  #title-screen::before {
+    content: ''; position: absolute; inset: 0;
+    background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23d4a056' fill-opacity='0.05'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+    opacity: 0.5;
+  }
+  #title-screen h1 {
+    font-family: 'MedievalSharp', cursive;
+    font-size: 72px; color: #d4a056;
+    text-shadow: 0 0 20px rgba(212, 160, 86, 0.5), 0 4px 8px rgba(0,0,0,0.8);
+    margin-bottom: 8px; position: relative; z-index: 1;
+    letter-spacing: 4px;
+  }
+  #title-screen .subtitle {
+    font-size: 16px; color: #a08060; margin-bottom: 48px;
+    letter-spacing: 6px; text-transform: uppercase; position: relative; z-index: 1;
+  }
+  #title-screen button {
+    position: relative; z-index: 1;
+    font-family: 'Cinzel', serif; font-size: 20px; font-weight: 700;
+    padding: 16px 48px; cursor: pointer;
+    background: linear-gradient(180deg, #5a3a1a, #3d2510);
+    color: #d4a056; border: 2px solid #8a6a3a;
+    text-transform: uppercase; letter-spacing: 3px;
+    transition: all 0.3s;
+  }
+  #title-screen button:hover {
+    background: linear-gradient(180deg, #6a4a2a, #4d3520);
+    border-color: #d4a056;
+    box-shadow: 0 0 20px rgba(212, 160, 86, 0.3);
+  }
+  .title-decor {
+    width: 300px; height: 2px; margin: 24px 0;
+    background: linear-gradient(90deg, transparent, #8a6a3a, transparent);
+    position: relative; z-index: 1;
+  }
+
+  /* HUD */
+  #hud { position: fixed; inset: 0; pointer-events: none; z-index: 100; display: none; }
+  #compass {
+    position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
+    background: linear-gradient(180deg, rgba(30,20,10,0.85), rgba(30,20,10,0.4));
+    padding: 8px 32px; border-radius: 4px;
+    color: #d4a056; font-size: 14px; letter-spacing: 3px;
+    border: 1px solid rgba(138, 106, 58, 0.4);
+    text-transform: uppercase;
+  }
+  #interaction-prompt {
+    position: absolute; bottom: 120px; left: 50%; transform: translateX(-50%);
+    background: rgba(30, 20, 10, 0.8);
+    padding: 8px 20px; border-radius: 4px;
+    color: #d4a056; font-size: 14px;
+    border: 1px solid rgba(138, 106, 58, 0.4);
+    display: none;
+  }
+  #interaction-prompt .key {
+    display: inline-block; background: rgba(212,160,86,0.2);
+    padding: 2px 8px; border-radius: 3px; margin-right: 6px;
+    border: 1px solid #8a6a3a; font-weight: 700;
+  }
+
+  /* Dialogue */
+  #dialogue-box {
+    position: fixed; bottom: 40px; left: 50%; transform: translateX(-50%);
+    width: 700px; max-width: 90vw; z-index: 200; display: none;
+    background: linear-gradient(180deg, #2a1a0e, #1a0f08);
+    border: 2px solid #6a4a2a; border-radius: 6px;
+    box-shadow: 0 0 30px rgba(0,0,0,0.7);
+    pointer-events: auto;
+  }
+  #dialogue-header {
+    display: flex; align-items: center; padding: 12px 16px;
+    border-bottom: 1px solid #4a3020;
+  }
+  #dialogue-portrait {
+    width: 56px; height: 56px; border-radius: 4px; margin-right: 12px;
+    border: 2px solid #6a4a2a; flex-shrink: 0;
+  }
+  #dialogue-name {
+    font-size: 16px; color: #d4a056; font-weight: 700;
+  }
+  #dialogue-role {
+    font-size: 11px; color: #8a7050; text-transform: uppercase;
+    letter-spacing: 2px;
+  }
+  #dialogue-text {
+    padding: 16px; color: #c0a080; font-size: 14px;
+    line-height: 1.6; min-height: 60px;
+    font-family: Georgia, serif;
+  }
+  #dialogue-options {
+    padding: 8px 16px 16px; display: flex; flex-direction: column; gap: 6px;
+  }
+  #dialogue-options button {
+    font-family: 'Cinzel', serif; font-size: 13px;
+    padding: 8px 16px; cursor: pointer; text-align: left;
+    background: rgba(90, 58, 26, 0.4); color: #c0a080;
+    border: 1px solid transparent; border-radius: 3px;
+    transition: all 0.2s;
+  }
+  #dialogue-options button:hover {
+    background: rgba(90, 58, 26, 0.8);
+    border-color: #8a6a3a; color: #d4a056;
+  }
+  #dialogue-close {
+    position: absolute; top: 8px; right: 12px;
+    background: none; border: none; color: #6a4a2a;
+    font-size: 18px; cursor: pointer; pointer-events: auto;
+  }
+  #dialogue-close:hover { color: #d4a056; }
+
+  /* Pause Menu */
+  #pause-menu {
+    position: fixed; inset: 0; z-index: 500; display: none;
+    background: rgba(10, 6, 3, 0.85);
+    flex-direction: column; align-items: center; justify-content: center;
+  }
+  #pause-menu h2 {
+    font-family: 'MedievalSharp', cursive;
+    font-size: 48px; color: #d4a056;
+    text-shadow: 0 0 15px rgba(212, 160, 86, 0.4);
+    margin-bottom: 32px;
+  }
+  #pause-menu button {
+    font-family: 'Cinzel', serif; font-size: 16px;
+    padding: 12px 40px; margin: 6px; cursor: pointer;
+    width: 240px; text-align: center;
+    background: linear-gradient(180deg, #3d2510, #2a1808);
+    color: #c0a080; border: 1px solid #5a3a1a;
+    letter-spacing: 2px; transition: all 0.2s;
+  }
+  #pause-menu button:hover {
+    background: linear-gradient(180deg, #5a3a1a, #3d2510);
+    border-color: #8a6a3a; color: #d4a056;
+  }
+
+  /* Quest notification */
+  #quest-notification {
+    position: fixed; top: 80px; right: 20px; z-index: 300;
+    background: linear-gradient(180deg, rgba(40,25,12,0.95), rgba(26,15,8,0.95));
+    border: 1px solid #6a4a2a; border-radius: 4px;
+    padding: 12px 20px; color: #d4a056;
+    font-size: 13px; display: none;
+    box-shadow: 0 0 20px rgba(0,0,0,0.5);
+    max-width: 280px;
+  }
+  #quest-notification h4 {
+    font-size: 11px; text-transform: uppercase;
+    letter-spacing: 2px; color: #8a6a3a; margin-bottom: 4px;
+  }
+
+  /* Controls help */
+  #controls-help {
+    position: fixed; bottom: 16px; left: 16px; z-index: 100;
+    background: rgba(20, 12, 6, 0.7); padding: 8px 12px;
+    border-radius: 4px; font-size: 11px; color: #7a6a50;
+    line-height: 1.6; display: none;
+  }
+  #controls-help kbd {
+    background: rgba(212,160,86,0.15); padding: 1px 5px;
+    border-radius: 2px; border: 1px solid #5a3a1a;
+    font-family: 'Cinzel', serif; font-size: 10px; color: #a08060;
+  }
+</style>
+</head>
+<body>
+
+<!-- Title Screen -->
+<div id="title-screen">
+  <h1>CityPulse</h1>
+  <div class="title-decor"></div>
+  <div class="subtitle">A Living City</div>
+  <button id="btn-start">Begin Adventure</button>
+</div>
+
+<!-- HUD -->
+<div id="hud">
+  <div id="compass">Town Square</div>
+  <div id="interaction-prompt"><span class="key">E</span> Talk to <span id="npc-name"></span></div>
+</div>
+
+<!-- Dialogue Box -->
+<div id="dialogue-box">
+  <button id="dialogue-close">&times;</button>
+  <div id="dialogue-header">
+    <canvas id="dialogue-portrait" width="56" height="56"></canvas>
+    <div>
+      <div id="dialogue-name"></div>
+      <div id="dialogue-role"></div>
+    </div>
+  </div>
+  <div id="dialogue-text"></div>
+  <div id="dialogue-options"></div>
+</div>
+
+<!-- Pause Menu -->
+<div id="pause-menu">
+  <h2>Paused</h2>
+  <button id="btn-resume">Resume</button>
+  <button id="btn-settings">Settings</button>
+  <button id="btn-quit">Quit to Title</button>
+</div>
+
+<!-- Quest Notification -->
+<div id="quest-notification">
+  <h4>New Quest</h4>
+  <div id="quest-text"></div>
+</div>
+
+<!-- Controls Help -->
+<div id="controls-help">
+  <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> Move &nbsp;
+  <kbd>Shift</kbd> Run &nbsp;
+  <kbd>Space</kbd> Jump<br>
+  <kbd>Mouse</kbd> Look &nbsp;
+  <kbd>Scroll</kbd> Zoom &nbsp;
+  <kbd>E</kbd> Interact &nbsp;
+  <kbd>Esc</kbd> Pause
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+
+// ─── Game State ───
+const STATE = { TITLE: 0, PLAYING: 1, PAUSED: 2, DIALOGUE: 3 };
+let gameState = STATE.TITLE;
+let activeNPC = null;
+let currentQuest = null;
+
+// ─── Scene Setup ───
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x87CEEB, 0.008);
+
+const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 500);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+document.body.appendChild(renderer.domElement);
+
+// ─── Sky ───
+function createSky() {
+  const skyGeo = new THREE.SphereGeometry(200, 32, 32);
+  const skyMat = new THREE.ShaderMaterial({
+    uniforms: {
+      topColor: { value: new THREE.Color(0x4a90d9) },
+      bottomColor: { value: new THREE.Color(0xc8e0f0) },
+      offset: { value: 20 },
+      exponent: { value: 0.4 }
+    },
+    vertexShader: `
+      varying vec3 vWorldPosition;
+      void main() {
+        vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+        vWorldPosition = worldPosition.xyz;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      uniform vec3 topColor;
+      uniform vec3 bottomColor;
+      uniform float offset;
+      uniform float exponent;
+      varying vec3 vWorldPosition;
+      void main() {
+        float h = normalize(vWorldPosition + offset).y;
+        gl_FragColor = vec4(mix(bottomColor, topColor, max(pow(max(h, 0.0), exponent), 0.0)), 1.0);
+      }
+    `,
+    side: THREE.BackSide,
+    depthWrite: false
+  });
+  scene.add(new THREE.Mesh(skyGeo, skyMat));
+}
+createSky();
+
+// ─── Lighting ───
+const ambientLight = new THREE.AmbientLight(0x8899bb, 0.5);
+scene.add(ambientLight);
+
+const sunLight = new THREE.DirectionalLight(0xffeedd, 1.2);
+sunLight.position.set(40, 60, 30);
+sunLight.castShadow = true;
+sunLight.shadow.mapSize.set(2048, 2048);
+sunLight.shadow.camera.left = -60;
+sunLight.shadow.camera.right = 60;
+sunLight.shadow.camera.top = 60;
+sunLight.shadow.camera.bottom = -60;
+sunLight.shadow.camera.near = 1;
+sunLight.shadow.camera.far = 150;
+sunLight.shadow.bias = -0.001;
+scene.add(sunLight);
+
+const hemiLight = new THREE.HemisphereLight(0x87CEEB, 0x556633, 0.4);
+scene.add(hemiLight);
+
+// ─── Materials ───
+const matStone = new THREE.MeshStandardMaterial({ color: 0x8a8078, roughness: 0.9 });
+const matStoneDark = new THREE.MeshStandardMaterial({ color: 0x6a6058, roughness: 0.9 });
+const matWood = new THREE.MeshStandardMaterial({ color: 0x6b4423, roughness: 0.8 });
+const matWoodDark = new THREE.MeshStandardMaterial({ color: 0x4a2f15, roughness: 0.8 });
+const matRoof = new THREE.MeshStandardMaterial({ color: 0x8b3a3a, roughness: 0.7 });
+const matRoofDark = new THREE.MeshStandardMaterial({ color: 0x5c2020, roughness: 0.7 });
+const matRoofBrown = new THREE.MeshStandardMaterial({ color: 0x6b3a1f, roughness: 0.7 });
+const matCobble = new THREE.MeshStandardMaterial({ color: 0x7a7570, roughness: 0.95 });
+const matGrass = new THREE.MeshStandardMaterial({ color: 0x4a6b2a, roughness: 1.0 });
+const matMetal = new THREE.MeshStandardMaterial({ color: 0x555555, roughness: 0.4, metalness: 0.6 });
+const matTorch = new THREE.MeshStandardMaterial({ color: 0x8b5a2b, roughness: 0.8 });
+const matFabric = new THREE.MeshStandardMaterial({ color: 0x8b2020, roughness: 0.9 });
+const matFabricBlue = new THREE.MeshStandardMaterial({ color: 0x204080, roughness: 0.9 });
+const matFabricGreen = new THREE.MeshStandardMaterial({ color: 0x2a5a2a, roughness: 0.9 });
+const matKeep = new THREE.MeshStandardMaterial({ color: 0x9a9090, roughness: 0.85 });
+const matKeepRoof = new THREE.MeshStandardMaterial({ color: 0x3a3a3a, roughness: 0.6 });
+const matBarrel = new THREE.MeshStandardMaterial({ color: 0x7a5a30, roughness: 0.8 });
+const matLeaf = new THREE.MeshStandardMaterial({ color: 0x2d5a1e, roughness: 0.9 });
+const matTrunk = new THREE.MeshStandardMaterial({ color: 0x5a3a1a, roughness: 0.9 });
+
+// ─── Collision Boxes ───
+const collisionBoxes = [];
+
+function addCollisionBox(x, y, z, w, h, d) {
+  collisionBoxes.push({ minX: x - w/2, maxX: x + w/2, minY: y, maxY: y + h, minZ: z - d/2, maxZ: z + d/2 });
+}
+
+// ─── Ground ───
+function createGround() {
+  // Main ground
+  const groundGeo = new THREE.PlaneGeometry(200, 200);
+  const ground = new THREE.Mesh(groundGeo, matGrass);
+  ground.rotation.x = -Math.PI / 2;
+  ground.receiveShadow = true;
+  scene.add(ground);
+
+  // Cobblestone town square
+  const squareGeo = new THREE.PlaneGeometry(30, 30);
+  const square = new THREE.Mesh(squareGeo, matCobble);
+  square.rotation.x = -Math.PI / 2;
+  square.position.set(0, 0.01, 0);
+  square.receiveShadow = true;
+  scene.add(square);
+
+  // Paths radiating from square
+  const pathPositions = [
+    { x: 0, z: 25, w: 4, d: 20 },
+    { x: 0, z: -25, w: 4, d: 20 },
+    { x: 25, z: 0, w: 20, d: 4 },
+    { x: -25, z: 0, w: 20, d: 4 }
+  ];
+  pathPositions.forEach(p => {
+    const pathGeo = new THREE.PlaneGeometry(p.w, p.d);
+    const path = new THREE.Mesh(pathGeo, matCobble);
+    path.rotation.x = -Math.PI / 2;
+    path.position.set(p.x, 0.01, p.z);
+    path.receiveShadow = true;
+    scene.add(path);
+  });
+}
+createGround();
+
+// ─── Building Helper ───
+function createBuilding(x, z, w, d, h, roofMat, wallMat) {
+  const group = new THREE.Group();
+  wallMat = wallMat || matStone;
+
+  // Walls
+  const wallGeo = new THREE.BoxGeometry(w, h, d);
+  const walls = new THREE.Mesh(wallGeo, wallMat);
+  walls.position.y = h / 2;
+  walls.castShadow = true;
+  walls.receiveShadow = true;
+  group.add(walls);
+
+  // Roof
+  const roofGeo = new THREE.ConeGeometry(Math.max(w, d) * 0.75, h * 0.5, 4);
+  const roof = new THREE.Mesh(roofGeo, roofMat || matRoof);
+  roof.position.y = h + h * 0.25;
+  roof.rotation.y = Math.PI / 4;
+  roof.castShadow = true;
+  group.add(roof);
+
+  // Windows (emissive)
+  const windowMat = new THREE.MeshStandardMaterial({ color: 0xffdd88, emissive: 0xffaa44, emissiveIntensity: 0.3 });
+  for (let side = 0; side < 4; side++) {
+    const numWindows = Math.floor((side % 2 === 0 ? w : d) / 4);
+    for (let i = 0; i < numWindows; i++) {
+      const winGeo = new THREE.PlaneGeometry(0.8, 1.2);
+      const win = new THREE.Mesh(winGeo, windowMat);
+      const spacing = (side % 2 === 0 ? w : d) / (numWindows + 1);
+      const offset = -((side % 2 === 0 ? w : d) / 2) + spacing * (i + 1);
+
+      if (side === 0) { win.position.set(offset, h * 0.6, d / 2 + 0.01); }
+      else if (side === 1) { win.position.set(offset, h * 0.6, -d / 2 - 0.01); win.rotation.y = Math.PI; }
+      else if (side === 2) { win.position.set(w / 2 + 0.01, h * 0.6, offset); win.rotation.y = Math.PI / 2; }
+      else { win.position.set(-w / 2 - 0.01, h * 0.6, offset); win.rotation.y = -Math.PI / 2; }
+      group.add(win);
+    }
+  }
+
+  // Door
+  const doorGeo = new THREE.PlaneGeometry(1.5, 2.5);
+  const doorMat = new THREE.MeshStandardMaterial({ color: 0x4a2f15 });
+  const door = new THREE.Mesh(doorGeo, doorMat);
+  door.position.set(0, 1.25, d / 2 + 0.02);
+  group.add(door);
+
+  // Door frame
+  const frameGeo = new THREE.BoxGeometry(1.8, 2.8, 0.3);
+  const frame = new THREE.Mesh(frameGeo, matWoodDark);
+  frame.position.set(0, 1.4, d / 2 - 0.1);
+  group.add(frame);
+
+  group.position.set(x, 0, z);
+  scene.add(group);
+
+  addCollisionBox(x, 0, z, w + 1, h + 2, d + 1);
+  return group;
+}
+
+// ─── City Buildings ───
+function createCity() {
+  // North row
+  createBuilding(-15, -20, 8, 6, 7, matRoof);
+  createBuilding(-5, -20, 7, 6, 6, matRoofBrown);
+  createBuilding(5, -20, 9, 6, 8, matRoof);
+  createBuilding(15, -20, 7, 6, 6, matRoofDark);
+
+  // South row
+  createBuilding(-15, 20, 7, 6, 6, matRoofDark);
+  createBuilding(-5, 20, 8, 6, 7, matRoof);
+  createBuilding(5, 20, 6, 6, 5, matRoofBrown);
+  createBuilding(15, 20, 8, 6, 7, matRoof);
+
+  // East row
+  createBuilding(20, -15, 6, 8, 7, matRoof);
+  createBuilding(20, -5, 6, 7, 6, matRoofBrown);
+  createBuilding(20, 5, 6, 8, 8, matRoofDark);
+  createBuilding(20, 15, 6, 7, 6, matRoof);
+
+  // West row
+  createBuilding(-20, -15, 6, 7, 6, matRoofBrown);
+  createBuilding(-20, -5, 6, 8, 7, matRoof);
+  createBuilding(-20, 5, 6, 7, 6, matRoofDark);
+  createBuilding(-20, 15, 6, 8, 8, matRoof);
+
+  // Corner buildings
+  createBuilding(-28, -28, 8, 8, 9, matRoofDark, matStoneDark);
+  createBuilding(28, -28, 8, 8, 9, matRoofDark, matStoneDark);
+  createBuilding(-28, 28, 8, 8, 9, matRoofDark, matStoneDark);
+  createBuilding(28, 28, 8, 8, 9, matRoofDark, matStoneDark);
+}
+createCity();
+
+// ─── Keep (Landmark) ───
+function createKeep() {
+  const group = new THREE.Group();
+
+  // Main tower
+  const towerGeo = new THREE.BoxGeometry(10, 16, 10);
+  const tower = new THREE.Mesh(towerGeo, matKeep);
+  tower.position.y = 8;
+  tower.castShadow = true;
+  tower.receiveShadow = true;
+  group.add(tower);
+
+  // Battlements
+  for (let i = 0; i < 8; i++) {
+    const bGeo = new THREE.BoxGeometry(1, 1.5, 1);
+    const b = new THREE.Mesh(bGeo, matKeep);
+    const angle = (i / 8) * Math.PI * 2;
+    b.position.set(Math.cos(angle) * 4.5, 16.75, Math.sin(angle) * 4.5);
+    b.castShadow = true;
+    group.add(b);
+  }
+
+  // Corner turrets
+  [[-5, -5], [5, -5], [-5, 5], [5, 5]].forEach(([tx, tz]) => {
+    const turretGeo = new THREE.CylinderGeometry(1.2, 1.5, 4, 8);
+    const turret = new THREE.Mesh(turretGeo, matKeep);
+    turret.position.set(tx, 18, tz);
+    turret.castShadow = true;
+    group.add(turret);
+
+    const turretRoofGeo = new THREE.ConeGeometry(1.5, 2, 8);
+    const turretRoof = new THREE.Mesh(turretRoofGeo, matKeepRoof);
+    turretRoof.position.set(tx, 21, tz);
+    turretRoof.castShadow = true;
+    group.add(turretRoof);
+  });
+
+  // Roof
+  const roofGeo = new THREE.ConeGeometry(7.5, 5, 4);
+  const roof = new THREE.Mesh(roofGeo, matKeepRoof);
+  roof.position.y = 18.5;
+  roof.rotation.y = Math.PI / 4;
+  roof.castShadow = true;
+  group.add(roof);
+
+  // Gate
+  const gateGeo = new THREE.BoxGeometry(4, 5, 1);
+  const gateMat = new THREE.MeshStandardMaterial({ color: 0x3a2010 });
+  const gate = new THREE.Mesh(gateGeo, gateMat);
+  gate.position.set(0, 2.5, 5.1);
+  group.add(gate);
+
+  // Gate arch
+  const archGeo = new THREE.TorusGeometry(2, 0.3, 8, 12, Math.PI);
+  const arch = new THREE.Mesh(archGeo, matKeep);
+  arch.position.set(0, 5, 5.1);
+  group.add(arch);
+
+  // Flag
+  const poleGeo = new THREE.CylinderGeometry(0.05, 0.05, 4, 6);
+  const pole = new THREE.Mesh(poleGeo, matMetal);
+  pole.position.set(0, 23, 0);
+  group.add(pole);
+
+  const flagGeo = new THREE.PlaneGeometry(2, 1);
+  const flagMat = new THREE.MeshStandardMaterial({ color: 0x8b0000, side: THREE.DoubleSide });
+  const flag = new THREE.Mesh(flagGeo, flagMat);
+  flag.position.set(1, 24, 0);
+  group.add(flag);
+
+  group.position.set(0, 0, -45);
+  scene.add(group);
+
+  addCollisionBox(0, 0, -45, 12, 22, 12);
+}
+createKeep();
+
+// ─── Market Stalls ───
+function createMarketStall(x, z, rotY, fabricMat) {
+  const group = new THREE.Group();
+  fabricMat = fabricMat || matFabric;
+
+  // Posts
+  const postGeo = new THREE.CylinderGeometry(0.15, 0.15, 3, 6);
+  [[-1.5, -1.5], [1.5, -1.5], [-1.5, 1.5], [1.5, 1.5]].forEach(([px, pz]) => {
+    const post = new THREE.Mesh(postGeo, matWood);
+    post.position.set(px, 1.5, pz);
+    post.castShadow = true;
+    group.add(post);
+  });
+
+  // Counter
+  const counterGeo = new THREE.BoxGeometry(3.5, 1, 2);
+  const counter = new THREE.Mesh(counterGeo, matWood);
+  counter.position.y = 0.5;
+  counter.castShadow = true;
+  group.add(counter);
+
+  // Canvas roof
+  const canvasGeo = new THREE.PlaneGeometry(3.5, 3.5);
+  const canvas = new THREE.Mesh(canvasGeo, fabricMat);
+  canvas.position.y = 3.2;
+  canvas.rotation.x = -Math.PI / 2;
+  group.add(canvas);
+
+  // Goods on counter
+  const goodsGeo = new THREE.SphereGeometry(0.2, 8, 8);
+  const goodsMat = new THREE.MeshStandardMaterial({ color: 0xcc4444 });
+  for (let i = 0; i < 3; i++) {
+    const goods = new THREE.Mesh(goodsGeo, goodsMat);
+    goods.position.set(-0.8 + i * 0.8, 1.2, 0);
+    group.add(goods);
+  }
+
+  group.position.set(x, 0, z);
+  group.rotation.y = rotY;
+  scene.add(group);
+
+  addCollisionBox(x, 0, z, 4, 3.5, 4);
+}
+
+createMarketStall(-8, -8, 0.3, matFabric);
+createMarketStall(8, -8, -0.3, matFabricBlue);
+createMarketStall(-8, 8, 0.8, matFabricGreen);
+createMarketStall(8, 8, -0.8, matFabric);
+
+// ─── City Walls ───
+function createWalls() {
+  const wallH = 6;
+  const wallT = 2;
+  const wallMat = matStoneDark;
+
+  // Four walls
+  const wallData = [
+    { x: 0, z: -55, w: 120, d: wallT },
+    { x: 0, z: 55, w: 120, d: wallT },
+    { x: -55, z: 0, w: wallT, d: 100 },
+    { x: 55, z: 0, w: wallT, d: 100 }
+  ];
+
+  wallData.forEach(wd => {
+    const wGeo = new THREE.BoxGeometry(wd.w, wallH, wd.d);
+    const wall = new THREE.Mesh(wGeo, wallMat);
+    wall.position.set(wd.x, wallH / 2, wd.z);
+    wall.castShadow = true;
+    wall.receiveShadow = true;
+    scene.add(wall);
+
+    // Battlements
+    const numBattlements = Math.floor((wd.w > wd.d ? wd.w : wd.d) / 4);
+    for (let i = 0; i < numBattlements; i++) {
+      const bGeo = new THREE.BoxGeometry(1.5, 1.5, wd.d > wd.w ? 1.5 : wallT);
+      const b = new THREE.Mesh(bGeo, wallMat);
+      const spacing = wd.w > wd.d ? wd.w / numBattlements : wd.d / numBattlements;
+      const offset = -(wd.w > wd.d ? wd.w : wd.d) / 2 + spacing * (i + 0.5);
+
+      if (wd.w > wd.d) {
+        b.position.set(offset, wallH + 0.75, wd.z);
+      } else {
+        b.position.set(wd.x, wallH + 0.75, offset);
+      }
+      b.castShadow = true;
+      scene.add(b);
+    }
+
+    addCollisionBox(wd.x, 0, wd.z, wd.w + 1, wallH + 2, wd.d + 1);
+  });
+
+  // Wall towers
+  [[-55, -55], [55, -55], [-55, 55], [55, 55]].forEach(([tx, tz]) => {
+    const tGeo = new THREE.CylinderGeometry(3, 3.5, 10, 8);
+    const t = new THREE.Mesh(tGeo, wallMat);
+    t.position.set(tx, 5, tz);
+    t.castShadow = true;
+    scene.add(t);
+
+    const tRoofGeo = new THREE.ConeGeometry(3.5, 3, 8);
+    const tRoof = new THREE.Mesh(tRoofGeo, matRoofDark);
+    tRoof.position.set(tx, 11.5, tz);
+    tRoof.castShadow = true;
+    scene.add(tRoof);
+
+    addCollisionBox(tx, 0, tz, 8, 14, 8);
+  });
+}
+createWalls();
+
+// ─── Environmental Details ───
+function createBarrel(x, z) {
+  const geo = new THREE.CylinderGeometry(0.4, 0.4, 1, 8);
+  const barrel = new THREE.Mesh(geo, matBarrel);
+  barrel.position.set(x, 0.5, z);
+  barrel.castShadow = true;
+  scene.add(barrel);
+
+  // Metal bands
+  const bandGeo = new THREE.TorusGeometry(0.42, 0.03, 6, 12);
+  const band1 = new THREE.Mesh(bandGeo, matMetal);
+  band1.position.set(x, 0.8, z);
+  band1.rotation.x = Math.PI / 2;
+  scene.add(band1);
+  const band2 = band1.clone();
+  band2.position.y = 0.2;
+  scene.add(band2);
+
+  addCollisionBox(x, 0, z, 1, 1, 1);
+}
+
+function createCrate(x, z) {
+  const geo = new THREE.BoxGeometry(1, 1, 1);
+  const crate = new THREE.Mesh(geo, matWood);
+  crate.position.set(x, 0.5, z);
+  crate.castShadow = true;
+  scene.add(crate);
+
+  // Cross planks
+  const plankGeo = new THREE.BoxGeometry(1.02, 0.08, 0.15);
+  const plank1 = new THREE.Mesh(plankGeo, matWoodDark);
+  plank1.position.set(x, 0.5, z + 0.51);
+  scene.add(plank1);
+  const plank2 = plank1.clone();
+  plank2.position.z = z - 0.51;
+  scene.add(plank2);
+
+  addCollisionBox(x, 0, z, 1.2, 1, 1.2);
+}
+
+function createTree(x, z) {
+  const group = new THREE.Group();
+
+  // Trunk
+  const trunkGeo = new THREE.CylinderGeometry(0.3, 0.5, 4, 6);
+  const trunk = new THREE.Mesh(trunkGeo, matTrunk);
+  trunk.position.y = 2;
+  trunk.castShadow = true;
+  group.add(trunk);
+
+  // Foliage layers
+  const sizes = [2.5, 2, 1.4];
+  const heights = [4, 5.5, 7];
+  sizes.forEach((s, i) => {
+    const fGeo = new THREE.SphereGeometry(s, 8, 6);
+    const foliage = new THREE.Mesh(fGeo, matLeaf);
+    foliage.position.y = heights[i];
+    foliage.castShadow = true;
+    group.add(foliage);
+  });
+
+  group.position.set(x, 0, z);
+  scene.add(group);
+
+  addCollisionBox(x, 0, z, 2, 9, 2);
+}
+
+function createFence(x, z, length, rotY) {
+  const group = new THREE.Group();
+  const numPosts = Math.floor(length / 1.5);
+
+  for (let i = 0; i <= numPosts; i++) {
+    const postGeo = new THREE.CylinderGeometry(0.08, 0.1, 1.2, 4);
+    const post = new THREE.Mesh(postGeo, matWood);
+    post.position.set(i * 1.5 - length / 2, 0.6, 0);
+    post.castShadow = true;
+    group.add(post);
+  }
+
+  // Rails
+  for (let r = 0; r < 2; r++) {
+    const railGeo = new THREE.BoxGeometry(length, 0.08, 0.08);
+    const rail = new THREE.Mesh(railGeo, matWood);
+    rail.position.set(0, 0.4 + r * 0.4, 0);
+    group.add(rail);
+  }
+
+  group.position.set(x, 0, z);
+  group.rotation.y = rotY;
+  scene.add(group);
+}
+
+// Scatter barrels and crates
+createBarrel(-12, -12);
+createBarrel(-11, -12);
+createBarrel(12, 12);
+createBarrel(13, 12);
+createBarrel(-12, 12);
+createCrate(12, -12);
+createCrate(11.5, -11.5);
+createCrate(-12, -13);
+createCrate(12, 13);
+
+// Trees around the city edges
+createTree(-35, -35);
+createTree(-40, -30);
+createTree(35, -35);
+createTree(40, -30);
+createTree(-35, 35);
+createTree(-40, 30);
+createTree(35, 35);
+createTree(40, 30);
+createTree(-30, 42);
+createTree(30, 42);
+createTree(-42, 0);
+createTree(42, 0);
+
+// Fences
+createFence(-18, -10, 6, 0);
+createFence(18, 10, 6, 0);
+createFence(-10, 18, 6, Math.PI / 2);
+
+// ─── Torches ───
+const torches = [];
+
+function createTorch(x, y, z) {
+  const group = new THREE.Group();
+
+  // Bracket
+  const bracketGeo = new THREE.BoxGeometry(0.1, 0.6, 0.3);
+  const bracket = new THREE.Mesh(bracketGeo, matMetal);
+  group.add(bracket);
+
+  // Torch stick
+  const stickGeo = new THREE.CylinderGeometry(0.06, 0.08, 0.6, 6);
+  const stick = new THREE.Mesh(stickGeo, matTorch);
+  stick.position.y = 0.3;
+  group.add(stick);
+
+  // Flame (emissive sphere)
+  const flameGeo = new THREE.SphereGeometry(0.12, 6, 6);
+  const flameMat = new THREE.MeshStandardMaterial({
+    color: 0xff6600, emissive: 0xff4400, emissiveIntensity: 2
+  });
+  const flame = new THREE.Mesh(flameGeo, flameMat);
+  flame.position.y = 0.65;
+  group.add(flame);
+
+  // Point light
+  const light = new THREE.PointLight(0xff6633, 1.5, 12, 2);
+  light.position.y = 0.7;
+  light.castShadow = false;
+  group.add(light);
+
+  group.position.set(x, y, z);
+  scene.add(group);
+
+  torches.push({ flame, light, baseIntensity: 1.5, phase: Math.random() * Math.PI * 2 });
+}
+
+// Place torches on buildings
+createTorch(-14.5, 2, -17);
+createTorch(-4.5, 2, -17);
+createTorch(5.5, 2, -17);
+createTorch(14.5, 2, -17);
+createTorch(-14.5, 2, 17);
+createTorch(14.5, 2, 17);
+createTorch(17, 2, -14.5);
+createTorch(17, 2, 14.5);
+createTorch(-17, 2, -14.5);
+createTorch(-17, 2, 14.5);
+createTorch(-4, 3, -44);
+createTorch(4, 3, -44);
+
+// ─── Banners ───
+function createBanner(x, y, z, mat) {
+  const bannerGeo = new THREE.PlaneGeometry(0.8, 2);
+  const banner = new THREE.Mesh(bannerGeo, mat || matFabric);
+  banner.position.set(x, y, z);
+  scene.add(banner);
+}
+
+createBanner(-28, 10, -25.5, matFabric);
+createBanner(28, 10, -25.5, matFabricBlue);
+createBanner(-28, 10, 25.5, matFabricGreen);
+createBanner(28, 10, 25.5, matFabric);
+
+// ─── Well in Town Square ───
+function createWell() {
+  const group = new THREE.Group();
+
+  // Stone base
+  const baseGeo = new THREE.CylinderGeometry(1.5, 1.8, 1.2, 12);
+  const base = new THREE.Mesh(baseGeo, matStoneDark);
+  base.position.y = 0.6;
+  base.castShadow = true;
+  group.add(base);
+
+  // Water
+  const waterGeo = new THREE.CylinderGeometry(1.3, 1.3, 0.1, 12);
+  const waterMat = new THREE.MeshStandardMaterial({ color: 0x2244aa, roughness: 0.1, metalness: 0.3 });
+  const water = new THREE.Mesh(waterGeo, waterMat);
+  water.position.y = 0.8;
+  group.add(water);
+
+  // Posts
+  const postGeo = new THREE.CylinderGeometry(0.1, 0.1, 3, 6);
+  const post1 = new THREE.Mesh(postGeo, matWood);
+  post1.position.set(-1.2, 2.7, 0);
+  group.add(post1);
+  const post2 = post1.clone();
+  post2.position.x = 1.2;
+  group.add(post2);
+
+  // Crossbeam
+  const beamGeo = new THREE.CylinderGeometry(0.08, 0.08, 2.8, 6);
+  const beam = new THREE.Mesh(beamGeo, matWood);
+  beam.position.y = 4.2;
+  beam.rotation.z = Math.PI / 2;
+  group.add(beam);
+
+  group.position.set(0, 0, 0);
+  scene.add(group);
+
+  addCollisionBox(0, 0, 0, 4, 5, 4);
+}
+createWell();
+
+// ─── Player Character ───
+const player = {
+  mesh: null,
+  position: new THREE.Vector3(0, 0, 15),
+  velocity: new THREE.Vector3(),
+  rotation: 0,
+  height: 1.8,
+  radius: 0.4,
+  speed: 6,
+  runSpeed: 12,
+  jumpForce: 8,
+  gravity: 20,
+  onGround: false,
+  isRunning: false,
+  animTime: 0
+};
+
+function createPlayer() {
+  const group = new THREE.Group();
+
+  // Body
+  const bodyGeo = new THREE.CylinderGeometry(0.3, 0.35, 1, 8);
+  const bodyMat = new THREE.MeshStandardMaterial({ color: 0x4a5a3a });
+  const body = new THREE.Mesh(bodyGeo, bodyMat);
+  body.position.y = 0.9;
+  body.castShadow = true;
+  group.add(body);
+
+  // Head
+  const headGeo = new THREE.SphereGeometry(0.25, 8, 8);
+  const headMat = new THREE.MeshStandardMaterial({ color: 0xd4a574 });
+  const head = new THREE.Mesh(headGeo, headMat);
+  head.position.y = 1.65;
+  head.castShadow = true;
+  group.add(head);
+
+  // Hood
+  const hoodGeo = new THREE.SphereGeometry(0.3, 8, 6, 0, Math.PI * 2, 0, Math.PI / 2);
+  const hoodMat = new THREE.MeshStandardMaterial({ color: 0x3a4a2a });
+  const hood = new THREE.Mesh(hoodGeo, hoodMat);
+  hood.position.y = 1.7;
+  group.add(hood);
+
+  // Legs
+  const legGeo = new THREE.CylinderGeometry(0.12, 0.12, 0.6, 6);
+  const legMat = new THREE.MeshStandardMaterial({ color: 0x3a3a2a });
+  const legL = new THREE.Mesh(legGeo, legMat);
+  legL.position.set(-0.12, 0.3, 0);
+  legL.castShadow = true;
+  group.add(legL);
+  const legR = legL.clone();
+  legR.position.x = 0.12;
+  group.add(legR);
+
+  // Arms
+  const armGeo = new THREE.CylinderGeometry(0.08, 0.08, 0.7, 6);
+  const armMat = new THREE.MeshStandardMaterial({ color: 0x4a5a3a });
+  const armL = new THREE.Mesh(armGeo, armMat);
+  armL.position.set(-0.4, 0.9, 0);
+  armL.castShadow = true;
+  group.add(armL);
+  const armR = armL.clone();
+  armR.position.x = 0.4;
+  group.add(armR);
+
+  group.position.copy(player.position);
+  scene.add(group);
+
+  player.mesh = group;
+  player.legL = legL;
+  player.legR = legR;
+  player.armL = armL;
+  player.armR = armR;
+}
+createPlayer();
+
+// ─── Camera ───
+const cameraState = {
+  target: player.position.clone(),
+  offset: new THREE.Vector3(0, 4, 8),
+  spherical: { radius: 8, theta: 0, phi: Math.PI / 6 },
+  isDragging: false,
+  lastMouse: { x: 0, y: 0 }
+};
+
+function updateCamera() {
+  const { radius, theta, phi } = cameraState.spherical;
+  const targetPos = player.position.clone();
+  targetPos.y += player.height * 0.7;
+
+  const desiredOffset = new THREE.Vector3(
+    -radius * Math.sin(phi) * Math.sin(theta),
+    radius * Math.cos(phi),
+    -radius * Math.sin(phi) * Math.cos(theta)
+  );
+
+  const desiredPos = targetPos.clone().add(desiredOffset);
+
+  // Camera collision with buildings
+  let closestDist = desiredOffset.length();
+  let finalPos = desiredPos.clone();
+
+  for (const box of collisionBoxes) {
+    // Check if camera position is inside or too close to a collision box
+    const distX = Math.max(0, box.minX - desiredPos.x, desiredPos.x - box.maxX);
+    const distY = Math.max(0, box.minY - desiredPos.y, desiredPos.y - box.maxY);
+    const distZ = Math.max(0, box.minZ - desiredPos.z, desiredPos.z - box.maxZ);
+
+    if (distX === 0 && distY === 0 && distZ === 0) {
+      // Camera is inside the box - push it out
+      const dists = [
+        { d: desiredPos.x - box.maxX, axis: 'x' },
+        { d: box.minX - desiredPos.x, axis: 'x' },
+        { d: desiredPos.z - box.maxZ, axis: 'z' },
+        { d: box.minZ - desiredPos.z, axis: 'z' }
+      ].filter(dd => dd.d < 0).sort((a, b) => Math.abs(a.d) - Math.abs(b.d));
+
+      if (dists.length > 0) {
+        const push = dists[0];
+        const testPos = desiredPos.clone();
+        if (push.axis === 'x') testPos.x = push.d < 0 ? box.maxX + 0.5 : box.minX - 0.5;
+        else testPos.z = push.d < 0 ? box.maxZ + 0.5 : box.minZ - 0.5;
+
+        const newDist = testPos.distanceTo(targetPos);
+        if (newDist < closestDist) {
+          closestDist = newDist;
+          finalPos = testPos;
+        }
+      }
+    } else {
+      // Check proximity
+      const dist = Math.sqrt(distX * distX + distY * distY + distZ * distZ);
+      if (dist < 1.5) {
+        // Push camera closer to target
+        const dir = desiredPos.clone().sub(targetPos).normalize();
+        const testPos = targetPos.clone().add(dir.multiplyScalar(Math.max(2, dist * 2)));
+        const newDist = testPos.distanceTo(targetPos);
+        if (newDist < closestDist) {
+          closestDist = newDist;
+          finalPos = testPos;
+        }
+      }
+    }
+  }
+
+  // Clamp camera above ground
+  finalPos.y = Math.max(finalPos.y, targetPos.y + 0.5);
+
+  camera.position.lerp(finalPos, 0.15);
+  camera.lookAt(targetPos);
+}
+
+// ─── Input ───
+const keys = {};
+let interactPressed = false;
+
+document.addEventListener('keydown', (e) => {
+  keys[e.code] = true;
+
+  if (e.code === 'KeyE' && !interactPressed) {
+    interactPressed = true;
+    if (gameState === STATE.PLAYING && activeNPC) {
+      openDialogue(activeNPC);
+    }
+  }
+
+  if (e.code === 'Escape') {
+    if (gameState === STATE.DIALOGUE) {
+      closeDialogue();
+    } else if (gameState === STATE.PLAYING) {
+      togglePause();
+    } else if (gameState === STATE.PAUSED) {
+      togglePause();
+    }
+  }
+});
+
+document.addEventListener('keyup', (e) => {
+  keys[e.code] = false;
+  if (e.code === 'KeyE') interactPressed = false;
+});
+
+// Mouse controls
+renderer.domElement.addEventListener('mousedown', (e) => {
+  if (gameState === STATE.PLAYING && e.button === 0) {
+    cameraState.isDragging = true;
+    cameraState.lastMouse = { x: e.clientX, y: e.clientY };
+  }
+});
+
+document.addEventListener('mousemove', (e) => {
+  if (cameraState.isDragging && gameState === STATE.PLAYING) {
+    const dx = e.clientX - cameraState.lastMouse.x;
+    const dy = e.clientY - cameraState.lastMouse.y;
+    cameraState.spherical.theta -= dx * 0.005;
+    cameraState.spherical.phi = Math.max(0.1, Math.min(Math.PI / 2.2, cameraState.spherical.phi + dy * 0.005));
+    cameraState.lastMouse = { x: e.clientX, y: e.clientY };
+  }
+});
+
+document.addEventListener('mouseup', () => { cameraState.isDragging = false; });
+
+renderer.domElement.addEventListener('wheel', (e) => {
+  if (gameState === STATE.PLAYING) {
+    cameraState.spherical.radius = Math.max(3, Math.min(20, cameraState.spherical.radius + e.deltaY * 0.01));
+  }
+});
+
+// ─── Player Movement ───
+function updatePlayer(delta) {
+  if (gameState !== STATE.PLAYING) return;
+
+  // Movement direction
+  const forward = new THREE.Vector3(-Math.sin(cameraState.spherical.theta), 0, -Math.cos(cameraState.spherical.theta));
+  const right = new THREE.Vector3(Math.cos(cameraState.spherical.theta), 0, -Math.sin(cameraState.spherical.theta));
+
+  const moveDir = new THREE.Vector3();
+  if (keys['KeyW']) moveDir.add(forward);
+  if (keys['KeyS']) moveDir.sub(forward);
+  if (keys['KeyA']) moveDir.sub(right);
+  if (keys['KeyD']) moveDir.add(right);
+
+  const isMoving = moveDir.length() > 0;
+  if (isMoving) moveDir.normalize();
+
+  player.isRunning = keys['ShiftLeft'] || keys['ShiftRight'];
+  const speed = player.isRunning ? player.runSpeed : player.speed;
+
+  // Apply movement
+  player.velocity.x = moveDir.x * speed;
+  player.velocity.z = moveDir.z * speed;
+
+  // Jump
+  if (keys['Space'] && player.onGround) {
+    player.velocity.y = player.jumpForce;
+    player.onGround = false;
+  }
+
+  // Gravity
+  player.velocity.y -= player.gravity * delta;
+
+  // Update position
+  player.position.x += player.velocity.x * delta;
+  player.position.y += player.velocity.y * delta;
+  player.position.z += player.velocity.z * delta;
+
+  // Ground collision
+  if (player.position.y <= 0) {
+    player.position.y = 0;
+    player.velocity.y = 0;
+    player.onGround = true;
+  }
+
+  // Building collision
+  for (const box of collisionBoxes) {
+    const px = player.position.x, pz = player.position.z;
+    const pr = player.radius;
+
+    if (px + pr > box.minX && px - pr < box.maxX &&
+        pz + pr > box.minZ && pz - pr < box.maxZ &&
+        player.position.y < box.maxY) {
+      // Resolve collision - push player out
+      const overlaps = [
+        { dir: new THREE.Vector3(1, 0, 0), dist: (px - pr) - box.maxX },
+        { dir: new THREE.Vector3(-1, 0, 0), dist: box.minX - (px + pr) },
+        { dir: new THREE.Vector3(0, 0, 1), dist: (pz - pr) - box.maxZ },
+        { dir: new THREE.Vector3(0, 0, -1), dist: box.minZ - (pz + pr) }
+      ].filter(o => o.dist < 0);
+
+      if (overlaps.length > 0) {
+        overlaps.sort((a, b) => Math.abs(a.dist) - Math.abs(b.dist));
+        const push = overlaps[0];
+        player.position.add(push.dir.clone().multiplyScalar(Math.abs(push.dist) + 0.01));
+      }
+    }
+  }
+
+  // Rotate player to face movement direction
+  if (isMoving) {
+    const targetRotation = Math.atan2(moveDir.x, moveDir.z);
+    let diff = targetRotation - player.rotation;
+    while (diff > Math.PI) diff -= Math.PI * 2;
+    while (diff < -Math.PI) diff += Math.PI * 2;
+    player.rotation += diff * 0.15;
+  }
+
+  // Update mesh
+  player.mesh.position.copy(player.position);
+  player.mesh.rotation.y = player.rotation;
+
+  // Animation
+  if (isMoving) {
+    player.animTime += delta * (player.isRunning ? 14 : 8);
+    const swing = Math.sin(player.animTime) * 0.5;
+    player.legL.rotation.x = swing;
+    player.legR.rotation.x = -swing;
+    player.armL.rotation.x = -swing * 0.7;
+    player.armR.rotation.x = swing * 0.7;
+  } else {
+    player.animTime *= 0.9;
+    player.legL.rotation.x *= 0.9;
+    player.legR.rotation.x *= 0.9;
+    player.armL.rotation.x *= 0.9;
+    player.armR.rotation.x *= 0.9;
+  }
+}
+
+// ─── NPCs ───
+const npcData = [
+  {
+    id: 'elder',
+    name: 'Eldrin the Wise',
+    role: 'Village Elder',
+    position: new THREE.Vector3(-6, 0, -6),
+    color: 0x6644aa,
+    portraitColor: '#6644aa',
+    patrolRadius: 3,
+    dialogue: [
+      {
+        text: "Welcome to our humble town, traveler. I am Eldrin, keeper of the old ways. The city has seen better days, but we endure.",
+        options: [
+          { text: "What is the history of this place?", next: 1 },
+          { text: "I could use some work.", next: 2 },
+          { text: "Farewell, elder.", next: -1 }
+        ]
+      },
+      {
+        text: "This town was once a thriving crossroads of the old kingdom. Merchants from across the realm walked these cobblestone streets. Now only echoes remain... but hope persists.",
+        options: [
+          { text: "Tell me more about the old kingdom.", next: 3 },
+          { text: "Thank you for sharing.", next: -1 }
+        ]
+      },
+      {
+        text: "A quest, you say? The old well in the town square has lost its enchanted stone. Without it, the water grows foul. Could you search the ruins beyond the eastern gate?",
+        options: [
+          { text: "I'll find the stone for you.", action: 'quest_well', next: -1 },
+          { text: "Perhaps another time.", next: -1 }
+        ]
+      },
+      {
+        text: "The Old Kingdom fell to the Dragon Wars three centuries past. Our ancestors fled here, building this town as a refuge. The keep you see was once the seat of a local lord.",
+        options: [
+          { text: "Fascinating. Thank you.", next: -1 }
+        ]
+      }
+    ]
+  },
+  {
+    id: 'merchant',
+    name: 'Mira Ironhand',
+    role: 'Merchant',
+    position: new THREE.Vector3(6, 0, -6),
+    color: 0xaa6622,
+    portraitColor: '#aa6622',
+    patrolRadius: 2,
+    dialogue: [
+      {
+        text: "Well met, adventurer! I'm Mira Ironhand. I trade in fine goods from across the realm. What brings you to my humble stall?",
+        options: [
+          { text: "What goods do you have?", next: 1 },
+          { text: "I'm looking for information.", next: 2 },
+          { text: "Just passing through.", next: -1 }
+        ]
+      },
+      {
+        text: "I have healing salves, enchanted trinkets, and fine wine from the southern vineyards. But my stock is low — the caravan from the east has been delayed.",
+        options: [
+          { text: "Why is the caravan delayed?", next: 3 },
+          { text: "I'll check back later.", next: -1 }
+        ]
+      },
+      {
+        text: "Information? I hear the guard captain has been seeing strange lights near the old keep at night. Could be nothing... could be anything.",
+        options: [
+          { text: "Interesting. I'll look into it.", next: -1 },
+          { text: "Thanks for the tip!", next: -1 }
+        ]
+      },
+      {
+        text: "Bandits, most likely. The roads have grown dangerous since the king's army withdrew from this region. Travel at your own risk, friend.",
+        options: [
+          { text: "I'll be careful.", next: -1 }
+        ]
+      }
+    ]
+  },
+  {
+    id: 'guard',
+    name: 'Captain Torin',
+    role: 'City Guard',
+    position: new THREE.Vector3(0, 0, 10),
+    color: 0x334466,
+    portraitColor: '#334466',
+    patrolRadius: 5,
+    dialogue: [
+      {
+        text: "Halt! State your business in our town, traveler. I'm Captain Torin of the city guard. We don't get many visitors these days.",
+        options: [
+          { text: "I'm just exploring the area.", next: 1 },
+          { text: "I heard there's trouble around here.", next: 2 },
+          { text: "No trouble from me, captain.", next: -1 }
+        ]
+      },
+      {
+        text: "Exploring, eh? Keep to the main streets. The outer walls have some weak points, and bandits have been spotted in the hills. Stay safe.",
+        options: [
+          { text: "I appreciate the warning.", next: -1 },
+          { text: "Can I help with the guard?", next: 3 }
+        ]
+      },
+      {
+        text: "Trouble? Aye. We've had reports of strange movements near the old keep. My men don't believe in ghosts, but... things have been happening.",
+        options: [
+          { text: "What kind of things?", next: 4 },
+          { text: "I'll keep my eyes open.", next: -1 }
+        ]
+      },
+      {
+        text: "If you're willing to help, I could use an extra pair of eyes. Patrol the walls at night and report anything suspicious. Meet me at the north gate after dark.",
+        options: [
+          { text: "I'll patrol the walls.", action: 'quest_patrol', next: -1 },
+          { text: "Maybe next time.", next: -1 }
+        ]
+      },
+      {
+        text: "Lights in the keep windows. Footsteps in empty corridors. My oldest guard swears he saw a figure in armor walking the battlements — but the keep has been empty for decades.",
+        options: [
+          { text: "That's quite a story.", next: -1 },
+          { text: "Could it be squatters?", next: -1 }
+        ]
+      }
+    ]
+  },
+  {
+    id: 'blacksmith',
+    name: 'Grom Steelheart',
+    role: 'Blacksmith',
+    position: new THREE.Vector3(-10, 0, 10),
+    color: 0x884422,
+    portraitColor: '#884422',
+    patrolRadius: 2,
+    dialogue: [
+      {
+        text: "*grunts* Ah, a customer! Or just a curious soul? I'm Grom, finest smith in three kingdoms. What do you need?",
+        options: [
+          { text: "Your reputation precedes you.", next: 1 },
+          { text: "What's the story with this town?", next: 2 },
+          { text: "Just looking around.", next: -1 }
+        ]
+      },
+      {
+        text: "Hah! Flattery won't get you a discount, friend. But I'll tell you this — my grandfather forged the armor the old king wore. Quality runs in the family.",
+        options: [
+          { text: "Impressive lineage.", next: -1 }
+        ]
+      },
+      {
+        text: "This town? It's seen better days, sure. But the people here are tough as the steel I forge. We don't break easy. The old keep holds secrets, though... secrets best left alone.",
+        options: [
+          { text: "Secrets? Now you have my interest.", next: -1 },
+          { text: "Wisely said.", next: -1 }
+        ]
+      }
+    ]
+  },
+  {
+    id: 'innkeeper',
+    name: 'Bess the Hearth',
+    role: 'Innkeeper',
+    position: new THREE.Vector3(10, 0, 10),
+    color: 0xaa4466,
+    portraitColor: '#aa4466',
+    patrolRadius: 2,
+    dialogue: [
+      {
+        text: "Welcome, welcome! Come in from the cold! I'm Bess, and this is the finest inn you'll find for miles. Thirsty? Tired? Hungry? I can fix all three!",
+        options: [
+          { text: "What's the best ale you have?", next: 1 },
+          { text: "Any local rumors?", next: 2 },
+          { text: "I'll take a room, please.", next: -1 }
+        ]
+      },
+      {
+        text: "My Darkroot Ale is the finest — brewed from herbs gathered in the shadow of the keep. Some say the well water gives it a special quality. I don't question it!",
+        options: [
+          { text: "I'll try a pint.", next: -1 }
+        ]
+      },
+      {
+        text: "Rumors? Oh, plenty. Travelers say the old keep is haunted. The elder says the town square well is cursed. And the guard captain says he sees lights in the keep at night. I say — make up your mind!",
+        options: [
+          { text: "You believe any of it?", next: 3 },
+          { text: "Good to know.", next: -1 }
+        ]
+      },
+      {
+        text: "Believe? I've been running this inn for twenty years. Strange things happen here. But you know what? People still come. There's something about this place that draws folk in.",
+        options: [
+          { text: "Mysterious indeed.", next: -1 }
+        ]
+      }
+    ]
+  }
+];
+
+const npcs = [];
+
+function createNPC(npc) {
+  const group = new THREE.Group();
+
+  // Body
+  const bodyGeo = new THREE.CylinderGeometry(0.3, 0.35, 1, 8);
+  const bodyMat = new THREE.MeshStandardMaterial({ color: npc.color });
+  const body = new THREE.Mesh(bodyGeo, bodyMat);
+  body.position.y = 0.9;
+  body.castShadow = true;
+  group.add(body);
+
+  // Head
+  const headGeo = new THREE.SphereGeometry(0.25, 8, 8);
+  const headMat = new THREE.MeshStandardMaterial({ color: 0xd4a574 });
+  const head = new THREE.Mesh(headGeo, headMat);
+  head.position.y = 1.65;
+  head.castShadow = true;
+  group.add(head);
+
+  // Interaction indicator (floating ring)
+  const ringGeo = new THREE.TorusGeometry(0.6, 0.05, 8, 24);
+  const ringMat = new THREE.MeshStandardMaterial({ color: 0xffdd44, emissive: 0xffaa00, emissiveIntensity: 0.5 });
+  const ring = new THREE.Mesh(ringGeo, ringMat);
+  ring.position.y = 2.2;
+  ring.rotation.x = Math.PI / 2;
+  group.add(ring);
+
+  group.position.copy(npc.position);
+  scene.add(group);
+
+  const npcObj = {
+    ...npc,
+    mesh: group,
+    ring: ring,
+    basePosition: npc.position.clone(),
+    patrolAngle: Math.random() * Math.PI * 2,
+    patrolSpeed: 0.3 + Math.random() * 0.3,
+    idleTime: 0,
+    isPatrolling: false,
+    currentDialogueIndex: 0
+  };
+
+  npcs.push(npcObj);
+  return npcObj;
+}
+
+npcData.forEach(n => createNPC(n));
+
+function updateNPCs(delta) {
+  npcs.forEach(npc => {
+    // Patrol behavior
+    npc.idleTime -= delta;
+    if (npc.idleTime <= 0 && !npc.isPatrolling) {
+      npc.isPatrolling = true;
+      npc.patrolAngle = Math.random() * Math.PI * 2;
+    } else if (npc.idleTime > 3 && npc.isPatrolling) {
+      npc.isPatrolling = false;
+      npc.idleTime = 2 + Math.random() * 3;
+    }
+
+    if (npc.isPatrolling) {
+      npc.patrolAngle += npc.patrolSpeed * delta;
+      const targetX = npc.basePosition.x + Math.cos(npc.patrolAngle) * npc.patrolRadius;
+      const targetZ = npc.basePosition.z + Math.sin(npc.patrolAngle) * npc.patrolRadius;
+
+      npc.mesh.position.x += (targetX - npc.mesh.position.x) * 0.02;
+      npc.mesh.position.z += (targetZ - npc.mesh.position.z) * 0.02;
+
+      // Face movement direction
+      const dx = targetX - npc.mesh.position.x;
+      const dz = targetZ - npc.mesh.position.z;
+      if (Math.abs(dx) > 0.01 || Math.abs(dz) > 0.01) {
+        npc.mesh.rotation.y = Math.atan2(dx, dz);
+      }
+    }
+
+    // Idle bob animation
+    npc.mesh.children[0].position.y = 0.9 + Math.sin(Date.now() * 0.002 + npcs.indexOf(npc)) * 0.03;
+
+    // Ring rotation
+    npc.ring.rotation.z += delta * 0.5;
+    npc.ring.position.y = 2.2 + Math.sin(Date.now() * 0.003) * 0.1;
+  });
+}
+
+// ─── NPC Interaction ───
+function findNearestNPC() {
+  let nearest = null;
+  let nearestDist = 3.5; // Interaction range
+
+  npcs.forEach(npc => {
+    const dist = player.position.distanceTo(npc.mesh.position);
+    if (dist < nearestDist) {
+      nearestDist = dist;
+      nearest = npc;
+    }
+  });
+
+  return nearest;
+}
+
+function updateInteractionPrompt() {
+  const prompt = document.getElementById('interaction-prompt');
+  const npcNameEl = document.getElementById('npc-name');
+
+  activeNPC = findNearestNPC();
+  if (activeNPC && gameState === STATE.PLAYING) {
+    prompt.style.display = 'block';
+    npcNameEl.textContent = activeNPC.name;
+  } else {
+    prompt.style.display = 'none';
+    activeNPC = null;
+  }
+}
+
+// ─── Dialogue System ───
+function drawPortrait(color) {
+  const canvas = document.getElementById('dialogue-portrait');
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = color;
+  ctx.fillRect(0, 0, 56, 56);
+
+  // Simple face
+  ctx.fillStyle = '#d4a574';
+  ctx.beginPath();
+  ctx.arc(28, 22, 10, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Body
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(12, 56);
+  ctx.lineTo(18, 35);
+  ctx.lineTo(38, 35);
+  ctx.lineTo(44, 56);
+  ctx.fill();
+
+  // Eyes
+  ctx.fillStyle = '#333';
+  ctx.beginPath();
+  ctx.arc(24, 20, 1.5, 0, Math.PI * 2);
+  ctx.arc(32, 20, 1.5, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function openDialogue(npc) {
+  gameState = STATE.DIALOGUE;
+  const dialogueBox = document.getElementById('dialogue-box');
+  dialogueBox.style.display = 'block';
+
+  document.getElementById('dialogue-name').textContent = npc.name;
+  document.getElementById('dialogue-role').textContent = npc.role;
+  drawPortrait(npc.portraitColor);
+
+  showDialogueNode(npc, npc.currentDialogueIndex || 0);
+}
+
+function showDialogueNode(npc, index) {
+  const dialogue = npc.dialogue[index];
+  document.getElementById('dialogue-text').textContent = dialogue.text;
+
+  const optionsEl = document.getElementById('dialogue-options');
+  optionsEl.innerHTML = '';
+
+  dialogue.options.forEach(opt => {
+    const btn = document.createElement('button');
+    btn.textContent = `> ${opt.text}`;
+    btn.addEventListener('click', () => {
+      if (opt.action) {
+        showQuestNotification(opt.action);
+      }
+      if (opt.next === -1) {
+        closeDialogue();
+      } else {
+        showDialogueNode(npc, opt.next);
+      }
+    });
+    optionsEl.appendChild(btn);
+  });
+}
+
+function closeDialogue() {
+  gameState = STATE.PLAYING;
+  document.getElementById('dialogue-box').style.display = 'none';
+}
+
+document.getElementById('dialogue-close').addEventListener('click', closeDialogue);
+
+// ─── Quest System ───
+function showQuestNotification(questId) {
+  const questEl = document.getElementById('quest-notification');
+  const questText = document.getElementById('quest-text');
+
+  const quests = {
+    quest_well: "The Elder's Plea — Find the enchanted stone for the town well in the ruins beyond the eastern gate.",
+    quest_patrol: "Wall Watch — Patrol the northern walls at night and report any suspicious activity to Captain Torin."
+  };
+
+  questText.textContent = quests[questId] || "New quest received!";
+  questEl.style.display = 'block';
+
+  setTimeout(() => {
+    questEl.style.display = 'none';
+  }, 5000);
+}
+
+// ─── Location Names ───
+function updateLocationName() {
+  const compass = document.getElementById('compass');
+  const x = player.position.x;
+  const z = player.position.z;
+
+  if (Math.abs(x) < 15 && Math.abs(z) < 15) compass.textContent = 'Town Square';
+  else if (z < -35) compass.textContent = 'The Keep';
+  else if (z < -15) compass.textContent = 'North District';
+  else if (z > 15) compass.textContent = 'South District';
+  else if (x < -15) compass.textContent = 'West District';
+  else if (x > 15) compass.textContent = 'East District';
+  else if (z < -55 || z > 55 || x < -55 || x > 55) compass.textContent = 'City Walls';
+  else compass.textContent = 'Market District';
+}
+
+// ─── Pause Menu ───
+function togglePause() {
+  if (gameState === STATE.PLAYING) {
+    gameState = STATE.PAUSED;
+    document.getElementById('pause-menu').style.display = 'flex';
+  } else if (gameState === STATE.PAUSED) {
+    gameState = STATE.PLAYING;
+    document.getElementById('pause-menu').style.display = 'none';
+  }
+}
+
+document.getElementById('btn-resume').addEventListener('click', togglePause);
+document.getElementById('btn-settings').addEventListener('click', () => {
+  alert('Settings: Fullscreen, WASD movement, Mouse camera, E to interact');
+});
+document.getElementById('btn-quit').addEventListener('click', () => {
+  gameState = STATE.TITLE;
+  document.getElementById('pause-menu').style.display = 'none';
+  document.getElementById('hud').style.display = 'none';
+  document.getElementById('controls-help').style.display = 'none';
+  document.getElementById('title-screen').style.display = 'flex';
+});
+
+// ─── Title Screen ───
+document.getElementById('btn-start').addEventListener('click', () => {
+  document.getElementById('title-screen').style.display = 'none';
+  document.getElementById('hud').style.display = 'block';
+  document.getElementById('controls-help').style.display = 'block';
+  gameState = STATE.PLAYING;
+
+  // Hide controls help after 8 seconds
+  setTimeout(() => {
+    document.getElementById('controls-help').style.display = 'none';
+  }, 8000);
+});
+
+// ─── Resize ───
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// ─── Torch Flicker ───
+function updateTorches(time) {
+  torches.forEach(t => {
+    const flicker = Math.sin(time * 8 + t.phase) * 0.3 + Math.sin(time * 13 + t.phase * 2) * 0.2;
+    t.light.intensity = t.baseIntensity + flicker;
+    t.flame.scale.setScalar(0.8 + flicker * 0.3);
+  });
+}
+
+// ─── Game Loop ───
+const clock = new THREE.Clock();
+
+function animate() {
+  requestAnimationFrame(animate);
+
+  const delta = Math.min(clock.getDelta(), 0.05);
+  const time = clock.getElapsedTime();
+
+  if (gameState === STATE.PLAYING) {
+    updatePlayer(delta);
+    updateNPCs(delta);
+    updateInteractionPrompt();
+    updateLocationName();
+  }
+
+  updateCamera();
+  updateTorches(time);
+
+  renderer.render(scene, camera);
+}
+
+animate();
+</script>
+</body>
+</html>
