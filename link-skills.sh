@@ -18,7 +18,9 @@ TARGET_PROJECTS=(
   "deepseek-v4-flash/HexGL threejs"
   "Qwen3.6-35B-A3B/HexConquest threejs"
   "Qwen3.6-35B-A3B/Sol threejs"
+  "Qwen3.6-27B/Sol threejs"
   "deepseek-v4-flash/Sol threejs"
+  "Qwen3.6-35B-A3B/BlueMarble threejs"
 )
 
 SKILLS_SOURCE="."

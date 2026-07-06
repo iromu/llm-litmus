@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Earth Simulation</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{overflow:hidden;background:#000}
+  canvas{display:block}
+  #load{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#000;color:#6688aa;font:14px/1.4 system-ui,sans-serif;z-index:10;gap:14px;transition:opacity .6s}
+  #load.hide{opacity:0;pointer-events:none}
+  #load .sp{width:32px;height:32px;border:3px solid #112;border-top-color:#5588bb;border-radius:50%;animation:spin .7s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div id="load"><div class="sp"></div><span id="msg">Loading…</span></div>
+
+<script type="importmap">
+{"imports":{"three":"https://esm.sh/three@0.160.0","three/addons/":"https://esm.sh/three@0.160.0/examples/jsm/"}}
+</script>
+
+<!-- ═══ SHADERS ═══ -->
+
+<script id="eV" type="x-shader/x-vertex">
+varying vec2 vU;varying vec3 vN,vW;
+void main(){vU=uv;vN=normalize(normalMatrix*normal);vec4 p=modelMatrix*vec4(position,1.);vW=p.xyz;gl_Position=projectionMatrix*viewMatrix*p;}
+</script>
+
+<script id="eF" type="x-shader/x-fragment">
+precision highp float;
+uniform sampler2D uD,uN,uS;uniform vec3 uSun;
+varying vec2 vU;varying vec3 vN,vW;
+
+float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+float noise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x),f.y);}
+float fbm(vec2 p){float v=0.,a=.5;for(int i=0;i<6;i++){v+=a*noise(p);p*=2.01;a*=.5;}return v;}
+
+void main(){
+  vec3 N=normalize(vN),L=normalize(uSun);
+  float d=smoothstep(-.12,.2,dot(N,L));
+
+  vec3 day=texture2D(uD,vU).rgb;
+  vec3 night=texture2D(uN,vU).rgb;
+
+  // Day lighting.
+  float amb=.05+.12*max(dot(N,L),0.);
+  vec3 col=day*amb+day*day*(1.-amb)*d;
+
+  // Night city lights (warm).
+  col+=night*vec3(1.,.82,.48)*2.5*(1.-d);
+
+  // Specular on oceans.
+  vec3 V=normalize(cameraPosition-vW);
+  vec3 H=normalize(L+V);
+  float sp=pow(max(dot(N,H),0.),100.)*texture2D(uS,vU).r;
+  col+=vec3(1.,.96,.9)*sp*d*.65;
+
+  // Terminator glow.
+  col+=vec3(.7,.35,.15)*exp(-dot(N,L)*dot(N,L)*10.)*.06*(1.-d);
+
+  gl_FragColor=vec4(col,1.);
+}
+</script>
+
+<script id="cV" type="x-shader/x-vertex">
+varying vec2 vU;varying vec3 vN,vW;
+void main(){vU=uv;vN=normalize(normalMatrix*normal);vec4 p=modelMatrix*vec4(position,1.);vW=p.xyz;gl_Position=projectionMatrix*viewMatrix*p;}
+</script>
+
+<script id="cF" type="x-shader/x-fragment">
+precision highp float;
+uniform sampler2D uC;uniform vec3 uSun;
+varying vec2 vU;varying vec3 vN,vW;
+
+float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+float noise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x),f.y);}
+
+void main(){
+  vec4 cl=texture2D(uC,vU);
+  float a=cl.a*.85;
+
+  vec3 N=normalize(vN),L=normalize(uSun);
+  float l=.25+.75*smoothstep(-.1,.5,dot(N,L));
+
+  // Self-shadowing.
+  float sh=.65+.35*noise(vU*25.);
+
+  gl_FragColor=vec4(cl.rgb*l*sh,a);
+}
+</script>
+
+<script id="aV" type="x-shader/x-vertex">
+varying vec3 vN,vV;
+void main(){vN=normalize(normalMatrix*normal);vec4 p=modelMatrix*vec4(position,1.);vV=normalize(cameraPosition-p.xyz);gl_Position=projectionMatrix*viewMatrix*p;}
+</script>
+
+<script id="aF" type="x-shader/x-fragment">
+precision highp float;
+uniform vec3 uSun;
+varying vec3 vN,vV;
+
+void main(){
+  vec3 N=normalize(vN),V=normalize(vV),L=normalize(uSun);
+  float cosT=dot(N,V);
+  float path=1./max(.01,1.-abs(cosT));
+
+  // Rayleigh: blue scatters more.
+  float tau=path*.6;
+  float sR=.0025*tau*exp(-.0012*tau);
+  float sG=.0058*tau*exp(-.0029*tau);
+  float sB=.0095*tau*exp(-.0048*tau);
+  vec3 col=vec3(sR,sG,sB)*2.5;
+
+  // Mie forward scatter on sun side.
+  float sunD=smoothstep(-.2,.8,dot(N,L));
+  col+=vec3(1.,.88,.7)*pow(max(dot(N,L),0.),4.)*.15;
+
+  // Rim only.
+  float rim=pow(1.-abs(cosT),2.);
+  gl_FragColor=vec4(col,rim*(.3+.15*sunD));
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+
+// ── Config ────────────────────────────────────────────────────
+const TILT     = THREE.MathUtils.degToRad(23.44);
+const EROT     = Math.PI*2/50;
+const CROT     = EROT*1.12;
+const SUN      = new THREE.Vector3(3,1.5,2).normalize();
+
+let scene,cam,ren,ctrl,comp,earth,clouds,atmo,sun,sunGlow,stars;
+const clk=new THREE.Clock();
+
+// ═══════════════════════════════════════════════════════════════
+//  PROCEDURAL TEXTURES
+// ═══════════════════════════════════════════════════════════════
+
+// Seeded LCG.
+const rng=s=>(()=>{s=(s*16807)%2147483647;return(s-1)/2147483646})();
+
+// 2D hash.
+function h2(p){let x=((p[0]*265^p[1]*131)&0x7fffffff);x=((x>>16)^x)*0x45d9f3b;x=((x>>16)^x)*0x45d9f3b;return((x>>16)^x)/4294967296;}
+
+// Perlin-ish 2D noise.
+function noise2(w,h,sc,oct){
+  const c=document.createElement('canvas');c.width=w;c.height=h;
+  const ctx=c.getContext('2d');
+  const img=ctx.createImageData(w,h),d=img.data;
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+    let v=0,a=1,f=1;
+    for(let o=0;o<oct;o++){
+      const sx=x*f/sc,sy=y*f/sc,ix=Math.floor(sx),iy=Math.floor(sy);
+      const fx=sx-ix,fy=sy-iy,f2=fx*fx*(3-2*fx),f2y=fy*fy*(3-2*fy);
+      const n00=h2([ix,iy]),n10=h2([ix+1,iy]),n01=h2([ix,iy+1]),n11=h2([ix+1,iy+1]);
+      v+=a*((n00*(1-f2)+n10*f2)*(1-f2y)+(n01*(1-f2)+n11*f2)*f2y);
+      a*=.5;f*=2;
+    }
+    const v2=Math.max(0,Math.min(255,v*255|0));
+    const i=(y*w+x)*4;d[i]=d[i+1]=d[i+2]=v2;d[i+3]=255;
+  }
+  ctx.putImageData(img,0,0);return c;
+}
+
+/** Diffuse (day) map. */
+function makeDiffuse(sz=2048){
+  const c=document.createElement('canvas');c.width=sz;c.height=sz>>1;
+  const ctx=c.getContext('2d');
+
+  // Ocean base.
+  ctx.fillStyle='#0a3d6b';ctx.fillRect(0,0,sz,c.height);
+
+  // Ocean depth variation.
+  const nc=noise2(sz,c.height,128,4);
+  const nd=ctx.createImageData(sz,c.height),d=nd.data;
+  const nc2=nc.getContext('2d').getImageData(0,0,sz,c.height).data;
+  for(let i=0;i<d.length;i+=4){
+    const n=nc2[i]/255;
+    d[i]=8+n*25|0;d[i+1]=45+n*40|0;d[i+2]=90+n*50|0;d[i+3]=255;
+  }
+  ctx.putImageData(nd,0,0);
+
+  // Continent mask.
+  const mc=noise2(sz,c.height,90,5);
+  const md=mc.getContext('2d').getImageData(0,0,sz,c.height).data;
+
+  // Color land.
+  for(let y=0;y<c.height;y++)for(let x=0;x<sz;x++){
+    const i=(y*sz+x)*4,m=md[i]/255;
+    if(m>.44){
+      const el=(m-.44)/(.56),lat=Math.abs(y/c.height-.5)*2;
+      let r,g,b;
+      if(el<.12){r=35+el*200|0;g=85+el*150|0;b=25+el*80|0;}
+      else if(el<.35){r=75+el*100|0;g=65+el*60|0;b=30+el*40|0;}
+      else{r=115+el*80|0;g=105+el*80|0;b=95+el*80|0;}
+
+      // Deserts at ~25° lat.
+      const df=Math.exp(-Math.pow((lat-.28)*6,2));
+      if(df>.1&&el<.3){const f=df*(1-el*2);r=r*(1-f)+190*f|0;g=g*(1-f)+165*f|0;b=b*(1-f)+115*f|0;}
+
+      // Ice.
+      if(lat>.72){const ic=Math.min(1,(lat-.72)*4);r=r*(1-ic)+235*ic|0;g=g*(1-ic)+238*ic|0;b=b*(1-ic)+242*ic|0;}
+
+      // Detail noise.
+      const dt=(h2([x*.12,y*.12])-.5)*16;
+      r=Math.max(0,Math.min(255,r+dt|0));g=Math.max(0,Math.min(255,g+dt|0));b=Math.max(0,Math.min(255,b+dt*.6|0));
+
+      d[i]=r;d[i+1]=g;d[i+2]=b;d[i+3]=255;
+    }
+  }
+  const od=ctx.getImageData(0,0,sz,c.height);
+  for(let i=0;i<od.data.length;i+=4){od.data[i]=d[i];od.data[i+1]=d[i+1];od.data[i+2]=d[i+2];}
+  ctx.putImageData(od,0,0);
+
+  const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;return t;
+}
+
+/** Night-lights map. */
+function makeNight(sz=2048){
+  const c=document.createElement('canvas');c.width=sz;c.height=sz>>1;
+  const ctx=c.getContext('2d');
+  ctx.fillStyle='#000';ctx.fillRect(0,0,sz,c.height);
+
+  const R=rng(42);
+  const cities=[
+    [0.47,.28,.03,700],[0.45,.30,.025,500],  // Europe
+    [0.68,.32,.025,800],[0.72,.30,.02,400],   // E Asia
+    [0.60,.38,.02,600],                        // India
+    [0.24,.32,.02,700],[0.22,.30,.018,500],   // E US
+    [0.18,.30,.015,250],[0.17,.33,.012,150],  // W US
+    [0.25,.52,.02,180],                        // S America
+    [0.78,.60,.015,100],                       // Australia
+  ];
+  for(const[x,y,r,n]of cities)for(let i=0;i<n;i++){
+    const cx=x*sz,cy=y*c.height;
+    const px=cx+(R()-.5)*r*2*sz,py=cy+(R()-.5)*r*2*c.height;
+    const b=R();
+    ctx.fillStyle=`rgba(${200+b*55|0},${175+b*55|0},${70+b*90|0},${.25+b*.65})`;
+    ctx.beginPath();ctx.arc(px,py,1+R()*2,0,Math.PI*2);ctx.fill();
+  }
+  return new THREE.CanvasTexture(c);
+}
+
+/** Specular / ocean mask (white=ocean, black=land). */
+function makeSpec(sz=2048){
+  const c=document.createElement('canvas');c.width=sz;c.height=sz>>1;
+  const ctx=c.getContext('2d');
+  ctx.fillStyle='#fff';ctx.fillRect(0,0,sz,c.height);
+  ctx.fillStyle='#000';
+
+  // Paint land dark (slightly larger radii for soft edges).
+  const land=[[.48,.45,.085,.185],[.46,.30,.065,.065],[.62,.32,.155,.105],[.70,.28,.085,.065],[.22,.30,.065,.125],[.20,.22,.055,.055],[.25,.55,.045,.125],[.78,.60,.055,.04],[.50,.95,.255,.065],[.32,.16,.035,.045]];
+  for(const[cx,cy,rx,ry]of land){ctx.save();ctx.translate(cx*sz,cy*c.height);ctx.scale(rx*2.05,ry*2.05);ctx.beginPath();ctx.arc(0,0,1,0,Math.PI*2);ctx.fill();ctx.restore();}
+
+  return new THREE.CanvasTexture(c);
+}
+
+/** Cloud map. */
+function makeCloud(sz=2048){
+  const c=document.createElement('canvas');c.width=sz;c.height=sz>>1;
+  const ctx=c.getContext('2d');
+  ctx.clearRect(0,0,sz,c.height);
+
+  const R=rng(55);
+
+  // Bands.
+  for(let b=0;b<14;b++){
+    const cy=(b/14)*c.height+(R()-.5)*c.height*.08;
+    for(let i=0;i<1800;i++){
+      const x=R()*sz,y=cy+(R()-.5)*c.height*.14;
+      ctx.fillStyle=`rgba(255,255,255,${R()*.22})`;
+      ctx.beginPath();ctx.arc(x,y,R()*18+3,0,Math.PI*2);ctx.fill();
+    }
+  }
+  // Swirl clusters.
+  for(let i=0;i<180;i++){
+    const x=R()*sz,y=R()*c.height;
+    for(let j=0;j<7;j++){
+      ctx.fillStyle=`rgba(255,255,255,${R()*.18})`;
+      ctx.beginPath();ctx.arc(x+(R()-.5)*35,y+(R()-.5)*18,R()*10+2,0,Math.PI*2);ctx.fill();
+    }
+  }
+
+  const t=new THREE.CanvasTexture(c);return t;
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════════════════════
+
+async function init(){
+  const msg=document.getElementById('msg');
+
+  // Scene.
+  scene=new THREE.Scene();
+
+  // Camera.
+  cam=new THREE.PerspectiveCamera(45,innerWidth/innerHeight,.1,2000);
+  cam.position.set(0,1.2,3.2);
+
+  // Renderer.
+  ren=new THREE.WebGLRenderer({antialias:true});
+  ren.setSize(innerWidth,innerHeight);
+  ren.setPixelRatio(Math.min(devicePixelRatio,2));
+  ren.toneMapping=THREE.ACESFilmicToneMapping;
+  ren.toneMappingExposure=1.0;
+  ren.outputColorSpace=THREE.SRGBColorSpace;
+  document.body.appendChild(ren.domElement);
+
+  // Controls.
+  ctrl=new OrbitControls(cam,ren.domElement);
+  ctrl.enableDamping=true;ctrl.dampingFactor=.06;
+  ctrl.minDistance=1.5;ctrl.maxDistance=15;ctrl.enablePan=false;
+
+  // Post-processing.
+  comp=new EffectComposer(ren);
+  comp.addPass(new RenderPass(scene,cam));
+  comp.addPass(new UnrealBloomPass(new THREE.Vector2(innerWidth,innerHeight),.5,.4,.85));
+
+  document.getElementById('msg').textContent='Generating textures…';
+
+  // ── Textures ───────────────────────────────────────────────
+  const dayTex=makeDiffuse(),nightTex=makeNight(),specTex=makeSpec(),cloudTex=makeCloud();
+
+  // ── Earth (96×48 sphere, custom shader) ────────────────────
+  const earthMesh=new THREE.Mesh(
+    new THREE.SphereGeometry(1,96,48),
+    new THREE.ShaderMaterial({
+      uniforms:{uD:{value:dayTex},uN:{value:nightTex},uS:{value:specTex},uSun:{value:SUN}},
+      vertexShader:document.getElementById('eV').textContent,
+      fragmentShader:document.getElementById('eF').textContent,
+    })
+  );
+  earthMesh.rotation.z=TILT;
+  earth=earthMesh;
+  scene.add(earth);
+
+  // ── Clouds ─────────────────────────────────────────────────
+  const cloudMesh=new THREE.Mesh(
+    new THREE.SphereGeometry(1.008,96,48),
+    new THREE.ShaderMaterial({
+      uniforms:{uC:{value:cloudTex},uSun:{value:SUN}},
+      vertexShader:document.getElementById('cV').textContent,
+      fragmentShader:document.getElementById('cF').textContent,
+      transparent:true,depthWrite:false,side:THREE.DoubleSide,
+    })
+  );
+  cloudMesh.rotation.z=TILT;
+  clouds=cloudMesh;
+  scene.add(clouds);
+
+  // ── Atmosphere ─────────────────────────────────────────────
+  const atmoMesh=new THREE.Mesh(
+    new THREE.SphereGeometry(1.055,64,32),
+    new THREE.ShaderMaterial({
+      uniforms:{uSun:{value:SUN}},
+      vertexShader:document.getElementById('aV').textContent,
+      fragmentShader:document.getElementById('aF').textContent,
+      transparent:true,depthWrite:false,side:THREE.BackSide,blending:THREE.AdditiveBlending,
+    })
+  );
+  atmoMesh.rotation.z=TILT;
+  atmo=atmoMesh;
+  scene.add(atmo);
+
+  // ── Sun ────────────────────────────────────────────────────
+  sun=new THREE.Mesh(new THREE.SphereGeometry(.1,16,16),new THREE.MeshBasicMaterial({color:0xfff4d0}));
+  sun.position.copy(SUN.clone().multiplyScalar(25));
+  scene.add(sun);
+
+  // Glow sprite.
+  const gc=document.createElement('canvas');gc.width=256;gc.height=256;
+  const gctx=gc.getContext('2d');
+  const gr=gctx.createRadialGradient(128,128,0,128,128,128);
+  gr.addColorStop(0,'rgba(255,252,240,1)');gr.addColorStop(.08,'rgba(255,245,210,.7)');
+  gr.addColorStop(.3,'rgba(255,220,150,.2)');gr.addColorStop(1,'rgba(255,180,80,0)');
+  gctx.fillStyle=gr;gctx.fillRect(0,0,256,256);
+
+  sunGlow=new THREE.Sprite(new THREE.SpriteMaterial({
+    map:new THREE.CanvasTexture(gc),blending:THREE.AdditiveBlending,transparent:true,depthWrite:false,
+  }));
+  sunGlow.scale.set(10,10,1);sun.add(sunGlow);
+
+  // Directional light.
+  const dl=new THREE.DirectionalLight(0xffffff,1.5);
+  dl.position.copy(sun.position);
+  scene.add(dl);
+
+  // ── Stars ──────────────────────────────────────────────────
+  document.getElementById('msg').textContent='Rendering…';
+  const N=8000,pos=new Float32Array(N*3),col=new Float32Array(N*3),sz=new Float32Array(N);
+  const R=rng(777);
+  for(let i=0;i<N;i++){
+    const th=R()*Math.PI*2,ph=Math.acos(2*R()-1),r=300+R()*500;
+    pos[i*3]=r*Math.sin(ph)*Math.cos(th);pos[i*3+1]=r*Math.sin(ph)*Math.sin(th);pos[i*3+2]=r*Math.cos(ph);
+    const t=R();
+    if(t<.1){col[i*3]=.6+R()*.4;col[i*3+1]=.7+R()*.3;col[i*3+2]=1;}
+    else if(t<.18){col[i*3]=1;col[i*3+1]=.55+R()*.3;col[i*3+2]=.4+R()*.3;}
+    else{col[i*3]=.85+R()*.15;col[i*3+1]=.85+R()*.15;col[i*3+2]=.8+R()*.2;}
+    sz[i]=.4+R()*2.2;
+  }
+  const sg=new THREE.BufferGeometry();
+  sg.setAttribute('position',new THREE.BufferAttribute(pos,3));
+  sg.setAttribute('color',new THREE.BufferAttribute(col,3));
+  stars=new THREE.Points(sg,new THREE.PointsMaterial({size:1,vertexColors:true,transparent:true,opacity:.85,sizeAttenuation:true,depthWrite:false}));
+  scene.add(stars);
+
+  // ── Done ───────────────────────────────────────────────────
+  setTimeout(()=>{document.getElementById('load').classList.add('hide');setTimeout(()=>document.getElementById('load').remove(),700);},150);
+
+  // ── Resize ─────────────────────────────────────────────────
+  window.addEventListener('resize',()=>{
+    cam.aspect=innerWidth/innerHeight;cam.updateProjectionMatrix();
+    ren.setSize(innerWidth,innerHeight);comp.setSize(innerWidth,innerHeight);
+  });
+
+  animate();
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  LOOP
+// ═══════════════════════════════════════════════════════════════
+
+function animate(){
+  requestAnimationFrame(animate);
+  const dt=clk.getDelta();
+  earth.rotation.y+=EROT*dt;
+  clouds.rotation.y+=CROT*dt;
+  atmo.rotation.y=earth.rotation.y;
+  stars.rotation.y+=.003*dt;
+  ctrl.update();
+  comp.render();
+}
+
+init().catch(e=>{console.error(e);document.getElementById('msg').textContent='Failed — check console.'});
+</script>
+</body>
+</html>
