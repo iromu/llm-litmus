@@ -33,23 +33,25 @@ The generated HTML output is evaluated for:
 
 ## Results
 
-| Test | Model | Result                                                    | Bug fix iterations |
-|---|---|-----------------------------------------------------------|---|
-| CityPulse | deepseek-v4-flash | Partial — no collisions, minimal compass, no NPC dialogue | 2 |
-| CityPulse | Qwen3.6-27B | Controls inverted, no compass                             | 0 |
-| CityPulse | Qwen3.6-35B-A3B | Partial — no collisions, broken compass                   | ? |
-| Pagoda | Qwen3.6-27B | *pending evaluation*                                      | — |
-| Pagoda | Qwen3.6-35B-A3B | *pending evaluation*                                      | — |
-| HexGL | deepseek-v4-flash | —                                                         | 0 |
-| HexGL | Qwen3.6-35B-A3B | *not generated*                                           | — |
-| Sol | deepseek-v4-flash | —                                                         | 0 |
-| Sol | Qwen3.6-27B | No Moon                                                   | 0 |
-| Sol | Qwen3.6-35B-A3B | —                                                         | 0 |
-| Tetris | deepseek-v4-flash | Working                                                   | 0 |
-| Tetris | Qwen3.6-27B | Working                                                   | 0 |
-| Tetris | Qwen3.6-35B-A3B | Partial — no Game Over screen                             | 0 |
-| HexConquest | Qwen3.6-35B-A3B | —                                                         | 0 |
-| BlueMarble | Qwen3.6-35B-A3B | —                                                         | 0 |
+| Test | Model                  | Result                                                    | Bug fix iterations |
+|---|------------------------|-----------------------------------------------------------|--------------------|
+| CityPulse | deepseek-v4-flash      | Partial — no collisions, minimal compass, no NPC dialogue | 2                  |
+| CityPulse | Qwen3.6-27B            | Controls inverted, no compass                             | 0                  |
+| CityPulse | Qwen3.6-35B-A3B        | Partial — no collisions, broken compass                   | ?                  |
+| Pagoda | deepseek-v4-flash-0731 | weird colors                                              | 1                  |
+| Pagoda | Qwen3.5-122B-A10B           | no rotation, slow af, and very simple/empty               | —                  |
+| Pagoda | Qwen3.6-27B            | no rotation, but perfect                                  | —                  |
+| Pagoda | Qwen3.6-35B-A3B        | ugly, but water animation?                                | —                  |
+| HexGL | deepseek-v4-flash      | —                                                         | 0                  |
+| HexGL | Qwen3.6-35B-A3B        | *not generated*                                           | —                  |
+| Sol | deepseek-v4-flash      | —                                                         | 0                  |
+| Sol | Qwen3.6-27B            | No Moon                                                   | 0                  |
+| Sol | Qwen3.6-35B-A3B        | —                                                         | 0                  |
+| Tetris | deepseek-v4-flash      | Working                                                   | 0                  |
+| Tetris | Qwen3.6-27B            | Working                                                   | 0                  |
+| Tetris | Qwen3.6-35B-A3B        | Partial — no Game Over screen                             | 0                  |
+| HexConquest | Qwen3.6-35B-A3B        | —                                                         | 0                  |
+| BlueMarble | Qwen3.6-35B-A3B        | —                                                         | 0                  |
 
 > **Legend:** `—` = no notes (no obvious issues observed). `?` = iterations unknown.
 
