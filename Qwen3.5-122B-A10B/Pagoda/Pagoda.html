@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voxel Pagoda Garden</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { overflow: hidden; background: #87CEEB; }
+        canvas { display: block; }
+        #info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            background: rgba(0,0,0,0.5);
+            padding: 10px;
+            border-radius: 5px;
+            z-index: 100;
+        }
+    </style>
+</head>
+<body>
+    <div id="info">🏯 Voxel Pagoda Garden - Click & drag to rotate | Scroll to zoom</div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script>
+        // Scene setup
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x87CEEB);
+        scene.fog = new THREE.Fog(0x87CEEB, 50, 200);
+
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(60, 50, 80);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.body.appendChild(renderer.domElement);
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        scene.add(ambientLight);
+
+        const sunLight = new THREE.DirectionalLight(0xffffe0, 0.8);
+        sunLight.position.set(50, 100, 50);
+        sunLight.castShadow = true;
+        sunLight.shadow.mapSize.width = 2048;
+        sunLight.shadow.mapSize.height = 2048;
+        sunLight.shadow.camera.near = 0.5;
+        sunLight.shadow.camera.far = 500;
+        sunLight.shadow.camera.left = -100;
+        sunLight.shadow.camera.right = 100;
+        sunLight.shadow.camera.top = 100;
+        sunLight.shadow.camera.bottom = -100;
+        scene.add(sunLight);
+
+        // Voxel colors palette
+        const colors = {
+            red: 0xE74C3C,
+            darkRed: 0xC0392B,
+            gold: 0xF39C12,
+            brown: 0x8B4513,
+            darkBrown: 0x5D4037,
+            green: 0x2ECC71,
+            darkGreen: 0x27AE60,
+            lightGreen: 0x58D68D,
+            pink: 0xF48FB1,
+            lightPink: 0xF8BBD9,
+            white: 0xFFFFFF,
+            gray: 0x95A5A6,
+            darkGray: 0x7F8C8D,
+            blue: 0x3498DB,
+            lightBlue: 0x5DADE2,
+            purple: 0x9B59B6,
+            yellow: 0xF1C40F,
+            sand: 0xF4D03F,
+            stone: 0xBDC3C7
+        };
+
+        // Voxel class
+        class Voxel {
+            constructor(x, y, z, color) {
+                this.x = x;
+                this.y = y;
+                this.z = z;
+                this.color = color;
+            }
+        }
+
+        const voxels = [];
+
+        function addVoxel(x, y, z, color) {
+            voxels.push(new Voxel(Math.round(x), Math.round(y), Math.round(z), color));
+        }
+
+        function addBox(x, y, z, width, height, depth, color) {
+            for (let dx = 0; dx < width; dx++) {
+                for (let dy = 0; dy < height; dy++) {
+                    for (let dz = 0; dz < depth; dz++) {
+                        addVoxel(x + dx, y + dy, z + dz, color);
+                    }
+                }
+            }
+        }
+
+        // Build Pagoda
+        function buildPagoda() {
+            const centerX = 0;
+            const centerZ = 0;
+
+            // Foundation
+            addBox(centerX - 8, 0, centerZ - 8, 17, 2, 17, colors.stone);
+            addBox(centerX - 7, 2, centerZ - 7, 15, 1, 15, colors.darkGray);
+
+            // First floor
+            const floor1Y = 3;
+            addBox(centerX - 5, floor1Y, centerZ - 5, 11, 8, 11, colors.white);
+            // First floor roof
+            addBox(centerX - 7, floor1Y + 8, centerZ - 7, 15, 1, 15, colors.red);
+            addBox(centerX - 8, floor1Y + 9, centerZ - 8, 17, 1, 17, colors.darkRed);
+            // Roof corners up
+            for (let i = 0; i < 3; i++) {
+                addVoxel(centerX - 8 + i, floor1Y + 10 + i, centerZ - 8, colors.gold);
+                addVoxel(centerX + 8 - i, floor1Y + 10 + i, centerZ - 8, colors.gold);
+                addVoxel(centerX - 8, floor1Y + 10 + i, centerZ - 8 + i, colors.gold);
+                addVoxel(centerX + 8, floor1Y + 10 + i, centerZ - 8 + i, colors.gold);
+                addVoxel(centerX - 8, floor1Y + 10 + i, centerZ + 8 - i, colors.gold);
+                addVoxel(centerX + 8, floor1Y + 10 + i, centerZ + 8 - i, colors.gold);
+                addVoxel(centerX - 8 + i, floor1Y + 10 + i, centerZ + 8, colors.gold);
+                addVoxel(centerX + 8 - i, floor1Y + 10 + i, centerZ + 8, colors.gold);
+            }
+
+            // Second floor
+            const floor2Y = floor1Y + 10;
+            addBox(centerX - 4, floor2Y, centerZ - 4, 9, 7, 9, colors.white);
+            // Second floor roof
+            addBox(centerX - 6, floor2Y + 7, centerZ - 6, 13, 1, 13, colors.red);
+            addBox(centerX - 7, floor2Y + 8, centerZ - 7, 15, 1, 15, colors.darkRed);
+            // Roof corners up
+            for (let i = 0; i < 3; i++) {
+                addVoxel(centerX - 7 + i, floor2Y + 9 + i, centerZ - 7, colors.gold);
+                addVoxel(centerX + 7 - i, floor2Y + 9 + i, centerZ - 7, colors.gold);
+                addVoxel(centerX - 7, floor2Y + 9 + i, centerZ - 7 + i, colors.gold);
+                addVoxel(centerX + 7, floor2Y + 9 + i, centerZ - 7 + i, colors.gold);
+                addVoxel(centerX - 7, floor2Y + 9 + i, centerZ + 7 - i, colors.gold);
+                addVoxel(centerX + 7, floor2Y + 9 + i, centerZ + 7 - i, colors.gold);
+                addVoxel(centerX - 7 + i, floor2Y + 9 + i, centerZ + 7, colors.gold);
+                addVoxel(centerX + 7 - i, floor2Y + 9 + i, centerZ + 7, colors.gold);
+            }
+
+            // Third floor
+            const floor3Y = floor2Y + 9;
+            addBox(centerX - 3, floor3Y, centerZ - 3, 7, 6, 7, colors.white);
+            // Third floor roof
+            addBox(centerX - 5, floor3Y + 6, centerZ - 5, 11, 1, 11, colors.red);
+            addBox(centerX - 6, floor3Y + 7, centerZ - 6, 13, 1, 13, colors.darkRed);
+            // Roof corners up
+            for (let i = 0; i < 3; i++) {
+                addVoxel(centerX - 6 + i, floor3Y + 8 + i, centerZ - 6, colors.gold);
+                addVoxel(centerX + 6 - i, floor3Y + 8 + i, centerZ - 6, colors.gold);
+                addVoxel(centerX - 6, floor3Y + 8 + i, centerZ - 6 + i, colors.gold);
+                addVoxel(centerX + 6, floor3Y + 8 + i, centerZ - 6 + i, colors.gold);
+                addVoxel(centerX - 6, floor3Y + 8 + i, centerZ + 6 - i, colors.gold);
+                addVoxel(centerX + 6, floor3Y + 8 + i, centerZ + 6 - i, colors.gold);
+                addVoxel(centerX - 6 + i, floor3Y + 8 + i, centerZ + 6, colors.gold);
+                addVoxel(centerX + 6 - i, floor3Y + 8 + i, centerZ + 6, colors.gold);
+            }
+
+            // Fourth floor
+            const floor4Y = floor3Y + 8;
+            addBox(centerX - 2, floor4Y, centerZ - 2, 5, 5, 5, colors.white);
+            // Fourth floor roof
+            addBox(centerX - 4, floor4Y + 5, centerZ - 4, 9, 1, 9, colors.red);
+            addBox(centerX - 5, floor4Y + 6, centerZ - 5, 11, 1, 11, colors.darkRed);
+            // Roof corners up
+            for (let i = 0; i < 3; i++) {
+                addVoxel(centerX - 5 + i, floor4Y + 7 + i, centerZ - 5, colors.gold);
+                addVoxel(centerX + 5 - i, floor4Y + 7 + i, centerZ - 5, colors.gold);
+                addVoxel(centerX - 5, floor4Y + 7 + i, centerZ - 5 + i, colors.gold);
+                addVoxel(centerX + 5, floor4Y + 7 + i, centerZ - 5 + i, colors.gold);
+                addVoxel(centerX - 5, floor4Y + 7 + i, centerZ + 5 - i, colors.gold);
+                addVoxel(centerX + 5, floor4Y + 7 + i, centerZ + 5 - i, colors.gold);
+                addVoxel(centerX - 5 + i, floor4Y + 7 + i, centerZ + 5, colors.gold);
+                addVoxel(centerX + 5 - i, floor4Y + 7 + i, centerZ + 5, colors.gold);
+            }
+
+            // Top spire
+            const spireY = floor4Y + 8;
+            addBox(centerX - 1, spireY, centerZ - 1, 3, 4, 3, colors.gold);
+            addVoxel(centerX, spireY + 4, centerZ, colors.gold);
+            addVoxel(centerX, spireY + 5, centerZ, colors.yellow);
+            addVoxel(centerX, spireY + 6, centerZ, colors.yellow);
+
+            // Entrance
+            addBox(centerX - 1, floor1Y, centerZ + 5, 3, 4, 1, colors.darkRed);
+            addBox(centerX, floor1Y + 4, centerZ + 6, 1, 1, 1, colors.yellow);
+
+            // Windows on each floor
+            // Floor 1 windows
+            addBox(centerX + 5, floor1Y + 2, centerZ - 2, 1, 3, 5, colors.darkGray);
+            addBox(centerX - 5, floor1Y + 2, centerZ - 2, 1, 3, 5, colors.darkGray);
+            addBox(centerX - 2, floor1Y + 2, centerZ - 5, 5, 3, 1, colors.darkGray);
+            addBox(centerX - 2, floor1Y + 2, centerZ + 5, 5, 3, 1, colors.darkGray);
+
+            // Floor 2 windows
+            addBox(centerX + 4, floor2Y + 2, centerZ - 2, 1, 2, 4, colors.darkGray);
+            addBox(centerX - 4, floor2Y + 2, centerZ - 2, 1, 2, 4, colors.darkGray);
+            addBox(centerX - 2, floor2Y + 2, centerZ - 4, 4, 2, 1, colors.darkGray);
+            addBox(centerX - 2, floor2Y + 2, centerZ + 4, 4, 2, 1, colors.darkGray);
+
+            // Floor 3 windows
+            addBox(centerX + 3, floor3Y + 2, centerZ - 1, 1, 2, 3, colors.darkGray);
+            addBox(centerX - 3, floor3Y + 2, centerZ - 1, 1, 2, 3, colors.darkGray);
+            addBox(centerX - 1, floor3Y + 2, centerZ - 3, 3, 2, 1, colors.darkGray);
+            addBox(centerX - 1, floor3Y + 2, centerZ + 3, 3, 2, 1, colors.darkGray);
+
+            // Floor 4 windows
+            addBox(centerX + 2, floor4Y + 2, centerZ, 1, 2, 1, colors.darkGray);
+            addBox(centerX - 2, floor4Y + 2, centerZ, 1, 2, 1, colors.darkGray);
+            addBox(centerX, floor4Y + 2, centerZ + 2, 1, 2, 1, colors.darkGray);
+            addBox(centerX, floor4Y + 2, centerZ - 2, 1, 2, 1, colors.darkGray);
+        }
+
+        // Build Cherry Blossom Tree
+        function buildCherryBlossomTree(x, z, scale = 1) {
+            const trunkHeight = Math.floor(6 * scale);
+            const trunkWidth = Math.floor(2 * scale);
+
+            // Trunk
+            for (let i = 0; i < trunkHeight; i++) {
+                addBox(x - trunkWidth/2, i, z - trunkWidth/2, trunkWidth, 1, trunkWidth, colors.darkBrown);
+            }
+
+            // Branches
+            const branchY = trunkHeight;
+            const branchDirections = [
+                { dx: 3, dz: 0 }, { dx: -3, dz: 0 }, { dx: 0, dz: 3 }, { dx: 0, dz: -3 },
+                { dx: 2, dz: 2 }, { dx: -2, dz: 2 }, { dx: 2, dz: -2 }, { dx: -2, dz: -2 }
+            ];
+
+            for (const dir of branchDirections) {
+                const branchLength = Math.floor(3 * scale);
+                for (let i = 0; i < branchLength; i++) {
+                    const bx = x + Math.round(dir.dx * (i + 1) / branchLength);
+                    const bz = z + Math.round(dir.dz * (i + 1) / branchLength);
+                    const by = branchY + Math.floor(i * 0.5);
+                    addVoxel(bx, by, bz, colors.brown);
+                }
+            }
+
+            // Blossoms - create fluffy cloud shape
+            const canopyCenterY = branchY + 4;
+            const canopyRadius = Math.floor(5 * scale);
+
+            for (let dx = -canopyRadius; dx <= canopyRadius; dx++) {
+                for (let dy = -canopyRadius; dy <= canopyRadius; dy++) {
+                    for (let dz = -canopyRadius; dz <= canopyRadius; dz++) {
+                        const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+                        if (dist <= canopyRadius && Math.random() > 0.3) {
+                            const color = Math.random() > 0.5 ? colors.pink : colors.lightPink;
+                            if (Math.random() > 0.7) {
+                                addVoxel(x + dx, canopyCenterY + dy, z + dz, color);
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Some falling petals
+            for (let i = 0; i < 10 * scale; i++) {
+                const petalX = x + Math.floor(Math.random() * 12 - 6);
+                const petalY = Math.floor(Math.random() * 5);
+                const petalZ = z + Math.floor(Math.random() * 12 - 6);
+                addVoxel(petalX, petalY, petalZ, colors.lightPink);
+            }
+        }
+
+        // Build Regular Tree
+        function buildTree(x, z, scale = 1) {
+            const trunkHeight = Math.floor(5 * scale);
+            const trunkWidth = Math.floor(2 * scale);
+
+            // Trunk
+            for (let i = 0; i < trunkHeight; i++) {
+                addBox(x - trunkWidth/2, i, z - trunkWidth/2, trunkWidth, 1, trunkWidth, colors.darkBrown);
+            }
+
+            // Foliage
+            const foliageY = trunkHeight - 1;
+            const foliageRadius = Math.floor(4 * scale);
+
+            for (let dx = -foliageRadius; dx <= foliageRadius; dx++) {
+                for (let dy = 0; dy <= foliageRadius * 1.5; dy++) {
+                    for (let dz = -foliageRadius; dz <= foliageRadius; dz++) {
+                        const dist = Math.sqrt(dx * dx + (dy - foliageRadius/2) * (dy - foliageRadius/2) + dz * dz);
+                        if (dist <= foliageRadius && Math.random() > 0.25) {
+                            const color = Math.random() > 0.5 ? colors.green : colors.lightGreen;
+                            if (Math.random() > 0.3) {
+                                addVoxel(x + dx, foliageY + dy, z + dz, color);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Build Bamboo
+        function buildBamboo(x, z, height = 8) {
+            for (let y = 0; y < height; y++) {
+                addVoxel(x, y, z, colors.green);
+                if (y % 3 === 0) {
+                    addVoxel(x, y, z, colors.darkGreen);
+                }
+            }
+            // Leaves
+            const leafY = height - 2;
+            addVoxel(x + 1, leafY, z, colors.lightGreen);
+            addVoxel(x - 1, leafY, z, colors.lightGreen);
+            addVoxel(x, leafY, z + 1, colors.lightGreen);
+            addVoxel(x, leafY, z - 1, colors.lightGreen);
+        }
+
+        // Build Stone Lantern
+        function buildLantern(x, z) {
+            // Base
+            addBox(x - 1, 0, z - 1, 3, 1, 3, colors.stone);
+            // Post
+            addBox(x - 0.5, 1, z - 0.5, 2, 4, 2, colors.darkGray);
+            // Light box
+            addBox(x - 1, 5, z - 1, 3, 2, 3, colors.darkGray);
+            addVoxel(x, 6, z, colors.yellow); // Light inside
+            // Roof
+            addBox(x - 1.5, 7, z - 1.5, 4, 1, 4, colors.stone);
+            addVoxel(x, 8, z, colors.stone);
+        }
+
+        // Build Stone Bridge
+        function buildBridge(x, z) {
+            const bridgeLength = 14;
+            const bridgeWidth = 4;
+
+            // Arch shape
+            for (let i = 0; i < bridgeLength; i++) {
+                const archHeight = Math.floor(3 * Math.sin(Math.PI * i / (bridgeLength - 1)));
+                for (let w = 0; w < bridgeWidth; w++) {
+                    addBox(x + i - bridgeLength/2, archHeight, z + w - bridgeWidth/2, 1, 1, 1, colors.stone);
+                    addBox(x + i - bridgeLength/2, archHeight + 1, z + w - bridgeWidth/2, 1, 1, 1, colors.darkGray);
+                }
+            }
+
+            // Railings
+            for (let i = 0; i < bridgeLength; i++) {
+                const archHeight = Math.floor(3 * Math.sin(Math.PI * i / (bridgeLength - 1)));
+                addVoxel(x + i - bridgeLength/2, archHeight + 2, z - bridgeWidth/2 - 1, colors.darkBrown);
+                addVoxel(x + i - bridgeLength/2, archHeight + 2, z + bridgeWidth/2, colors.darkBrown);
+            }
+        }
+
+        // Build Koi Pond
+        function buildPond(x, z, radius = 12) {
+            // Water
+            for (let dx = -radius; dx <= radius; dx++) {
+                for (let dz = -radius; dz <= radius; dz++) {
+                    if (dx * dx + dz * dz <= radius * radius) {
+                        addBox(x + dx, -1, z + dz, 1, 1, 1, colors.lightBlue);
+                        if (Math.random() > 0.7) {
+                            addVoxel(x + dx, 0, z + dz, colors.blue);
+                        }
+                    }
+                }
+            }
+
+            // Koi fish
+            const fishColors = [0xFF6B6B, 0xFFD93D, 0xFFFFFF, 0xFF8C42];
+            for (let i = 0; i < 8; i++) {
+                const fishX = x + Math.floor(Math.random() * radius * 2 - radius);
+                const fishZ = z + Math.floor(Math.random() * radius * 2 - radius);
+                const fishColor = fishColors[Math.floor(Math.random() * fishColors.length)];
+                for (let j = 0; j < 4; j++) {
+                    addVoxel(fishX + j, -0.5, fishZ, fishColor);
+                }
+                // Tail
+                addVoxel(fishX - 1, -0.5, fishZ - 1, fishColor);
+                addVoxel(fishX - 1, -0.5, fishZ + 1, fishColor);
+            }
+
+            // Lily pads
+            for (let i = 0; i < 5; i++) {
+                const padX = x + Math.floor(Math.random() * radius * 2 - radius);
+                const padZ = z + Math.floor(Math.random() * radius * 2 - radius);
+                addBox(padX - 1, 0.1, padZ - 1, 3, 1, 3, colors.darkGreen);
+            }
+        }
+
+        // Build Garden Path
+        function buildPath() {
+            // Winding path
+            const pathPoints = [
+                { x: -30, z: 0 }, { x: -20, z: 5 }, { x: -10, z: 3 },
+                { x: 0, z: 8 }, { x: 10, z: 3 }, { x: 20, z: 5 }, { x: 30, z: 0 }
+            ];
+
+            for (let i = 0; i < pathPoints.length - 1; i++) {
+                const p1 = pathPoints[i];
+                const p2 = pathPoints[i + 1];
+                const steps = 20;
+                for (let s = 0; s < steps; s++) {
+                    const t = s / steps;
+                    const px = Math.round(p1.x + (p2.x - p1.x) * t);
+                    const pz = Math.round(p1.z + (p2.z - p1.z) * t);
+                    addBox(px, 0.1, pz - 1, 1, 1, 3, colors.sand);
+                    if (Math.random() > 0.5) {
+                        addVoxel(px, 0.1, pz + 2, colors.stone);
+                    }
+                }
+            }
+        }
+
+        // Build Rocks
+        function buildRock(x, z, size = 2) {
+            for (let dx = 0; dx < size; dx++) {
+                for (let dy = 0; dy < size * 0.7; dy++) {
+                    for (let dz = 0; dz < size; dz++) {
+                        if (Math.random() > 0.2) {
+                            addVoxel(x + dx, dy, z + dz, colors.stone);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Build Flower Bed
+        function buildFlowerBed(x, z, width = 6, depth = 4) {
+            // Soil
+            addBox(x - width/2, -0.5, z - depth/2, width, 1, depth, 0x8B7355);
+
+            // Flowers
+            const flowerColors = [colors.pink, colors.yellow, colors.purple, 0xFF69B4, 0x9370DB];
+            for (let dx = -width/2; dx < width/2; dx++) {
+                for (let dz = -depth/2; dz < depth/2; dz++) {
+                    if (Math.random() > 0.6) {
+                        const flowerX = x + Math.round(dx);
+                        const flowerZ = z + Math.round(dz);
+                        const flowerColor = flowerColors[Math.floor(Math.random() * flowerColors.length)];
+                        // Stem
+                        addVoxel(flowerX, 0.5, flowerZ, colors.green);
+                        // Flower head
+                        addVoxel(flowerX, 1, flowerZ, flowerColor);
+                        if (Math.random() > 0.5) {
+                            addVoxel(flowerX, 1.5, flowerZ, colors.white);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Build Wind Chime
+        function buildWindChime(x, y, z) {
+            // String
+            for (let i = 0; i < 5; i++) {
+                addVoxel(x, y - i, z, colors.gold);
+            }
+            // Chime tubes
+            const tubeColors = [colors.gold, colors.silver || 0xC0C0C0, colors.bronze || 0xCD7F32];
+            for (let i = 0; i < 3; i++) {
+                const tubeX = x + (i - 1) * 2;
+                for (let j = 0; j < 3; j++) {
+                    addVoxel(tubeX, y - 6 - j, z, tubeColors[i]);
+                }
+            }
+        }
+
+        // Build Gate (Torii style)
+        function buildToriiGate(x, z) {
+            // Posts
+            addBox(x - 6, 0, z - 1, 2, 12, 2, colors.darkRed);
+            addBox(x + 4, 0, z - 1, 2, 12, 2, colors.darkRed);
+
+            // Top beam (curved)
+            addBox(x - 7, 11, z - 1, 14, 1, 3, colors.darkRed);
+            addBox(x - 8, 12, z - 1, 16, 1, 3, colors.darkRed);
+
+            // Lower beam
+            addBox(x - 5, 8, z - 1, 10, 1, 3, colors.darkRed);
+
+            // Caps
+            addVoxel(x - 8, 12, z, colors.gold);
+            addVoxel(x + 8, 12, z, colors.gold);
+        }
+
+        // Build Bush
+        function buildBush(x, z, size = 2) {
+            const radius = size;
+            for (let dx = -radius; dx <= radius; dx++) {
+                for (let dy = 0; dy <= radius; dy++) {
+                    for (let dz = -radius; dz <= radius; dz++) {
+                        const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+                        if (dist <= radius && Math.random() > 0.3) {
+                            const color = Math.random() > 0.5 ? colors.darkGreen : colors.green;
+                            addVoxel(x + dx, dy, z + dz, color);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Build Pagoda
+        buildPagoda();
+
+        // Build trees
+        buildCherryBlossomTree(-25, -20, 1.2);
+        buildCherryBlossomTree(-20, 25, 1.1);
+        buildCherryBlossomTree(25, -15, 1.0);
+        buildCherryBlossomTree(30, 20, 1.3);
+        buildCherryBlossomTree(-35, 10, 0.9);
+        buildCherryBlossomTree(15, -30, 1.1);
+
+        // Regular trees
+        buildTree(-30, -30, 1.0);
+        buildTree(35, -30, 1.1);
+        buildTree(-40, 30, 0.9);
+        buildTree(40, 35, 1.0);
+        buildTree(-15, -35, 0.8);
+        buildTree(20, 35, 0.9);
+
+        // Bamboo grove
+        for (let i = 0; i < 15; i++) {
+            const bx = -45 + Math.floor(Math.random() * 10);
+            const bz = -10 + Math.floor(Math.random() * 20);
+            const bh = 6 + Math.floor(Math.random() * 6);
+            buildBamboo(bx, bz, bh);
+        }
+
+        // Stone lanterns
+        buildLantern(-15, 15);
+        buildLantern(15, -15);
+        buildLantern(-20, -10);
+        buildLantern(20, 10);
+
+        // Stone bridge over pond
+        buildBridge(0, 35);
+
+        // Koi pond
+        buildPond(0, 40, 10);
+
+        // Garden path
+        buildPath();
+
+        // Rocks
+        buildRock(-25, 5, 3);
+        buildRock(28, -5, 2);
+        buildRock(-35, 20, 4);
+        buildRock(32, 25, 3);
+        buildRock(-10, 25, 2);
+        buildRock(12, -20, 2);
+
+        // Flower beds
+        buildFlowerBed(-20, -5, 5, 4);
+        buildFlowerBed(22, 5, 6, 4);
+        buildFlowerBed(-28, 30, 4, 3);
+        buildFlowerBed(30, -25, 5, 3);
+
+        // Wind chimes hanging from pagoda
+        buildWindChime(-6, 15, 8);
+        buildWindChime(6, 15, 8);
+        buildWindChime(-6, 15, -8);
+        buildWindChime(6, 15, -8);
+
+        // Torii gate entrance
+        buildToriiGate(-35, 0);
+
+        // Bushes
+        for (let i = 0; i < 20; i++) {
+            const bx = -40 + Math.floor(Math.random() * 80);
+            const bz = -40 + Math.floor(Math.random() * 80);
+            // Don't place on path or in pond
+            if (Math.abs(bx) > 5 || Math.abs(bz - 40) > 12) {
+                buildBush(bx, bz, 1 + Math.floor(Math.random() * 2));
+            }
+        }
+
+        // Create ground
+        addBox(-50, -2, -50, 101, 2, 101, 0x90EE90);
+
+        // Convert voxels to meshes
+        const voxelGroup = new THREE.Group();
+        const voxelData = {};
+
+        voxels.forEach(voxel => {
+            const key = `${voxel.x},${voxel.y},${voxel.z}`;
+            if (!voxelData[key]) {
+                voxelData[key] = voxel.color;
+            }
+        });
+
+        const geometry = new THREE.BoxGeometry(1, 1, 1);
+
+        Object.keys(voxelData).forEach(key => {
+            const [x, y, z] = key.split(',').map(Number);
+            const material = new THREE.MeshLambertMaterial({ color: voxelData[key] });
+            const mesh = new THREE.Mesh(geometry, material);
+            mesh.position.set(x, y, z);
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+            voxelGroup.add(mesh);
+        });
+
+        scene.add(voxelGroup);
+
+        // Animation
+        let time = 0;
+        function animate() {
+            requestAnimationFrame(animate);
+            time += 0.01;
+
+            // Gentle camera movement
+            controls.update();
+
+            // Animate some falling petals (visual effect by rotating the whole scene slightly)
+            voxelGroup.rotation.y = Math.sin(time * 0.2) * 0.05;
+
+            renderer.render(scene, camera);
+        }
+
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        animate();
+    </script>
+</body>
+</html>
