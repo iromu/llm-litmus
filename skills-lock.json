@@ -1,11 +1,35 @@
 {
   "version": 1,
   "skills": {
+    "threejs-3d-generator": {
+      "source": "majidmanzarpour/threejs-game-skills",
+      "sourceType": "github",
+      "skillPath": "skills/threejs-3d-generator/SKILL.md",
+      "computedHash": "800996cfc45ceb7d4e8f8114495236c84332afa34a0abaf1436ee46e0dc6b333"
+    },
+    "threejs-aaa-graphics-builder": {
+      "source": "majidmanzarpour/threejs-game-skills",
+      "sourceType": "github",
+      "skillPath": "skills/threejs-aaa-graphics-builder/SKILL.md",
+      "computedHash": "fd1bd5c64b5dc5fa4e09907d2c42234466b2b9db9489ad259242d3eaba4b3af2"
+    },
     "threejs-animation": {
       "source": "cloudai-x/threejs-skills",
       "sourceType": "github",
       "skillPath": "skills/threejs-animation/SKILL.md",
       "computedHash": "8c50b1493812bd88f3ed0637c0c3c5d846afdb322157b67b2ffba4ce8e552835"
+    },
+    "threejs-audio-generator": {
+      "source": "majidmanzarpour/threejs-game-skills",
+      "sourceType": "github",
+      "skillPath": "skills/threejs-audio-generator/SKILL.md",
+      "computedHash": "00cffa64aff03d99edb33ac5e5eb8cccfc76b395d921ccea5233fb25d4252fd7"
+    },
+    "threejs-debug-profiler": {
+      "source": "majidmanzarpour/threejs-game-skills",
+      "sourceType": "github",
+      "skillPath": "skills/threejs-debug-profiler/SKILL.md",
+      "computedHash": "efd46d911be861e88c94d4ea0fb149dffe2de2dec0e12e9611c28512f795610a"
     },
     "threejs-fundamentals": {
       "source": "cloudai-x/threejs-skills",
@@ -13,11 +37,35 @@
       "skillPath": "skills/threejs-fundamentals/SKILL.md",
       "computedHash": "e08d49571071f0f54ef2a76fdfcb96c16673e4fda478067727def4659feb80ca"
     },
+    "threejs-game-director": {
+      "source": "majidmanzarpour/threejs-game-skills",
+      "sourceType": "github",
+      "skillPath": "skills/threejs-game-director/SKILL.md",
+      "computedHash": "276e89aa25dc550a63271ccb36c4384bc82beb0620600ad44eaaaac1c7ef2552"
+    },
+    "threejs-game-ui-designer": {
+      "source": "majidmanzarpour/threejs-game-skills",
+      "sourceType": "github",
+      "skillPath": "skills/threejs-game-ui-designer/SKILL.md",
+      "computedHash": "272a6b4cf8d684c7eb3b79a655681a26ad431de48070e6ab6d0ea303f8387b29"
+    },
+    "threejs-gameplay-systems": {
+      "source": "majidmanzarpour/threejs-game-skills",
+      "sourceType": "github",
+      "skillPath": "skills/threejs-gameplay-systems/SKILL.md",
+      "computedHash": "9f1275a869afdc4ecb3b1eaeab2e89fb8debadbc15256087a9181a0c10dfffe7"
+    },
     "threejs-geometry": {
       "source": "cloudai-x/threejs-skills",
       "sourceType": "github",
       "skillPath": "skills/threejs-geometry/SKILL.md",
       "computedHash": "4e5757bf80a329810545c237e557e362fa14fd3a3e6a567ec1d75435be6b2dda"
+    },
+    "threejs-image-generator": {
+      "source": "majidmanzarpour/threejs-game-skills",
+      "sourceType": "github",
+      "skillPath": "skills/threejs-image-generator/SKILL.md",
+      "computedHash": "89dbc8fc313c4c99ceafc294d70519876e4b1f2ff11d50b720a4166c50478fd8"
     },
     "threejs-interaction": {
       "source": "cloudai-x/threejs-skills",
@@ -49,6 +97,12 @@
       "skillPath": "skills/threejs-postprocessing/SKILL.md",
       "computedHash": "48e04ff507582a18e0d509c2738b9d9466881b00e8ca2600727910a0d52abf75"
     },
+    "threejs-qa-release": {
+      "source": "majidmanzarpour/threejs-game-skills",
+      "sourceType": "github",
+      "skillPath": "skills/threejs-qa-release/SKILL.md",
+      "computedHash": "0a21299c86e87492eb775909d119555ef272c0c3d8068a775eef10c02d275ae9"
+    },
     "threejs-shaders": {
       "source": "cloudai-x/threejs-skills",
       "sourceType": "github",
@@ -60,6 +114,13 @@
       "sourceType": "github",
       "skillPath": "skills/threejs-textures/SKILL.md",
       "computedHash": "772a0bfc1d64cfcbc5347d206584a8fa412983201ad7a2cfb8766097b4936db9"
+    },
+    "webgpu-threejs-tsl": {
+      "source": "dgreenheck/webgpu-claude-skill",
+      "ref": "main",
+      "sourceType": "github",
+      "skillPath": "skills/webgpu-threejs-tsl/SKILL.md",
+      "computedHash": "7170c3168c86fb5202fae1669701a73ee3efa1d410a5a654bf15ecf11ada71d7"
     }
   }
 }
