@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jungle Trail</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #000; }
+        canvas { display: block; }
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #2d5016;
+            font-family: monospace;
+            font-size: 18px;
+            pointer-events: none;
+        }
+    </style>
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://esm.sh/three@0.185.1"
+        }
+    }
+    </script>
+</head>
+<body>
+    <div id="loading">Generating jungle...</div>
+    <script type="module" src="src/main.js"></script>
+</body>
+</html>
