@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head><title>Simple Test</title></head>
+<body>
+<canvas id="c" width="1920" height="1080"></canvas>
+<script type="module">
+  import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";
+  
+  const canvas = document.getElementById("c");
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.0;
+  renderer.setPixelRatio(1);
+  
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x2d4a1e);
+  
+  const camera = new THREE.PerspectiveCamera(60, 1920/1080, 0.1, 100);
+  camera.position.set(0, 1.7, 5);
+  camera.lookAt(0, 0, 0);
+  
+  // Ground plane
+  const groundGeo = new THREE.PlaneGeometry(100, 100);
+  const groundMat = new THREE.MeshStandardMaterial({ color: 0x2d4a1e });
+  const ground = new THREE.Mesh(groundGeo, groundMat);
+  ground.rotation.x = -Math.PI / 2;
+  ground.position.y = 0;
+  scene.add(ground);
+  
+  // Red box for contrast
+  const boxGeo = new THREE.BoxGeometry(1, 1, 1);
+  const boxMat = new THREE.MeshStandardMaterial({ color: 0xff0000 });
+  const box = new THREE.Mesh(boxGeo, boxMat);
+  box.position.set(0, 0.5, 0);
+  scene.add(box);
+  
+  // Lights
+  scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+  const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
+  dirLight.position.set(5, 10, 5);
+  scene.add(dirLight);
+  
+  renderer.render(scene, camera);
+  
+  // Send canvas data to Node
+  const dataUrl = canvas.toDataURL("image/png");
+  window.__canvasData = dataUrl;
+  console.log("Scene rendered, canvas data ready");
+</script>
+</body>
+</html>
