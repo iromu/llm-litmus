@@ -67,9 +67,10 @@ export class AIController {
         this.targetY = (Math.random() - 0.5) * (bounds.maxY - bounds.minY);
         break;
       case 6:
-        // Circle pattern start
-        this.targetX = Math.cos(Date.now() * 0.002) * 3;
-        this.targetY = Math.sin(Date.now() * 0.002) * 2;
+        // Circle pattern
+        const t = Date.now() * 0.002;
+        this.targetX = Math.cos(t) * 3;
+        this.targetY = Math.sin(t) * 2;
         break;
       case 7:
         // Evade down
@@ -77,7 +78,7 @@ export class AIController {
         this.targetY = bounds.minY + 0.5;
         break;
       case 8:
-        // Position for attack
+        // Position for attack (up)
         this.targetX = 0;
         this.targetY = -1;
         break;
