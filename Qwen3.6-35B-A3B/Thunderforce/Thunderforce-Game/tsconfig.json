@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "useDefineForClassFields": true,
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "allowImportingTsExtensions": false,
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "types": ["vite/client", "node"],
+    "paths": {
+      "@engine": ["./packages/engine/src/index.ts"],
+      "@engine/*": ["./packages/engine/src/*"],
+      "@game": ["./packages/game/src/index.ts"],
+      "@game/*": ["./packages/game/src/*"],
+      "@ui": ["./packages/ui/src/index.ts"],
+      "@ui/*": ["./packages/ui/src/*"]
+    }
+  },
+  "include": ["src", "packages/engine/src", "packages/game/src", "packages/ui/src", "tests", "playwright.config.ts"]
+}
