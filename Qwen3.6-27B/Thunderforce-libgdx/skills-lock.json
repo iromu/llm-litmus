@@ -1,0 +1,207 @@
+{
+  "version": 1,
+  "skills": {
+    "libgdx-2d-rendering": {
+      "source": "kyu-n/gdx-claude-skills",
+      "ref": "master",
+      "sourceType": "github",
+      "skillPath": "skills/libgdx-2d-rendering/SKILL.md",
+      "computedHash": "58816408fd2f0c2671d328edf0088d3ad93e1f59a18524c01b451995a4cfcfa9"
+    },
+    "libgdx-3d-rendering": {
+      "source": "kyu-n/gdx-claude-skills",
+      "ref": "master",
+      "sourceType": "github",
+      "skillPath": "skills/libgdx-graphics-3d/SKILL.md",
+      "computedHash": "f157f8f7f68c47717bccd790e6221121870a0a4f1b23eb13f847a8326d5c711e"
+    },
+    "libgdx-android-backend": {
+      "source": "kyu-n/gdx-claude-skills",
+      "ref": "master",
+      "sourceType": "github",
+      "skillPath": "skills/libgdx-android-backend/SKILL.md",
+      "computedHash": "8a8fe9c9c67261b72664a0389bddbedc65daedf4a580e40a6801002ecc92506b"
+    },
+    "libgdx-application-lifecycle": {
+      "source": "kyu-n/gdx-claude-skills",
+      "ref": "master",
+      "sourceType": "github",
+      "skillPath": "skills/libgdx-application-lifecycle/SKILL.md",
+      "computedHash": "cabfae8e4036f257ca8de91ba2352b378ba5e83a4b1295ae6d0683dfa9f18cd4"
+    },
+    "libgdx-asset-manager": {
+      "source": "kyu-n/gdx-claude-skills",
+      "ref": "master",
+      "sourceType": "github",
+      "skillPath": "skills/libgdx-assetmanager/SKILL.md",
+      "computedHash": "6a33cca0d1d42722e973de934d03421b61b39c65653f4967443bc174435449f4"
+    },
+    "libgdx-audio-lifecycle": {
+      "source": "kyu-n/gdx-claude-skills",
+      "ref": "master",
+      "sourceType": "github",
+      "skillPath": "skills/libgdx-audio-lifecycle/SKILL.md",
+      "computedHash": "844a2da5a5904d4a7029ad3f349645ad8cabc1415dab514780b8b8ea88db1742"
+    },
+    "libgdx-bitmap-font-text": {
+      "source": "kyu-n/gdx-claude-skills",
+      "ref": "master",
+      "sourceType": "github",
+      "skillPath": "skills/libgdx-bitmap-font-text/SKILL.md",
+      "computedHash": "f0b39bf9f22cc9247571d6865226b4931289b084b4d3180bcadd13b19067aa6b"
+    },
+    "libgdx-box2d": {
+      "source": "kyu-n/gdx-claude-skills",
+      "ref": "master",
+      "sourceType": "github",
+      "skillPath": "skills/libgdx-box2d/SKILL.md",
+      "computedHash": "0b6e939fffc88e759a678720e25b4540298fb281ee5b78521ba0d7f2fd89f994"
+    },
+    "libgdx-box2dlights": {
+      "source": "kyu-n/gdx-claude-skills",
+      "ref": "master",
+      "sourceType": "github",
+      "skillPath": "skills/libgdx-box2dlights/SKILL.md",
+      "computedHash": "fbf817d235b6fc6d59c541fecdb7393bb5369b7e58044a299316e1676d01921b"
+    },
+    "libgdx-bullet-physics": {
+      "source": "kyu-n/gdx-claude-skills",
+      "ref": "master",
+      "sourceType": "github",
+      "skillPath": "skills/libgdx-bullet-physics/SKILL.md",
+      "computedHash": "60a2ecdfa919d542f9b2ceb832638c98b2d59b39cc9716fa7307ad01402ecbc1"
+    },
+    "libgdx-camera-viewport": {
+      "source": "kyu-n/gdx-claude-skills",
+      "ref": "master",
+      "sourceType": "github",
+      "skillPath": "skills/libgdx-camera-viewport/SKILL.md",
+      "computedHash": "4ac5d7d5be9d334f48511da406f6e65cc54bce26e2497414726179bc06e44b1c"
+    },
+    "libgdx-collections-json": {
+      "source": "kyu-n/gdx-claude-skills",
+      "ref": "master",
+      "sourceType": "github",
+      "skillPath": "skills/libgdx-collections-json/SKILL.md",
+      "computedHash": "f81f4818a7596ccc8aae1a7cbabff0e62d20c7e8c5605e34d2b00d3e8ecf9783"
+    },
+    "libgdx-controllers": {
+      "source": "kyu-n/gdx-claude-skills",
+      "ref": "master",
+      "sourceType": "github",
+      "skillPath": "skills/libgdx-controllers/SKILL.md",
+      "computedHash": "8adef7983213c59f4dc129086db2edfd846800a08730ade14586bc30b5ac949b"
+    },
+    "libgdx-development": {
+      "source": "acaprino/alfio-claude-plugins",
+      "sourceType": "github",
+      "skillPath": "plugins/libgdx-development/skills/libgdx-development/SKILL.md",
+      "computedHash": "c310ea2553b2d05202282ef94cf69786b14f11ec20d4df659467ed64a3090b3d"
+    },
+    "libgdx-file-io-preferences": {
+      "source": "kyu-n/gdx-claude-skills",
+      "ref": "master",
+      "sourceType": "github",
+      "skillPath": "skills/libgdx-file-io-preferences/SKILL.md",
+      "computedHash": "7e8dfb4e2c3ee8c5435a34d67ff3a3431b64ab2a1c1063e534a99addac3efcb2"
+    },
+    "libgdx-framebuffer-pixmap": {
+      "source": "kyu-n/gdx-claude-skills",
+      "ref": "master",
+      "sourceType": "github",
+      "skillPath": "skills/libgdx-framebuffer-pixmap/SKILL.md",
+      "computedHash": "9f59dac115c58fc8beeb14c5fc97b46c3f0c8b82fc5934a4d1c1e263fb49b231"
+    },
+    "libgdx-freetype": {
+      "source": "kyu-n/gdx-claude-skills",
+      "ref": "master",
+      "sourceType": "github",
+      "skillPath": "skills/libgdx-freetype/SKILL.md",
+      "computedHash": "896358cc3df8360d2bfe5d0294dc414d220502c46466cc94e2f137a0a76cd9a8"
+    },
+    "libgdx-gdx-ai": {
+      "source": "kyu-n/gdx-claude-skills",
+      "ref": "master",
+      "sourceType": "github",
+      "skillPath": "skills/libgdx-gdx-ai/SKILL.md",
+      "computedHash": "e41c59c2fd4bb39e2775b93953f885983def1009637e49bea3b741ecf4a79745"
+    },
+    "libgdx-headless-backend": {
+      "source": "kyu-n/gdx-claude-skills",
+      "ref": "master",
+      "sourceType": "github",
+      "skillPath": "skills/libgdx-headless-backend/SKILL.md",
+      "computedHash": "ebd497d15ea23958cb85dfa8afbadf103a525e845b8977e8f5a8ea0aa12edb7b"
+    },
+    "libgdx-input-handling": {
+      "source": "kyu-n/gdx-claude-skills",
+      "ref": "master",
+      "sourceType": "github",
+      "skillPath": "skills/libgdx-input-handling/SKILL.md",
+      "computedHash": "7217bab56a41303de509e737a34b7d2f183edc9a731e9b4addff78c9c66ca0fe"
+    },
+    "libgdx-ios-robovm": {
+      "source": "kyu-n/gdx-claude-skills",
+      "ref": "master",
+      "sourceType": "github",
+      "skillPath": "skills/libgdx-ios-robovm/SKILL.md",
+      "computedHash": "7209df7de97b0b093f075131743d9e55cabd9153948fd333baaf58ec2d22b792"
+    },
+    "libgdx-lwjgl3-desktop": {
+      "source": "kyu-n/gdx-claude-skills",
+      "ref": "master",
+      "sourceType": "github",
+      "skillPath": "skills/libgdx-lwjgl3-desktop/SKILL.md",
+      "computedHash": "cc73de206d9380ae2dbba2b6455b0952e9237c3775f37b132a236b1c82a9bfa2"
+    },
+    "libgdx-math": {
+      "source": "kyu-n/gdx-claude-skills",
+      "ref": "master",
+      "sourceType": "github",
+      "skillPath": "skills/libgdx-math/SKILL.md",
+      "computedHash": "789e3ef377dbb8c21aaaee604fc02a252cb00d4ff5b41eb9f04956a850855266"
+    },
+    "libgdx-networking": {
+      "source": "kyu-n/gdx-claude-skills",
+      "ref": "master",
+      "sourceType": "github",
+      "skillPath": "skills/libgdx-networking/SKILL.md",
+      "computedHash": "7b5038c0acf71194507746168f0d7d4ca6a84c8543472cbe7d3c3192899ecfee"
+    },
+    "libgdx-particles": {
+      "source": "kyu-n/gdx-claude-skills",
+      "ref": "master",
+      "sourceType": "github",
+      "skillPath": "skills/libgdx-particles/SKILL.md",
+      "computedHash": "1b4ee9afd9324f16eff01c136d73251dabf716b8e85d047f70b2ea951145c6dd"
+    },
+    "libgdx-scene2d-ui": {
+      "source": "kyu-n/gdx-claude-skills",
+      "ref": "master",
+      "sourceType": "github",
+      "skillPath": "skills/libgdx-scene2d-ui/SKILL.md",
+      "computedHash": "28912d0546c73108aad08105b5ae3f244027d0220934fc01c872a0fc70eb012b"
+    },
+    "libgdx-shaders": {
+      "source": "kyu-n/gdx-claude-skills",
+      "ref": "master",
+      "sourceType": "github",
+      "skillPath": "skills/libgdx-shaders/SKILL.md",
+      "computedHash": "06b88a6b7b24a1731fb015e999487573b1a0754b3397e2457732654c3fef8d18"
+    },
+    "libgdx-tiled-maps": {
+      "source": "kyu-n/gdx-claude-skills",
+      "ref": "master",
+      "sourceType": "github",
+      "skillPath": "skills/libgdx-tiled/SKILL.md",
+      "computedHash": "068944086b391350b6b31601764b04f628faef554f24b9002bdf25f6e25415d4"
+    },
+    "universal-tween-engine": {
+      "source": "kyu-n/gdx-claude-skills",
+      "ref": "master",
+      "sourceType": "github",
+      "skillPath": "skills/universal-tween-engine/SKILL.md",
+      "computedHash": "72efa782630a1d7a8cbc2fd17de69243ca6a12f6e853605165c1c3feee67d85e"
+    }
+  }
+}
