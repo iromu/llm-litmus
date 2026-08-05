@@ -3,11 +3,14 @@
  */
 import { CONFIG } from '../core/Config';
 import { Renderer, PALETTE } from '../core/Renderer';
+import { AnimatedSprite } from '../core/AnimatedSprite';
+import { SpriteSheet } from '../core/SpriteSheet';
 import { SeededRandom } from '../utils/SeededRandom';
-import { clamp } from '../utils/Math';
 import { Bullet } from './Bullet';
 import { Camera } from './Camera';
 import { Biome } from './Parallax';
+import { EnemySpriteFactory, SPRITE_PALETTE, createExplosionSheet } from '../data/sprites';
+import { PI } from '../data/sprites/generator';
 
 /**
  * Enemy type definitions
@@ -90,11 +93,22 @@ export class Enemy {
   // Animation
   private animFrame: number = 0;
   private animTimer: number = 0;
+  private sprite: AnimatedSprite;
+  private palette: [number, number, number][];
 
   // Explosion
   public exploding: boolean = false;
   private explosionTimer: number = 0;
-  private explosionDuration: number = 0.3;
+  private explosionDuration: number = 0.4; // slightly longer for 4-frame sprite
+  private explosionSprite: AnimatedSprite;
+  private static explosionSheet: SpriteSheet | null = null;
+
+  private static getExplosionSheet(): SpriteSheet {
+    if (!Enemy.explosionSheet) {
+      Enemy.explosionSheet = createExplosionSheet();
+    }
+    return Enemy.explosionSheet;
+  }
 
   constructor(
     worldX: number, worldY: number,
@@ -122,6 +136,57 @@ export class Enemy {
     this.sineFrequency = rng.range(2, 6) * 0.1;
     this.attackTimer = rng.next() * 2;
     this.attackInterval = rng.range(60, 180) / CONFIG.FPS;
+
+    // Create sprite based on behavior type
+    const [c1, c2, c3] = type.colors;
+    this.sprite = this.createSprite(type, c1, c2, c3, rng);
+    this.explosionSprite = new AnimatedSprite(Enemy.getExplosionSheet());
+    this.palette = SPRITE_PALETTE.map((hex, i) => {
+      const n = parseInt(hex.replace('#', ''), 16);
+      return [(n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff] as [number, number, number];
+    });
+    this.palette[0] = [0, 0, 0];
+    while (this.palette.length < 256) this.palette.push([0, 0, 0]);
+  }
+
+  /**
+   * Create the appropriate sprite based on enemy behavior
+   */
+  private createSprite(type: EnemyType, c1: string, c2: string, c3: string, rng: SeededRandom): AnimatedSprite {
+    // Map hex colors to palette indices
+    const mapColor = (hex: string): number => {
+      const lower = hex.toLowerCase();
+      for (let i = 1; i < SPRITE_PALETTE.length; i++) {
+        if (SPRITE_PALETTE[i].toLowerCase() === lower) return i;
+      }
+      // Default to red if no match
+      return PI.red;
+    };
+    const pi1 = mapColor(c1);
+    const pi2 = mapColor(c2);
+    const pi3 = mapColor(c3);
+
+    switch (this.behavior) {
+      case EnemyBehavior.STRAIGHT:
+      case EnemyBehavior.SINE:
+        return new AnimatedSprite(EnemySpriteFactory.createSmallFighter(pi1, pi2, pi3));
+      case EnemyBehavior.ZIGZAG:
+      case EnemyBehavior.DIVE:
+        return new AnimatedSprite(EnemySpriteFactory.createInsect(pi1, pi2));
+      case EnemyBehavior.HOVER:
+      case EnemyBehavior.CIRCLE:
+        return new AnimatedSprite(EnemySpriteFactory.createHeavyCruiser(pi1, pi2));
+      case EnemyBehavior.CHARGE:
+        return new AnimatedSprite(EnemySpriteFactory.createMissileCarrier(pi1, pi2));
+      case EnemyBehavior.SWARM:
+        return new AnimatedSprite(EnemySpriteFactory.createSwarmUnit(pi1, pi2));
+      case EnemyBehavior.FORMATION:
+        return new AnimatedSprite(EnemySpriteFactory.createWalker(pi1, pi2));
+      case EnemyBehavior.BOSS_MINION:
+        return new AnimatedSprite(EnemySpriteFactory.createBossMinion(pi1, pi2));
+      default:
+        return new AnimatedSprite(EnemySpriteFactory.createSmallFighter(pi1, pi2, pi3));
+    }
   }
 
   /**
@@ -318,125 +383,47 @@ export class Enemy {
     // Skip if off screen
     if (x < -this.width || x > CONFIG.WIDTH + this.width) return;
 
-    this.renderSprite(renderer, x, y);
+    // Update sprite animation
+    this.sprite.update(1 / CONFIG.FPS);
+
+    // Draw sprite sheet
+    const imageData = this.sprite.getImageData(this.palette);
+    renderer.drawSpriteData(x, y, imageData);
   }
 
   /**
-   * Render enemy sprite based on type
-   */
-  private renderSprite(r: Renderer, x: number, y: number): void {
-    const [c1, c2, c3] = this.colors;
-    const w = this.width;
-    const h = this.height;
-    const frame = this.animFrame;
-
-    // Generic enemy sprite based on behavior type
-    switch (this.behavior) {
-      case EnemyBehavior.STRAIGHT:
-      case EnemyBehavior.SINE:
-        // Small fighter
-        r.rect(x + 2, y + 2, w - 4, h - 4, c1);
-        r.rect(x, y + 3, w, h - 6, c2);
-        r.rect(x, y + h / 2 - 1, 4, 2, c3); // Nose
-        r.rect(x + 4, y + h / 2, w - 8, 2, c2);
-        // Engine glow
-        if (frame % 2 === 0) {
-          r.rect(x + w, y + h / 2 - 1, 2, 2, PALETTE.orange);
-        }
-        break;
-
-      case EnemyBehavior.ZIGZAG:
-      case EnemyBehavior.DIVE:
-        // Mechanical insect
-        r.rect(x + 2, y, w - 4, h, c1);
-        r.rect(x, y + 2, w, h - 4, c2);
-        // Wings
-        const wingOffset = frame % 2 === 0 ? -2 : 2;
-        r.rect(x + 2, y - 2 + wingOffset, w - 4, 2, c3);
-        r.rect(x + 2, y + h + wingOffset, w - 4, 2, c3);
-        // Eyes
-        r.rect(x + 2, y + h / 2 - 1, 2, 2, PALETTE.red);
-        break;
-
-      case EnemyBehavior.HOVER:
-      case EnemyBehavior.CIRCLE:
-        // Heavy cruiser
-        r.rect(x, y + 2, w, h - 4, c1);
-        r.rect(x + 2, y, w - 4, h, c2);
-        r.rect(x + 4, y + 2, w - 8, h - 4, c3);
-        // Turret
-        r.rect(x + w / 2 - 2, y + h / 2 - 2, 4, 4, PALETTE.gray);
-        break;
-
-      case EnemyBehavior.CHARGE:
-        // Missile carrier
-        r.rect(x + 1, y + 1, w - 2, h - 2, c1);
-        r.rect(x, y + 2, w, h - 4, c2);
-        r.rect(x + w - 2, y + h / 2 - 1, 3, 2, PALETTE.orange);
-        break;
-
-      case EnemyBehavior.SWARM:
-        // Small biomechanical
-        r.circle(x + w / 2, y + h / 2, Math.min(w, h) / 2, c1);
-        r.circle(x + w / 2, y + h / 2, Math.min(w, h) / 3, c2);
-        break;
-
-      case EnemyBehavior.BOSS_MINION:
-        // Armored gunship
-        r.rect(x, y, w, h, c1);
-        r.rect(x + 2, y + 2, w - 4, h - 4, c2);
-        r.rect(x + w / 2 - 1, y + h / 2 - 1, 3, 3, c3);
-        // Armor plates
-        r.rect(x, y, w, 2, shadeColor(c1, -20));
-        r.rect(x, y + h - 2, w, 2, shadeColor(c1, -20));
-        break;
-
-      case EnemyBehavior.FORMATION:
-        // Walker
-        r.rect(x + 2, y, w - 4, h, c1);
-        r.rect(x, y + 2, w, h - 4, c2);
-        // Legs
-        const legOffset = frame % 2 === 0 ? 0 : 2;
-        r.rect(x + 2, y + h, 2, 3 + legOffset, c3);
-        r.rect(x + w - 4, y + h, 2, 3 + (1 - legOffset), c3);
-        break;
-    }
-  }
-
-  /**
-   * Render explosion effect
+   * Render explosion effect using multi-stage sprite sequence
    */
   private renderExplosion(r: Renderer): void {
     const progress = this.explosionTimer / this.explosionDuration;
-    const x = Math.floor(this.x + this.width / 2);
-    const y = Math.floor(this.y + this.height / 2);
+    const x = Math.floor(this.x + this.width / 2 - 8); // center 16x16 sprite
+    const y = Math.floor(this.y + this.height / 2 - 8);
 
-    if (progress < 0.3) {
-      // Initial flash
-      const size = this.width * (1 + progress * 4);
-      r.circle(x, y, size / 2, PALETTE.white);
-    } else if (progress < 0.6) {
-      // Expansion
-      const size = this.width * (2 + (progress - 0.3) * 6);
-      r.circle(x, y, size / 2, PALETTE.orange);
-      r.circle(x, y, size / 3, PALETTE.yellow);
-    } else {
-      // Fade out
-      const alpha = 1 - (progress - 0.6) / 0.4;
-      r.ctx.globalAlpha = alpha;
-      const size = this.width * (4 + (progress - 0.6) * 4);
-      r.circle(x, y, size / 2, PALETTE.orange);
-      r.circle(x, y, size / 4, PALETTE.yellow);
+    // Map progress to frame (4 frames: flash → fireball → debris → smoke)
+    const frameIndex = Math.min(3, Math.floor(progress * 4));
+    this.explosionSprite.setFrame(frameIndex);
+
+    // Draw explosion sprite
+    const imageData = this.explosionSprite.getImageData(this.palette);
+
+    // Fade out in later stages
+    if (progress > 0.6) {
+      r.ctx.globalAlpha = 1 - (progress - 0.6) / 0.4;
+    }
+
+    r.drawSpriteData(x, y, imageData);
+
+    if (progress > 0.6) {
       r.ctx.globalAlpha = 1;
     }
 
-    // Debris particles
+    // Debris particles (spray outward)
     for (let i = 0; i < 4; i++) {
       const angle = (i / 4) * Math.PI * 2 + this.explosionTimer * 5;
       const dist = progress * this.width * 2;
-      const dx = x + Math.cos(angle) * dist;
-      const dy = y + Math.sin(angle) * dist;
-      r.rect(Math.floor(dx), Math.floor(dy), 2, 2, this.colors[i % 3]);
+      const dx = Math.floor(this.x + this.width / 2 + Math.cos(angle) * dist);
+      const dy = Math.floor(this.y + this.height / 2 + Math.sin(angle) * dist);
+      r.rect(dx, dy, 2, 2, this.colors[i % 3]);
     }
   }
 
@@ -446,15 +433,4 @@ export class Enemy {
   isOffScreen(camera: Camera): boolean {
     return this.x < -200 || !this.alive;
   }
-}
-
-/**
- * Helper: shade a hex color
- */
-function shadeColor(color: string, percent: number): string {
-  const num = parseInt(color.replace('#', ''), 16);
-  const r = Math.min(255, Math.max(0, ((num >> 16) & 0xFF) + percent));
-  const g = Math.min(255, Math.max(0, ((num >> 8) & 0xFF) + percent));
-  const b = Math.min(255, Math.max(0, (num & 0xFF) + percent));
-  return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`;
 }

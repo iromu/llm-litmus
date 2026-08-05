@@ -3,9 +3,15 @@
  */
 import { CONFIG } from '../core/Config';
 import { Renderer, PALETTE } from '../core/Renderer';
-import { SeededRandom } from '../utils/SeededRandom';
+import { AnimatedSprite } from '../core/AnimatedSprite';
 import { Bullet } from './Bullet';
 import { Camera } from './Camera';
+import {
+  createMiningMachineSheet,
+  createOrbitalShipSheet,
+  createAlienGuardianSheet,
+} from '../data/sprites/bosses';
+import { SPRITE_PALETTE } from '../data/sprites';
 
 /**
  * Boss types
@@ -77,6 +83,8 @@ export class Boss {
   private animFrame: number = 0;
   private animTimer: number = 0;
   private transformProgress: number = 0; // For boss 2
+  private sprite: AnimatedSprite;
+  private palette: [number, number, number][];
 
   // Sections (for boss 1)
   sections: BossSection[] = [];
@@ -101,6 +109,27 @@ export class Boss {
     this.entranceProgress = 0;
     this.attackTimer = 0;
     this.attackPhase = 0;
+
+    // Create sprite based on boss type
+    switch (type) {
+      case BossType.MINING_MACHINE:
+        this.sprite = new AnimatedSprite(createMiningMachineSheet());
+        break;
+      case BossType.ORBITAL_SHIP:
+        this.sprite = new AnimatedSprite(createOrbitalShipSheet());
+        break;
+      case BossType.ALIEN_GUARDIAN:
+        this.sprite = new AnimatedSprite(createAlienGuardianSheet());
+        break;
+    }
+
+    // Build palette
+    this.palette = SPRITE_PALETTE.map((hex) => {
+      const n = parseInt(hex.replace('#', ''), 16);
+      return [(n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff] as [number, number, number];
+    });
+    this.palette[0] = [0, 0, 0];
+    while (this.palette.length < 256) this.palette.push([0, 0, 0]);
 
     // Initialize sections for mining machine
     if (type === BossType.MINING_MACHINE) {
@@ -451,168 +480,146 @@ export class Boss {
     const x = Math.floor(this.x);
     const y = Math.floor(this.y);
 
-    switch (this.type) {
-      case BossType.MINING_MACHINE:
-        this.renderMiningMachine(renderer, x, y);
-        break;
-      case BossType.ORBITAL_SHIP:
-        this.renderOrbitalShip(renderer, x, y);
-        break;
-      case BossType.ALIEN_GUARDIAN:
-        this.renderAlienGuardian(renderer, x, y);
-        break;
+    // Update sprite animation
+    this.sprite.update(1 / CONFIG.FPS);
+
+    // Draw sprite sheet (centered on boss position)
+    const meta = this.sprite.sheet.meta;
+    const offsetX = Math.floor((this.type === BossType.MINING_MACHINE ? 80 : 60) - meta.width) / 2;
+    const offsetY = Math.floor((this.type === BossType.ALIEN_GUARDIAN ? 50 : 60) - meta.height) / 2;
+
+    const imageData = this.sprite.getImageData(this.palette);
+    renderer.drawSpriteData(x + offsetX, y + offsetY, imageData);
+
+    // Phase overlay effects
+    if (this.phase >= 2 && this.type === BossType.ORBITAL_SHIP) {
+      // Transformation energy aura
+      renderer.ctx.globalAlpha = 0.2 + Math.sin(this.animFrame * 0.5) * 0.1;
+      renderer.rect(x - 3, y - 3, 66, 66, PALETTE.cyan);
+      renderer.ctx.globalAlpha = 1;
+    }
+
+    if (this.phase >= 3 && this.type === BossType.ALIEN_GUARDIAN) {
+      // Final phase energy aura
+      renderer.ctx.globalAlpha = 0.3 + Math.sin(this.animFrame * 0.6) * 0.2;
+      renderer.rect(x - 5, y - 5, 70, 60, PALETTE.magenta);
+      renderer.ctx.globalAlpha = 1;
     }
   }
 
   /**
-   * Boss 1: Mining Machine
-   */
-  private renderMiningMachine(r: Renderer, x: number, y: number): void {
-    // Main body
-    r.rect(x, y, 80, 60, PALETTE.steelDark);
-    r.rect(x + 2, y + 2, 76, 56, PALETTE.steel);
-
-    // Sections
-    for (const section of this.sections) {
-      if (!section.alive) continue;
-      const sx = x + section.x;
-      const sy = y + section.y;
-      r.rect(sx, sy, section.w, section.h, section.color);
-      r.rect(sx + 2, sy + 2, section.w - 4, section.h - 4, shadeColor(section.color, 20));
-      // Damage indicator
-      if (section.hp < section.maxHp * 0.5) {
-        r.rect(sx + 4, sy + 4, 2, 2, PALETTE.red);
-      }
-    }
-
-    // Drills
-    const drillAngle = this.animFrame * 0.5;
-    for (let i = 0; i < 2; i++) {
-      const dx = x + (i === 0 ? -5 : 75);
-      const dy = y + 30 + Math.sin(drillAngle + i * Math.PI) * 5;
-      r.rect(dx, dy, 8, 4, PALETTE.gray);
-      r.rect(dx - 3, dy + 1, 3, 2, PALETTE.orange);
-    }
-
-    // Core glow
-    const glow = Math.sin(this.animFrame * 0.5) > 0;
-    if (glow) {
-      r.rect(x + 35, y + 25, 10, 10, PALETTE.orange);
-      r.rect(x + 37, y + 27, 6, 6, PALETTE.yellow);
-    }
-  }
-
-  /**
-   * Boss 2: Orbital Battleship
-   */
-  private renderOrbitalShip(r: Renderer, x: number, y: number): void {
-    const transform = this.transformProgress;
-
-    // Hull
-    r.rect(x, y, 60, 60, PALETTE.steelDark);
-    r.rect(x + 2, y + 2, 56, 56, PALETTE.steel);
-
-    // Rotating weapon arrays
-    for (let i = 0; i < 6; i++) {
-      const angle = this.spiralAngle + (i / 6) * Math.PI * 2;
-      const wx = x + 30 + Math.cos(angle) * 25;
-      const wy = y + 30 + Math.sin(angle) * 25;
-      r.rect(wx - 3, wy - 3, 6, 6, PALETTE.darkGray);
-      r.rect(wx - 1, wy - 1, 2, 2, PALETTE.red);
-    }
-
-    // Transformation effect
-    if (transform > 0 && transform < 1) {
-      r.ctx.globalAlpha = transform * 0.5;
-      r.rect(x - 5, y - 5, 70, 70, PALETTE.cyan);
-      r.ctx.globalAlpha = 1;
-    }
-
-    // Phase 2 armor
-    if (this.phase === 2) {
-      r.rect(x - 3, y - 3, 66, 66, PALETTE.darkRed);
-      r.rect(x, y, 60, 60, PALETTE.red);
-      // Wing extensions
-      r.rect(x - 10, y + 10, 10, 40, PALETTE.darkRed);
-      r.rect(x + 60, y + 10, 10, 40, PALETTE.darkRed);
-    }
-
-    // Bridge
-    r.rect(x + 25, y + 25, 10, 10, PALETTE.lightBlue);
-    r.rect(x + 27, y + 27, 6, 6, PALETTE.cyan);
-  }
-
-  /**
-   * Boss 3: Alien Guardian
-   */
-  private renderAlienGuardian(r: Renderer, x: number, y: number): void {
-    // Organic body
-    const pulse = Math.sin(this.animFrame * 0.4) * 3;
-
-    // Main body
-    r.rect(x, y, 60, 50, PALETTE.organicDark);
-    r.rect(x + 2, y + 2, 56, 46, PALETTE.organic);
-
-    // Inner organs
-    r.rect(x + 15, y + 10, 30, 30, PALETTE.flesh);
-    r.rect(x + 20, y + 15, 20, 20, PALETTE.fleshDark);
-
-    // Eyes
-    const eyeGlow = Math.sin(this.animFrame * 0.3) > 0;
-    r.rect(x + 22, y + 20, 6, 6, eyeGlow ? PALETTE.neonGreen : PALETTE.green);
-    r.rect(x + 32, y + 20, 6, 6, eyeGlow ? PALETTE.neonGreen : PALETTE.green);
-    r.rect(x + 24, y + 22, 2, 2, PALETTE.white);
-    r.rect(x + 34, y + 22, 2, 2, PALETTE.white);
-
-    // Tendrils
-    for (let i = 0; i < 4; i++) {
-      const tx = x + 10 + i * 12;
-      const ty = y + 50 + Math.sin(this.animFrame * 0.5 + i) * 5;
-      r.rect(tx, ty, 4, 8 + pulse, PALETTE.organic);
-    }
-
-    // Phase effects
-    if (this.phase >= 2) {
-      // Energy aura
-      r.ctx.globalAlpha = 0.3 + Math.sin(this.animFrame * 0.6) * 0.2;
-      r.rect(x - 5, y - 5, 70, 60, PALETTE.magenta);
-      r.ctx.globalAlpha = 1;
-    }
-
-    if (this.phase >= 3) {
-      // Final phase - exposed core
-      r.rect(x + 22, y + 18, 16, 16, PALETTE.magenta);
-      r.rect(x + 26, y + 22, 8, 8, PALETTE.white);
-    }
-  }
-
-  /**
-   * Render destruction sequence
+   * Render destruction sequence with sprite-based animations and shockwave
    */
   private renderDestruction(r: Renderer): void {
     const progress = this.destroyTimer / this.destroyDuration;
     const x = Math.floor(this.x);
     const y = Math.floor(this.y);
+    const meta = this.sprite.sheet.meta;
+    const offsetX = Math.floor((this.type === BossType.MINING_MACHINE ? 80 : 60) - meta.width) / 2;
+    const offsetY = Math.floor((this.type === BossType.ALIEN_GUARDIAN ? 50 : 60) - meta.height) / 2;
 
-    // Flash and crumble
-    if (progress < 0.3) {
-      // White flash
-      r.ctx.globalAlpha = 1 - progress / 0.3;
-      r.rect(x - 10, y - 10, this.type === BossType.MINING_MACHINE ? 100 : 80, this.type === BossType.ALIEN_GUARDIAN ? 70 : 80, PALETTE.white);
+    // === Stage 1: White flash (0-0.15) ===
+    if (progress < 0.15) {
+      r.ctx.globalAlpha = 1 - progress / 0.15;
+      r.rect(x - 10, y - 10, (this.type === BossType.MINING_MACHINE ? 100 : 80),
+        (this.type === BossType.ALIEN_GUARDIAN ? 70 : 80), PALETTE.white);
       r.ctx.globalAlpha = 1;
-    } else if (progress < 0.7) {
-      // Crumbling pieces
-      const shake = (progress - 0.3) * 20;
-      for (let i = 0; i < 8; i++) {
-        const px = x + (i % 4) * 20 + (Math.random() - 0.5) * shake;
-        const py = y + Math.floor(i / 4) * 30 + (Math.random() - 0.5) * shake;
-        r.rect(px, py, 15, 20, this.type === BossType.ALIEN_GUARDIAN ? PALETTE.flesh : PALETTE.steel);
+      return;
+    }
+
+    // === Stage 2: Crumbling sprite pieces (0.15-0.5) ===
+    if (progress < 0.5) {
+      const stageProgress = (progress - 0.15) / 0.35;
+      const shake = stageProgress * 15;
+
+      // Draw boss sprite as crumbling pieces
+      r.ctx.globalAlpha = 1 - stageProgress * 0.5;
+
+      // Split sprite into 6 chunks with offset
+      const chunkW = Math.floor(meta.width / 3);
+      const chunkH = Math.floor(meta.height / 2);
+      for (let cy = 0; cy < 2; cy++) {
+        for (let cx = 0; cx < 3; cx++) {
+          const px = x + offsetX + cx * chunkW + (Math.random() - 0.5) * shake;
+          const py = y + offsetY + cy * chunkH + (Math.random() - 0.5) * shake;
+          // Draw sprite portion via clip
+          r.ctx.save();
+          r.ctx.beginPath();
+          r.ctx.rect(px, py, chunkW + 1, chunkH + 1);
+          r.ctx.clip();
+          const imageData = this.sprite.getImageData(this.palette);
+          r.drawSpriteData(x + offsetX, y + offsetY, imageData);
+          r.ctx.restore();
+        }
       }
-    } else {
-      // Final explosion
-      r.ctx.globalAlpha = 1 - (progress - 0.7) / 0.3;
-      r.circle(x + 30, y + 30, 40 * (progress - 0.7) * 3, PALETTE.white);
-      r.circle(x + 30, y + 30, 30 * (progress - 0.7) * 3, PALETTE.yellow);
+      r.ctx.globalAlpha = 1;
+
+      // === 5.5 Shockwave ring effect ===
+      if (stageProgress < 0.3) {
+        const shockProgress = stageProgress / 0.3;
+        const shockRadius = 20 + shockProgress * 60;
+        r.ctx.globalAlpha = (1 - shockProgress) * 0.6;
+        r.ctx.strokeStyle = PALETTE.white;
+        r.ctx.lineWidth = 3 * (1 - shockProgress);
+        r.ctx.beginPath();
+        r.ctx.arc(x + 30, y + 25, shockRadius, 0, Math.PI * 2);
+        r.ctx.stroke();
+        r.ctx.globalAlpha = 1;
+      }
+      return;
+    }
+
+    // === Stage 3: Explosion sprite sequence (0.5-0.8) ===
+    if (progress < 0.8) {
+      const stageProgress = (progress - 0.5) / 0.3;
+
+      // Multi-frame explosion using boss sprite colors
+      const explosionSize = 30 + stageProgress * 40;
+      const cx = x + 30;
+      const cy = y + 25;
+
+      // Outer fireball
+      r.circle(cx, cy, explosionSize, stageProgress < 0.5 ? PALETTE.orange : PALETTE.red);
+      // Inner core
+      r.circle(cx, cy, explosionSize * 0.6, stageProgress < 0.5 ? PALETTE.yellow : PALETTE.orange);
+      // White flash center
+      r.circle(cx, cy, explosionSize * 0.3, PALETTE.white);
+
+      // Debris spray
+      for (let i = 0; i < 8; i++) {
+        const angle = (i / 8) * Math.PI * 2 + stageProgress * 3;
+        const dist = stageProgress * 50;
+        const dx = cx + Math.cos(angle) * dist;
+        const dy = cy + Math.sin(angle) * dist;
+        r.rect(Math.floor(dx), Math.floor(dy), 3, 3,
+          this.type === BossType.ALIEN_GUARDIAN ? PALETTE.flesh : PALETTE.steel);
+      }
+
+      // === 5.5 Secondary shockwave ===
+      const shock2Radius = 10 + stageProgress * 80;
+      r.ctx.globalAlpha = (1 - stageProgress) * 0.4;
+      r.ctx.strokeStyle = PALETTE.yellow;
+      r.ctx.lineWidth = 2 * (1 - stageProgress);
+      r.ctx.beginPath();
+      r.ctx.arc(cx, cy, shock2Radius, 0, Math.PI * 2);
+      r.ctx.stroke();
+      r.ctx.globalAlpha = 1;
+      return;
+    }
+
+    // === Stage 4: Smoke fade (0.8-1.0) ===
+    {
+      const stageProgress = (progress - 0.8) / 0.2;
+      r.ctx.globalAlpha = 1 - stageProgress;
+
+      // Smoke clouds
+      for (let i = 0; i < 5; i++) {
+        const angle = (i / 5) * Math.PI * 2;
+        const dist = stageProgress * 20;
+        const sx = x + 30 + Math.cos(angle) * dist;
+        const sy = y + 25 + Math.sin(angle) * dist;
+        r.circle(Math.floor(sx), Math.floor(sy), 15 - stageProgress * 10, PALETTE.steelDark);
+      }
       r.ctx.globalAlpha = 1;
     }
   }
@@ -631,15 +638,4 @@ export class Boss {
     Object.assign(this, new Boss(type));
     this.type = type;
   }
-}
-
-/**
- * Helper: shade a hex color
- */
-function shadeColor(color: string, percent: number): string {
-  const num = parseInt(color.replace('#', ''), 16);
-  const r = Math.min(255, Math.max(0, ((num >> 16) & 0xFF) + percent));
-  const g = Math.min(255, Math.max(0, ((num >> 8) & 0xFF) + percent));
-  const b = Math.min(255, Math.max(0, (num & 0xFF) + percent));
-  return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`;
 }

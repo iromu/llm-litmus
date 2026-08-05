@@ -3,8 +3,15 @@
  */
 import { CONFIG } from '../core/Config';
 import { Renderer, PALETTE } from '../core/Renderer';
+import { AnimatedSprite } from '../core/AnimatedSprite';
 import { Enemy } from './Enemy';
 import { Boss } from './Boss';
+import {
+  createPlasmaBolt, createHomingDrone, createSpreadLaser, createLightningBeam,
+  createEnemyBullet, createSpiralBullet, createEnemyMissile,
+  createBossBullet, createBossLaser,
+  SPRITE_PALETTE,
+} from '../data/sprites';
 
 /**
  * Bullet types
@@ -41,6 +48,21 @@ export class Bullet {
   laserLength: number = 0; // For laser beams
   isLaser: boolean = false;
   animationFrame: number = 0;
+  private sprite: AnimatedSprite | null = null;
+  private static palette: [number, number, number][] | null = null;
+
+  /** Get or build the shared palette */
+  private static getPalette(): [number, number, number][] {
+    if (!Bullet.palette) {
+      Bullet.palette = SPRITE_PALETTE.map((hex) => {
+        const n = parseInt(hex.replace('#', ''), 16);
+        return [(n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff] as [number, number, number];
+      });
+      Bullet.palette[0] = [0, 0, 0];
+      while (Bullet.palette.length < 256) Bullet.palette.push([0, 0, 0]);
+    }
+    return Bullet.palette;
+  }
 
   constructor(
     x: number, y: number,
@@ -59,6 +81,26 @@ export class Bullet {
     this.alive = true;
     this.lifetime = 0;
     this.isLaser = kind === 'enemy_laser' || kind === 'boss_laser';
+
+    // Create sprite for non-laser bullets
+    if (!this.isLaser) {
+      this.sprite = this.createSprite(kind);
+    }
+  }
+
+  /** Create the appropriate sprite based on bullet kind */
+  private createSprite(kind: string): AnimatedSprite {
+    switch (kind) {
+      case 'plasma': return new AnimatedSprite(createPlasmaBolt());
+      case 'homing': return new AnimatedSprite(createHomingDrone());
+      case 'spread': return new AnimatedSprite(createSpreadLaser());
+      case 'lightning': return new AnimatedSprite(createLightningBeam());
+      case 'enemy_bullet': return new AnimatedSprite(createEnemyBullet());
+      case 'enemy_spiral': return new AnimatedSprite(createSpiralBullet());
+      case 'enemy_missile': return new AnimatedSprite(createEnemyMissile());
+      case 'boss_bullet': return new AnimatedSprite(createBossBullet());
+      default: return new AnimatedSprite(createEnemyBullet());
+    }
   }
 
   /**
@@ -159,110 +201,21 @@ export class Bullet {
       return;
     }
 
+    if (!this.sprite) return;
+
     const x = Math.floor(this.x);
     const y = Math.floor(this.y);
 
-    switch (this.kind) {
-      case 'plasma':
-        this.renderPlasma(renderer, x, y);
-        break;
-      case 'homing':
-        this.renderHoming(renderer, x, y);
-        break;
-      case 'spread':
-        this.renderSpread(renderer, x, y);
-        break;
-      case 'lightning':
-        this.renderLightning(renderer, x, y);
-        break;
-      case 'enemy_bullet':
-        this.renderEnemyBullet(renderer, x, y);
-        break;
-      case 'enemy_missile':
-        this.renderEnemyMissile(renderer, x, y);
-        break;
-      case 'enemy_spiral':
-        this.renderEnemySpiral(renderer, x, y);
-        break;
-      case 'boss_bullet':
-        this.renderBossBullet(renderer, x, y);
-        break;
-    }
-  }
+    // Update sprite animation
+    this.sprite.update(1 / CONFIG.FPS);
 
-  private renderPlasma(r: Renderer, x: number, y: number): void {
-    const size = 2 + this.level;
-    r.rect(x - size / 2, y - 1, size, 2, PALETTE.cyan);
-    r.rect(x - size / 2 + 1, y, size - 2, 1, PALETTE.white);
-    // Trail
-    r.rect(x - size / 2 - 3, y, 2, 1, PALETTE.lightBlue);
-  }
+    // Draw sprite sheet (centered)
+    const meta = this.sprite.sheet.meta;
+    const px = x - Math.floor(meta.width / 2);
+    const py = y - Math.floor(meta.height / 2);
 
-  private renderHoming(r: Renderer, x: number, y: number): void {
-    const angle = Math.atan2(this.vy, this.vx);
-    r.ctx.save();
-    r.ctx.translate(x, y);
-    r.ctx.rotate(angle);
-    // Drone body
-    r.rect(-4, -2, 8, 4, PALETTE.magenta);
-    r.rect(-2, -1, 4, 2, PALETTE.pink);
-    r.rect(2, 0, 2, 1, PALETTE.white);
-    r.ctx.restore();
-    // Glow
-    r.circle(x, y, 3, 'rgba(255, 0, 255, 0.3)');
-  }
-
-  private renderSpread(r: Renderer, x: number, y: number): void {
-    r.rect(x - 2, y - 1, 5, 3, PALETTE.orange);
-    r.rect(x - 1, y, 3, 1, PALETTE.yellow);
-  }
-
-  private renderLightning(r: Renderer, x: number, y: number): void {
-    // Lightning beam extends to right edge
-    const beamW = CONFIG.WIDTH - x;
-    // Core
-    r.rect(x, y - 1, beamW, 3, PALETTE.yellow);
-    r.rect(x, y, beamW, 1, PALETTE.white);
-    // Outer glow
-    r.ctx.globalAlpha = 0.5;
-    r.rect(x, y - 3, beamW, 7, PALETTE.orange);
-    r.ctx.globalAlpha = 1;
-    // Crackling effect
-    for (let i = 0; i < 5; i++) {
-      const lx = x + (i * beamW / 5);
-      const ly = y + (Math.sin(this.animationFrame * 3 + i) * 4);
-      r.rect(lx, ly, 3, 1, PALETTE.white);
-    }
-  }
-
-  private renderEnemyBullet(r: Renderer, x: number, y: number): void {
-    r.circle(x, y, 3, PALETTE.red);
-    r.circle(x, y, 1, PALETTE.lightYellow);
-  }
-
-  private renderEnemyMissile(r: Renderer, x: number, y: number): void {
-    const angle = Math.atan2(this.vy, this.vx);
-    r.ctx.save();
-    r.ctx.translate(x, y);
-    r.ctx.rotate(angle);
-    r.rect(-5, -2, 10, 4, PALETTE.darkRed);
-    r.rect(-3, -1, 6, 2, PALETTE.red);
-    r.rect(3, 0, 2, 1, PALETTE.orange);
-    // Exhaust
-    r.rect(-7, -1, 2, 2, PALETTE.orange);
-    r.ctx.restore();
-  }
-
-  private renderEnemySpiral(r: Renderer, x: number, y: number): void {
-    const pulse = Math.sin(this.lifetime * 10) > 0 ? PALETTE.magenta : PALETTE.purple;
-    r.circle(x, y, 3, pulse);
-    r.circle(x, y, 1, PALETTE.white);
-  }
-
-  private renderBossBullet(r: Renderer, x: number, y: number): void {
-    r.circle(x, y, 4, PALETTE.orange);
-    r.circle(x, y, 2, PALETTE.yellow);
-    r.circle(x, y, 1, PALETTE.white);
+    const imageData = this.sprite.getImageData(Bullet.getPalette());
+    renderer.drawSpriteData(px, py, imageData);
   }
 
   private renderLaser(r: Renderer): void {

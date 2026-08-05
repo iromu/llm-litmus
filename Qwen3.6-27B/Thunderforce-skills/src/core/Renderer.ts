@@ -1,8 +1,26 @@
 /**
  * Canvas2D renderer for pixel-perfect 16-bit rendering
- * Handles sprite drawing, palette management, and visual effects
+ * Handles sprite drawing, palette management, palette cycling, and visual effects
  */
 import { CONFIG } from './Config';
+
+/**
+ * Palette cycling rule: shift a color index through hue/saturation/brightness over time.
+ */
+export interface PaletteCycleRule {
+  /** Palette index to cycle (1-255, 0 = transparent) */
+  index: number;
+  /** Base color as [r, g, b] */
+  base: [number, number, number];
+  /** Frames per full cycle (60 = 1 second) */
+  speed: number;
+  /** Hue shift range in degrees (-180 to 180) */
+  hueRange: number;
+  /** Saturation boost 0-1 */
+  satBoost: number;
+  /** Brightness offset -255 to 255 */
+  brightOffset: number;
+}
 
 /**
  * Color palette entries for 16-bit style rendering
@@ -132,8 +150,20 @@ export class Sprite {
 export class Renderer {
   public ctx: CanvasRenderingContext2D;
 
+  /** Active palette cycling rules */
+  private _cycleRules: PaletteCycleRule[] = [];
+  /** Current palette (256-entry [r,g,b] lookup) - modified each frame by cycling */
+  public palette: [number, number, number][];
+  /** Base palette snapshot (restored each frame before cycling) */
+  private basePalette: [number, number, number][];
+  /** Internal frame counter for cycling */
+  private _cycleFrame: number = 0;
+
   constructor(ctx: CanvasRenderingContext2D) {
     this.ctx = ctx;
+    // Initialize palette: index 0 = transparent, rest = black
+    this.palette = new Array(256).fill(null).map(() => [0, 0, 0]);
+    this.basePalette = new Array(256).fill(null).map(() => [0, 0, 0]);
   }
 
   /**
@@ -322,4 +352,213 @@ export class Renderer {
     this.rect(Math.floor(x), Math.floor(y), size, size, color);
     this.ctx.globalAlpha = 1;
   }
+
+  // ===== Sprite Data Rendering =====
+
+  /**
+   * Draw pre-computed ImageData at a position using putImageData.
+   * Much faster than per-pixel fillRect for sprite rendering.
+   */
+  drawSpriteData(x: number, y: number, imageData: ImageData): void {
+    this.ctx.putImageData(imageData, Math.floor(x), Math.floor(y));
+  }
+
+  /**
+   * Draw ImageData with palette index lookup (for sprite sheets).
+   * Converts palette indices to RGBA on-the-fly and writes to canvas.
+   * @param x Destination X
+   * @param y Destination Y
+   * @param pixels Palette index data (0 = transparent)
+   * @param width Pixel width
+   * @param height Pixel height
+   * @param palette 256-entry [r,g,b] palette
+   */
+  drawIndexedSprite(
+    x: number, y: number,
+    pixels: Uint8Array,
+    width: number, height: number,
+    palette: [number, number, number][]
+  ): void {
+    // Convert to ImageData and draw
+    const imageData = this.indexedImageData(pixels, width, height, palette);
+    this.ctx.putImageData(imageData, Math.floor(x), Math.floor(y));
+  }
+
+  /**
+   * Draw indexed sprite with horizontal flip.
+   */
+  drawIndexedSpriteFlipX(
+    x: number, y: number,
+    pixels: Uint8Array,
+    width: number, height: number,
+    palette: [number, number, number][]
+  ): void {
+    const flipped = new Uint8Array(width * height);
+    for (let row = 0; row < height; row++) {
+      for (let col = 0; col < width; col++) {
+        flipped[row * width + col] = pixels[row * width + (width - 1 - col)];
+      }
+    }
+    const imageData = this.indexedImageData(flipped, width, height, palette);
+    this.ctx.putImageData(imageData, Math.floor(x), Math.floor(y));
+  }
+
+  /**
+   * Convert palette indices to ImageData (cached per call).
+   */
+  private indexedImageData(
+    pixels: Uint8Array,
+    width: number, height: number,
+    palette: [number, number, number][]
+  ): ImageData {
+    const out = new Uint8ClampedArray(pixels.length * 4);
+    for (let i = 0; i < pixels.length; i++) {
+      const oi = i * 4;
+      const pi = pixels[i];
+      if (pi === 0) {
+        out[oi] = out[oi + 1] = out[oi + 2] = out[oi + 3] = 0;
+      } else {
+        const c = palette[pi] || [0, 0, 0];
+        out[oi] = c[0];
+        out[oi + 1] = c[1];
+        out[oi + 2] = c[2];
+        out[oi + 3] = 255;
+      }
+    }
+    return new ImageData(out, width, height);
+  }
+
+  // ===== Palette Cycling =====
+
+  /**
+   * Set palette colors from hex strings.
+   * Index 0 remains transparent.
+   * Stores a base snapshot for palette cycling to restore each frame.
+   */
+  setPalette(hexColors: string[]): void {
+    this.palette[0] = [0, 0, 0];
+    this.basePalette[0] = [0, 0, 0];
+    for (let i = 0; i < hexColors.length; i++) {
+      const n = parseInt(hexColors[i].replace('#', ''), 16);
+      const rgb: [number, number, number] = [
+        (n >> 16) & 0xff,
+        (n >> 8) & 0xff,
+        n & 0xff,
+      ];
+      this.palette[i + 1] = rgb;
+      this.basePalette[i + 1] = rgb;
+    }
+  }
+
+  /**
+   * Get a palette color as hex string.
+   */
+  getPaletteColor(index: number): string {
+    const [r, g, b] = this.palette[index] || [0, 0, 0];
+    return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`;
+  }
+
+  /**
+   * Set palette cycling rules for the current biome.
+   */
+  setCycleRules(rules: PaletteCycleRule[]): void {
+    this._cycleRules = rules;
+  }
+
+  /**
+   * Update palette cycling for the current frame.
+   * Must be called once per frame before rendering.
+   * Restores base palette first, then applies cycle overrides.
+   */
+  updatePaletteCycling(): void {
+    // Restore base palette to prevent drift
+    for (let i = 0; i < 256; i++) {
+      this.palette[i] = this.basePalette[i];
+    }
+
+    if (this._cycleRules.length === 0) return;
+
+    this._cycleFrame++;
+
+    for (const rule of this._cycleRules) {
+      const t = (this._cycleFrame % rule.speed) / rule.speed; // 0-1 cycle position
+      const [br, bg, bb] = rule.base;
+
+      // Convert RGB to HSL
+      const hsl = rgbToHsl(br, bg, bb);
+      if (hsl === null) continue;
+
+      // Apply hue shift based on sine wave
+      const hueShift = Math.sin(t * Math.PI * 2) * rule.hueRange;
+      hsl[0] = ((hsl[0] + hueShift) % 360 + 360) % 360;
+
+      // Apply saturation boost
+      hsl[1] = Math.min(1, hsl[1] + rule.satBoost * Math.sin(t * Math.PI * 2));
+
+      // Apply brightness offset
+      hsl[2] = Math.max(0, Math.min(1, hsl[2] + (rule.brightOffset / 255) * Math.sin(t * Math.PI * 2)));
+
+      // Convert back to RGB
+      const rgb = hslToRgb(hsl[0], hsl[1], hsl[2]);
+      this.palette[rule.index] = [rgb[0], rgb[1], rgb[2]];
+    }
+  }
+
+  /**
+   * Reset palette to base colors (clear cycling overrides).
+   */
+  resetPalette(): void {
+    this._cycleRules = [];
+    this._cycleFrame = 0;
+    this.palette = new Array(256).fill(null).map(() => [0, 0, 0]);
+    this.basePalette = new Array(256).fill(null).map(() => [0, 0, 0]);
+  }
+}
+
+// ===== HSL color utilities =====
+
+function rgbToHsl(r: number, g: number, b: number): [number, number, number] | null {
+  r /= 255; g /= 255; b /= 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  const l = (max + min) / 2;
+
+  if (max === min) {
+    return [0, 0, l]; // achromatic
+  }
+
+  const d = max - min;
+  const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+  let h = 0;
+
+  if (max === r) h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
+  else if (max === g) h = ((b - r) / d + 2) / 6;
+  else h = ((r - g) / d + 4) / 6;
+
+  return [h * 360, s, l];
+}
+
+function hslToRgb(h: number, s: number, l: number): [number, number, number] {
+  h /= 360;
+
+  if (s === 0) {
+    const v = Math.round(l * 255);
+    return [v, v, v];
+  }
+
+  const hue2rgb = (p: number, q: number, t: number) => {
+    if (t < 0) t += 1;
+    if (t > 1) t -= 1;
+    if (t < 1 / 6) return p + (q - p) * 6 * t;
+    if (t < 1 / 2) return q;
+    if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+    return p;
+  };
+
+  const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+  const p = 2 * l - q;
+  const r = Math.round(hue2rgb(p, q, h + 1 / 3) * 255);
+  const g = Math.round(hue2rgb(p, q, h) * 255);
+  const b = Math.round(hue2rgb(p, q, h - 1 / 3) * 255);
+
+  return [r, g, b];
 }

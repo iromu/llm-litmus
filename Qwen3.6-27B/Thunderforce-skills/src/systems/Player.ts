@@ -3,12 +3,14 @@
  */
 import { CONFIG } from '../core/Config';
 import { Renderer, PALETTE } from '../core/Renderer';
+import { AnimatedSprite } from '../core/AnimatedSprite';
 import { SeededRandom } from '../utils/SeededRandom';
 import { clamp, lerp } from '../utils/Math';
 import { Bullet } from './Bullet';
 import { Enemy } from './Enemy';
 import { Boss } from './Boss';
 import { Pickup } from './Pickup';
+import { PLAYER_SHIP_SHEET, SPRITE_PALETTE } from '../data/sprites';
 
 /**
  * Weapon types
@@ -48,9 +50,47 @@ export class Player {
   private aiWeaponTimer: number = 0;
   private aiPreferredWeapon: WeaponType = WeaponType.PLASMA;
 
+  // Threat horizon: projected bullet positions over 30 frames
+  private threatMap: Uint8Array = new Uint8Array(0); // 20x60 grid (screen divided into cells)
+  private threatMapW: number = 20;
+  private threatMapH: number = 60;
+  private threatCellW: number = 0;
+  private threatCellH: number = 0;
+  private threatHorizonFrames: number = 30;
+
+  // Movement pattern variety
+  private aiMovementPattern: number = 0; // 0=cruise, 1=zigzag, 2=orbit, 3=burst
+  private aiPatternTimer: number = 0;
+  private aiPatternChangeInterval: number = 2.5; // max 2.5s between pattern changes
+
+  // Smooth acceleration
+  private aiUrgency: number = 0; // 0=calm, 1=urgent
+  private aiTargetSpeed: number = 3;
+  private aiCruiseSpeed: number = 2.5;
+  private aiEvasionSpeed: number = 5.0;
+
+  // Close-dodge spectacle
+  private aiCloseDodgeTimer: number = 0;
+  private aiCloseDodgeInterval: number = 5; // attempt close dodge every ~5 seconds
+  private aiCloseDodgeBullet: { x: number; y: number; vx: number; vy: number } | null = null;
+
   // Animation
   private animFrame: number = 0;
   private animTimer: number = 0;
+  private sprite: AnimatedSprite;
+  private palette: [number, number, number][];
+
+  constructor() {
+    this.sprite = new AnimatedSprite(PLAYER_SHIP_SHEET);
+    this.palette = SPRITE_PALETTE.map((hex, i) => {
+      const n = parseInt(hex.replace('#', ''), 16);
+      return [(n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff] as [number, number, number];
+    });
+    // Index 0 = transparent
+    this.palette[0] = [0, 0, 0];
+    // Pad to 256
+    while (this.palette.length < 256) this.palette.push([0, 0, 0]);
+  }
 
   get px(): number { return this.x; }
   get py(): number { return this.y; }
@@ -99,87 +139,288 @@ export class Player {
 
   /**
    * AI-controlled movement and weapon switching
+   * Features: threat horizon, gap-finding, smooth acceleration, close-dodge, strategic weapons
    */
   private updateAI(dt: number, enemyBullets: Bullet[], enemies: Enemy[], boss: Boss | null, pickups: Pickup[]): void {
     this.aiTimer += dt;
+    this.aiPatternTimer += dt;
+    this.aiCloseDodgeTimer += dt;
 
-    // Dodge enemy bullets
-    const threatBullets = enemyBullets.filter(b =>
-      b.hostile &&
-      b.vx > 0 &&
-      b.x < this.x + 80 &&
-      b.x > this.x - 20 &&
-      Math.abs(b.y - this.y) < 60
-    );
+    // Initialize threat map
+    if (this.threatMap.length !== this.threatMapW * this.threatMapH) {
+      this.threatMap = new Uint8Array(this.threatMapW * this.threatMapH);
+      this.threatCellW = CONFIG.WIDTH / this.threatMapW;
+      this.threatCellH = CONFIG.HEIGHT / this.threatMapH;
+    }
 
-    if (threatBullets.length > 0) {
-      // Find the most threatening bullet
-      const nearest = threatBullets.reduce((a, b) =>
-        (a.x > this.x ? a : b)
-      );
-      // Dodge away from the bullet
-      if (nearest && nearest.y < this.y - 10) {
-        this.vy += 2 * dt * CONFIG.FPS;
-      } else if (nearest && nearest.y > this.y + 10) {
-        this.vy -= 2 * dt * CONFIG.FPS;
-      }
-      // Horizontal dodge
-      this.aiDodgeDirection = this.ai.chance(0.5) ? 1 : -1;
-      this.vx += this.aiDodgeDirection * 1.5 * dt * CONFIG.FPS;
+    // === 3.4 Threat Horizon: Project hostile bullets 30 frames ahead ===
+    this.buildThreatHorizon(enemyBullets);
+
+    // === Movement pattern variety (3.9): Change pattern every ~2.5s ===
+    if (this.aiPatternTimer > this.aiPatternChangeInterval) {
+      this.aiPatternTimer = 0;
+      this.aiMovementPattern = (this.aiMovementPattern + 1) % 4;
+    }
+
+    // === 3.7 Close-dodge spectacle: Occasionally pass within 8px of bullets ===
+    const closeDodgeActive = this.tryCloseDodge(dt, enemyBullets);
+
+    // === 3.5 Gap-finding: Find safest corridor ===
+    const gapTarget = this.findSafeGap();
+
+    // === 3.6 Smooth acceleration: Urgency-based speed ===
+    const urgency = this.computeUrgency(enemyBullets);
+    this.aiUrgency = lerp(this.aiUrgency, urgency, 0.1);
+    this.aiTargetSpeed = lerp(this.aiCruiseSpeed, this.aiEvasionSpeed, this.aiUrgency);
+
+    // Apply movement based on current pattern
+    if (closeDodgeActive) {
+      // Close dodge takes priority
+      this.applyCloseDodgeMovement(dt);
+    } else if (gapTarget) {
+      // Move toward safe gap
+      this.moveToTarget(dt, gapTarget.x, gapTarget.y, this.aiTargetSpeed * 1.2);
     } else {
-      // Strategic positioning
-      if (this.aiTimer > 0.3) {
-        this.aiTimer = 0;
-        // Move toward optimal position based on enemy patterns
-        if (boss) {
-          // Position for boss fights
-          this.aiTargetY = boss.patternY ? boss.patternY : CONFIG.PLAYER_Y_CENTER;
-          this.aiTargetX = CONFIG.PLAYER_X + this.ai.range(-10, 20);
-        } else {
-          // General positioning
-          this.aiTargetX = CONFIG.PLAYER_X + this.ai.range(-15, 30);
-          this.aiTargetY = CONFIG.PLAYER_Y_CENTER + this.ai.range(-40, 40);
+      // Pattern-based movement
+      this.applyPatternMovement(dt, enemies, boss);
+    }
+
+    // === Pickup collection (prioritize dodging) ===
+    if (urgency < 0.5) {
+      for (const pickup of pickups) {
+        if (!pickup.collected && Math.abs(pickup.x - this.x) < 40 && Math.abs(pickup.y - this.y) < 30) {
+          const dx = pickup.x - this.x;
+          const dy = pickup.y - this.y;
+          this.vx += Math.sign(dx) * 2 * dt * CONFIG.FPS;
+          this.vy += Math.sign(dy) * 2 * dt * CONFIG.FPS;
         }
       }
-
-      // Move toward target
-      const dx = this.aiTargetX - this.x;
-      const dy = this.aiTargetY - this.y;
-      if (Math.abs(dx) > 2) this.vx += Math.sign(dx) * 1.5 * dt * CONFIG.FPS;
-      if (Math.abs(dy) > 2) this.vy += Math.sign(dy) * 1.5 * dt * CONFIG.FPS;
     }
 
-    // Collect pickups
-    for (const pickup of pickups) {
-      if (!pickup.collected && Math.abs(pickup.x - this.x) < 40 && Math.abs(pickup.y - this.y) < 30) {
-        // Move toward pickup
-        const dx = pickup.x - this.x;
-        const dy = pickup.y - this.y;
-        this.vx += Math.sign(dx) * 2 * dt * CONFIG.FPS;
-        this.vy += Math.sign(dy) * 2 * dt * CONFIG.FPS;
-      }
-    }
-
-    // Weapon switching
-    this.aiWeaponTimer += dt;
-    if (this.aiWeaponTimer > 3) {
-      this.aiWeaponTimer = 0;
-      // Switch weapons based on situation
-      if (boss && boss.phase > 1) {
-        this.aiPreferredWeapon = WeaponType.LIGHTNING; // Penetrating for bosses
-      } else if (enemies.length > 5) {
-        this.aiPreferredWeapon = WeaponType.SPREAD; // Wide coverage
-      } else {
-        this.aiPreferredWeapon = this.ai.pick([WeaponType.PLASMA, WeaponType.HOMING, WeaponType.SPREAD]);
-      }
-      if (this.ai.chance(0.4)) {
-        this.weapon = this.aiPreferredWeapon;
-      }
-    }
+    // === 3.8 Strategic weapon switching ===
+    this.updateWeaponStrategy(dt, enemies, boss);
 
     // Speed management
     if (boss && this.speedLevel < 2) {
-      this.speedLevel = 2; // Higher speed for boss fights
+      this.speedLevel = 2;
+    }
+  }
+
+  /**
+   * 3.4 Build threat horizon: project hostile bullets 30 frames ahead
+   */
+  private buildThreatHorizon(bullets: Bullet[]): void {
+    // Clear threat map
+    this.threatMap.fill(0);
+
+    for (const b of bullets) {
+      if (!b.hostile || b.isLaser) continue;
+
+      // Project bullet position forward
+      for (let t = 0; t < this.threatHorizonFrames; t++) {
+        const fx = b.x + b.vx * t;
+        const fy = b.y + b.vy * t;
+
+        // Mark threatened cells
+        const cx = Math.floor(fx / this.threatCellW);
+        const cy = Math.floor(fy / this.threatCellH);
+        if (cx >= 0 && cx < this.threatMapW && cy >= 0 && cy < this.threatMapH) {
+          const idx = cy * this.threatMapW + cx;
+          this.threatMap[idx] = Math.min(255, this.threatMap[idx] + 1);
+        }
+      }
+    }
+  }
+
+  /**
+   * 3.5 Gap-finding: Find largest unthreatened corridor within movement range
+   */
+  private findSafeGap(): { x: number; y: number } | null {
+    const playerCellX = Math.floor(this.x / this.threatCellW);
+    const playerCellY = Math.floor(this.y / this.threatCellH);
+    const searchRadius = 5; // cells to search
+
+    let bestThreat = Infinity;
+    let bestX = this.x;
+    let bestY = this.y;
+
+    for (let dy = -searchRadius; dy <= searchRadius; dy++) {
+      for (let dx = -searchRadius; dx <= searchRadius; dx++) {
+        const cx = playerCellX + dx;
+        const cy = playerCellY + dy;
+        if (cx < 0 || cx >= this.threatMapW || cy < 0 || cy >= this.threatMapH) continue;
+
+        const threat = this.threatMap[cy * this.threatMapW + cx];
+        if (threat < bestThreat) {
+          bestThreat = threat;
+          bestX = cx * this.threatCellW + this.threatCellW / 2;
+          bestY = cy * this.threatCellH + this.threatCellH / 2;
+        }
+      }
+    }
+
+    // Only return if we found a meaningfully safer spot
+    if (bestThreat < 3 && (Math.abs(bestX - this.x) > 10 || Math.abs(bestY - this.y) > 10)) {
+      return { x: bestX, y: bestY };
+    }
+    return null;
+  }
+
+  /**
+   * 3.6 Compute urgency based on nearby threats
+   */
+  private computeUrgency(bullets: Bullet[]): number {
+    let maxUrgency = 0;
+
+    for (const b of bullets) {
+      if (!b.hostile || b.isLaser) continue;
+      const dist = Math.sqrt((b.x - this.x) ** 2 + (b.y - this.y) ** 2);
+
+      if (dist < 20) {
+        maxUrgency = 1.0; // Immediate danger
+      } else if (dist < 40) {
+        maxUrgency = Math.max(maxUrgency, 1.0 - (dist - 20) / 20);
+      } else if (dist < 80) {
+        maxUrgency = Math.max(maxUrgency, 0.5 * (1.0 - (dist - 40) / 40));
+      }
+    }
+
+    return maxUrgency;
+  }
+
+  /**
+   * 3.7 Close-dodge: Pass within 8 pixels of bullets for spectacle
+   */
+  private tryCloseDodge(dt: number, bullets: Bullet[]): boolean {
+    if (this.aiCloseDodgeBullet) {
+      // Already chasing a bullet for close dodge
+      this.aiCloseDodgeTimer += dt;
+      if (this.aiCloseDodgeTimer > 2) {
+        // Give up after 2 seconds
+        this.aiCloseDodgeBullet = null;
+        this.aiCloseDodgeTimer = 0;
+      }
+      return true;
+    }
+
+    // Look for a good close-dodge opportunity
+    if (this.aiCloseDodgeTimer > this.aiCloseDodgeInterval && this.aiUrgency < 0.3) {
+      for (const b of bullets) {
+        if (!b.hostile || b.isLaser) continue;
+        const dist = Math.sqrt((b.x - this.x) ** 2 + (b.y - this.y) ** 2);
+        if (dist > 30 && dist < 100 && b.vx < 0) {
+          // Bullet approaching from the right, good candidate
+          this.aiCloseDodgeBullet = { x: b.x, y: b.y, vx: b.vx, vy: b.vy };
+          this.aiCloseDodgeTimer = 0;
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Apply close-dodge movement: stay within 8px of the bullet
+   */
+  private applyCloseDodgeMovement(dt: number): void {
+    if (!this.aiCloseDodgeBullet) return;
+
+    // Predict where the bullet will be and position alongside it
+    const predictFrames = 10;
+    const targetX = this.aiCloseDodgeBullet.x + this.aiCloseDodgeBullet.vx * predictFrames;
+    const targetY = this.aiCloseDodgeBullet.y + this.aiCloseDodgeBullet.vy * predictFrames;
+
+    // Offset to stay 8px away (safe but exciting)
+    const dodgeOffset = 8;
+    const finalY = targetY + (this.y < targetY ? dodgeOffset : -dodgeOffset);
+
+    this.moveToTarget(dt, targetX - this.pw / 2, finalY, this.aiEvasionSpeed * 1.3);
+  }
+
+  /**
+   * Move toward a target position with smooth acceleration
+   */
+  private moveToTarget(dt: number, targetX: number, targetY: number, speed: number): void {
+    const dx = targetX - this.x;
+    const dy = targetY - this.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+
+    if (dist > 2) {
+      const accel = Math.min(speed, dist * 0.1) / dist;
+      this.vx += dx * accel * dt * CONFIG.FPS;
+      this.vy += dy * accel * dt * CONFIG.FPS;
+    }
+  }
+
+  /**
+   * 3.9 Pattern-based movement variety
+   */
+  private applyPatternMovement(dt: number, enemies: Enemy[], boss: Boss | null): void {
+    const t = this.aiPatternTimer / this.aiPatternChangeInterval; // 0-1 within pattern
+
+    switch (this.aiMovementPattern) {
+      case 0: // Cruise - smooth hovering
+        this.aiTargetX = CONFIG.PLAYER_X + Math.sin(t * Math.PI * 2) * 20;
+        this.aiTargetY = CONFIG.PLAYER_Y_CENTER + Math.cos(t * Math.PI * 1.5) * 15;
+        break;
+      case 1: // Zigzag - rapid directional changes
+        this.aiTargetX = CONFIG.PLAYER_X + Math.sign(Math.sin(t * Math.PI * 6)) * 30;
+        this.aiTargetY = CONFIG.PLAYER_Y_CENTER + Math.sign(Math.cos(t * Math.PI * 4)) * 25;
+        break;
+      case 2: // Orbit - circular movement
+        this.aiTargetX = CONFIG.PLAYER_X + Math.cos(t * Math.PI * 2) * 25;
+        this.aiTargetY = CONFIG.PLAYER_Y_CENTER + Math.sin(t * Math.PI * 2) * 30;
+        break;
+      case 3: // Burst - quick position changes
+        if (t < 0.3) {
+          this.aiTargetX = CONFIG.PLAYER_X - 20;
+          this.aiTargetY = CONFIG.PLAYER_Y_CENTER - 30;
+        } else if (t < 0.6) {
+          this.aiTargetX = CONFIG.PLAYER_X + 30;
+          this.aiTargetY = CONFIG.PLAYER_Y_CENTER + 20;
+        } else {
+          this.aiTargetX = CONFIG.PLAYER_X;
+          this.aiTargetY = CONFIG.PLAYER_Y_CENTER;
+        }
+        break;
+    }
+
+    // Boss-specific positioning override
+    if (boss) {
+      this.aiTargetY = boss.patternY ? boss.patternY : CONFIG.PLAYER_Y_CENTER;
+    }
+
+    this.moveToTarget(dt, this.aiTargetX, this.aiTargetY, this.aiTargetSpeed);
+  }
+
+  /**
+   * 3.8 Strategic weapon switching
+   */
+  private updateWeaponStrategy(dt: number, enemies: Enemy[], boss: Boss | null): void {
+    this.aiWeaponTimer += dt;
+    if (this.aiWeaponTimer < 2) return;
+    this.aiWeaponTimer = 0;
+
+    // Determine optimal weapon
+    if (boss) {
+      // Lightning for bosses (penetrating)
+      this.aiPreferredWeapon = WeaponType.LIGHTNING;
+    } else if (enemies.length > 5) {
+      // Spread for dense formations
+      this.aiPreferredWeapon = WeaponType.SPREAD;
+    } else if (enemies.some(e => e.behavior === 8)) {
+      // Homing for swarm/spread targets
+      this.aiPreferredWeapon = WeaponType.HOMING;
+    } else {
+      // Plasma for general use
+      this.aiPreferredWeapon = WeaponType.PLASMA;
+    }
+
+    // Switch with probability based on difference
+    if (this.weapon !== this.aiPreferredWeapon) {
+      if (this.ai.chance(boss ? 0.6 : 0.35)) {
+        this.weapon = this.aiPreferredWeapon;
+      }
     }
   }
 
@@ -265,55 +506,16 @@ export class Player {
     const x = Math.floor(this.x);
     const y = Math.floor(this.y);
 
-    // Ship body
-    this.renderShip(renderer, x, y);
+    // Update sprite animation
+    this.sprite.update(1 / CONFIG.FPS);
 
-    // Engine exhaust
-    this.renderEngine(renderer, x, y);
+    // Draw sprite sheet
+    const imageData = this.sprite.getImageData(this.palette);
+    renderer.drawSpriteData(x, y, imageData);
 
-    // Shield
+    // Shield overlay
     if (this.shield > 0) {
       this.renderShield(renderer, x, y);
-    }
-  }
-
-  /**
-   * Render the player ship sprite
-   */
-  private renderShip(r: Renderer, x: number, y: number): void {
-    // Main body
-    r.rect(x + 4, y + 2, 12, 8, PALETTE.lightBlue);
-    r.rect(x + 2, y + 4, 16, 4, PALETTE.blue);
-    // Nose
-    r.rect(x + 12, y + 4, 4, 4, PALETTE.cyan);
-    r.rect(x + 14, y + 5, 2, 2, PALETTE.white);
-    // Wings
-    r.rect(x + 6, y, 6, 2, PALETTE.darkBlue);
-    r.rect(x + 6, y + 10, 6, 2, PALETTE.darkBlue);
-    // Wing tips
-    r.rect(x + 8, y - 1, 2, 1, PALETTE.cyan);
-    r.rect(x + 8, y + 12, 2, 1, PALETTE.cyan);
-    // Cockpit
-    r.rect(x + 10, y + 5, 3, 2, PALETTE.lightYellow);
-    // Detail
-    r.rect(x + 4, y + 5, 2, 2, PALETTE.offWhite);
-  }
-
-  /**
-   * Render engine exhaust
-   */
-  private renderEngine(r: Renderer, x: number, y: number): void {
-    const flicker = this.engineFlicker;
-    const length = 4 + flicker * 2;
-
-    // Main exhaust
-    r.rect(x + 2, y + 4, length, 4, PALETTE.orange);
-    r.rect(x + 3, y + 5, length - 1, 2, PALETTE.yellow);
-    r.rect(x + 4, y + 6, length - 2, 1, PALETTE.lightYellow);
-
-    // Exhaust particles
-    if (flicker < 2) {
-      r.rect(x - 2, y + 5, 2, 2, PALETTE.orange);
     }
   }
 

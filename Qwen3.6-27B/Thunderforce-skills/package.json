@@ -7,7 +7,11 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "test": "vitest"
+    "test": "vitest",
+    "test:visual": "node test-visual.js",
+    "test:pixel": "node test-pixel-analysis.js",
+    "test:all": "npm run build && npm run test:visual && npm run test:pixel",
+    "test:report": "node test-report.js"
   },
   "devDependencies": {
     "puppeteer": "^25.4.0",

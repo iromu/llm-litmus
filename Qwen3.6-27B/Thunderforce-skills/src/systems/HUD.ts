@@ -53,6 +53,20 @@ export class HUD {
   }
 
   /**
+   * Get current stage name
+   */
+  getStageName(): string {
+    return this.stageName;
+  }
+
+  /**
+   * Get current score
+   */
+  getScore(): number {
+    return this.displayScore + this.scoreAccumulator;
+  }
+
+  /**
    * Update HUD state
    */
   update(dt: number): void {

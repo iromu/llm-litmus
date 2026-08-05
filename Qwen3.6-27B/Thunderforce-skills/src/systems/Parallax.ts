@@ -39,19 +39,19 @@ class BackgroundGenerator {
   static volcanic(): ParallaxLayer[] {
     return [
       // Far sky
-      { speed: 0.05, color: '#1a0000', pattern: 'gradient', height: CONFIG.HEIGHT },
+      { speed: 0.05, color: '#441100', pattern: 'gradient', height: CONFIG.HEIGHT },
       // Distant mountains
-      { speed: 0.15, color: '#331100', pattern: 'mountain', y: 40, height: 184 },
+      { speed: 0.15, color: '#773311', pattern: 'mountain', y: 40, height: 184 },
       // Mid canyon walls
-      { speed: 0.3, color: '#552211', pattern: 'canyon', y: 60, height: 164 },
+      { speed: 0.3, color: '#aa5533', pattern: 'canyon', y: 60, height: 164 },
       // Near canyon features
-      { speed: 0.5, color: '#773322', pattern: 'rock', y: 80, height: 144 },
+      { speed: 0.5, color: '#cc6644', pattern: 'rock', y: 80, height: 144 },
       // Lava rivers
       { speed: 0.7, color: '#ff4400', pattern: 'lava', y: 160, height: 64 },
       // Foreground debris
-      { speed: 0.9, color: '#442211', pattern: 'debris' },
+      { speed: 0.9, color: '#663322', pattern: 'debris' },
       // Close foreground
-      { speed: 1.0, color: '#221100', pattern: 'foreground', y: 190, height: 34 },
+      { speed: 1.0, color: '#442211', pattern: 'foreground', y: 190, height: 34 },
     ];
   }
 
@@ -135,7 +135,7 @@ export class ParallaxSystem {
   private time: number = 0;
 
   constructor() {
-    this.setBiome(Biome.VOLCANIC);
+    this.loadBiome(this.currentBiome);
   }
 
   /**
@@ -176,7 +176,7 @@ export class ParallaxSystem {
   /**
    * Load biome layers
    */
-  private loadBiome(biome: Biome): void {
+  public loadBiome(biome: Biome): void {
     switch (biome) {
       case Biome.VOLCANIC:
         this.layers = BackgroundGenerator.volcanic();

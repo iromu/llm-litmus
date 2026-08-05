@@ -95,9 +95,9 @@ async function main() {
     assert(titleContent.titlePixels > 50, 'Title text visible');
 
     // Test 3: Wait for gameplay and check player ship
-    // Title: 4s, Intro: 2s, so gameplay starts at ~6s. Wait 7s total.
+    // Title: ~6.5s (phase 0: 1s + phase 1: ~2.5s subtitle scroll + phase 2: 3s), Intro: 2s, so gameplay starts at ~8.5s. Wait 9.5s total.
     console.log('\n[Test 3] Player ship rendering');
-    await sleep(7500); // Wait past title + intro
+    await sleep(9500); // Wait past title + intro
 
     const playerData = await page.evaluate(() => {
       const canvas = document.querySelector('canvas');
