@@ -1,0 +1,72 @@
+{
+  "_documentation": "Orbital Judge boss definition. Massive orbital mech with 4 destructible sections (1 core, 2 wings, 1 rotating weapons platform) and 3 difficulty phases. Loaded by AssetLoader via libGDX JsonReader into BossData. Wings provide sweep coverage; destroying them narrows attack angles.",
+  "_fields": {
+    "id": "Boss identifier string. Must be unique across all boss JSON files. Value: 'orbital_judge'.",
+    "name": "Display name shown to the player when the boss enters. Value: 'Orbital Judge'.",
+    "scoreValue": "Points awarded for defeating this boss (integer). Value: 8000 (highest-difficulty boss).",
+    "sections": "Array of boss section objects. Each section has independent HP, position offset, and attack pattern. Total boss HP = sum of all section HP (120+40+40+30 = 230).",
+    "sections[].type": "Section type enum. Valid values: CORE, ARM, TURRET, WING, ENGINE, TENTACLE, DRILL, BEAM_EYE, ROTATING_WEAPONS. Maps to BossSection.SectionType. CORE is the main body; WING are side appendages; ROTATING_WEAPONS is a 360-degree firing platform.",
+    "sections[].hp": "Hit points for this individual section (integer, 1-120). When HP reaches 0, the section is destroyed and can no longer attack. CORE typically has the most HP.",
+    "sections[].offsetX": "X offset from boss center in pixels (float). Negative = left of center, positive = right. Used to position the section relative to the boss body.",
+    "sections[].offsetY": "Y offset from boss center in pixels (float). Negative = above center, positive = below. Used to position the section relative to the boss body.",
+    "sections[].attackPattern": "Bullet pattern for this section. Valid values: aimed, aimed_spread, spiral, drill_advance, sweep, beam, area_denial, rotating. Each section fires its own pattern independently.",
+    "phases": "Array of phase definitions. Phases are ordered by hpThreshold descending (1.0 -> 0.60 -> 0.20). Boss transitions to the next phase when its total HP drops below the threshold.",
+    "phases[].phase": "Phase index (integer, 0-based). Phase 0 = initial, Phase 1 = mid, Phase 2 = enrage/final.",
+    "phases[].hpThreshold": "Fraction of total boss HP at which this phase begins (float, 0.0-1.0). Phase 0 starts at 1.0 (full HP). Lower thresholds = later phases.",
+    "phases[].attacks": "Array of attack pattern names active in this phase (strings). Each string maps to a named attack routine in the boss Java class. Later phases add more attacks.",
+    "phases[].attackInterval": "Seconds between attack triggers in this phase (float, 0.5-3.0). Lower = more aggressive. Decreases in later phases to ramp difficulty."
+  },
+  "id": "orbital_judge",
+  "name": "Orbital Judge",
+  "scoreValue": 8000,
+  "sections": [
+    {
+      "type": "CORE",
+      "hp": 120,
+      "offsetX": 0,
+      "offsetY": 0,
+      "attackPattern": "sweep"
+    },
+    {
+      "type": "WING",
+      "hp": 40,
+      "offsetX": -48,
+      "offsetY": 0,
+      "attackPattern": "sweep"
+    },
+    {
+      "type": "WING",
+      "hp": 40,
+      "offsetX": 48,
+      "offsetY": 0,
+      "attackPattern": "sweep"
+    },
+    {
+      "type": "ROTATING_WEAPONS",
+      "hp": 30,
+      "offsetX": 0,
+      "offsetY": -24,
+      "attackPattern": "area_denial"
+    }
+  ],
+  "phases": [
+    {
+      "phase": 0,
+      "hpThreshold": 1.0,
+      "attacks": ["wing_sweep", "core_aimed"],
+      "attackInterval": 2.5
+    },
+    {
+      "phase": 1,
+      "hpThreshold": 0.60,
+      "attacks": ["transform", "homing_missiles", "rotating_weapons"],
+      "attackInterval": 1.5
+    },
+    {
+      "phase": 2,
+      "hpThreshold": 0.20,
+      "attacks": ["final_form", "area_denial", "aimed_spread"],
+      "attackInterval": 0.7
+    }
+  ]
+}
