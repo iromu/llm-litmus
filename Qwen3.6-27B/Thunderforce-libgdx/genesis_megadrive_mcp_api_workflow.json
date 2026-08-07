@@ -1,8 +1,8 @@
 {
   "1": {
-    "class_type": "DiffusersLoader",
+    "class_type": "CheckpointLoaderSimple",
     "inputs": {
-      "model_path": "Genesis"
+      "ckpt_name": "Genesis.safetensors"
     }
   },
   "2": {
