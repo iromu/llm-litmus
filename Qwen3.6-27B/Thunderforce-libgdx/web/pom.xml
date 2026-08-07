@@ -55,6 +55,7 @@
                     <localWorkers>2</localWorkers>
                     <style>OBF</style>
                     <compileReport>true</compileReport>
+                    <addExtraClasspaths>${project.basedir}/../core/src/main/java</addExtraClasspaths>
                 </configuration>
                 <executions>
                     <execution>
@@ -156,45 +157,10 @@
             </plugin>
 
             <plugin>
-                <groupId>org.codehaus.mojo</groupId>
-                <artifactId>build-helper-maven-plugin</artifactId>
-                <version>3.6.0</version>
-                <executions>
-                    <execution>
-                        <id>add-generated-sources</id>
-                        <phase>generate-sources</phase>
-                        <goals>
-                            <goal>add-source</goal>
-                        </goals>
-                        <configuration>
-                            <sources>
-                                <source>${project.build.directory}/generated-sources</source>
-                            </sources>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
-
-            <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-resources-plugin</artifactId>
                 <version>3.3.1</version>
                 <executions>
-                    <execution>
-                        <id>copy-core-sources</id>
-                        <phase>generate-sources</phase>
-                        <goals>
-                            <goal>copy-resources</goal>
-                        </goals>
-                        <configuration>
-                            <outputDirectory>${project.build.directory}/generated-sources</outputDirectory>
-                            <resources>
-                                <resource>
-                                    <directory>${project.basedir}/../core/src/main/java</directory>
-                                </resource>
-                            </resources>
-                        </configuration>
-                    </execution>
                     <execution>
                         <id>copy-core-assets</id>
                         <phase>generate-resources</phase>

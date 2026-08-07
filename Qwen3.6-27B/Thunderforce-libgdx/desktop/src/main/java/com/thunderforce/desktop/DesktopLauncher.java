@@ -13,7 +13,7 @@ public class DesktopLauncher {
         Lwjgl3ApplicationConfiguration config = new Lwjgl3ApplicationConfiguration();
         config.setTitle("Thunderforce");
         config.setWindowedMode(1280, 960);
-        config.useVsync(true);
+        config.useVsync(false);
 
         new Lwjgl3Application(new ThunderforceGame(), config);
     }
