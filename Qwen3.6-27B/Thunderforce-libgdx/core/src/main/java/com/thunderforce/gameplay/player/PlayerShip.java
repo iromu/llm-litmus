@@ -414,50 +414,58 @@ public class PlayerShip implements SpatialEntity {
         float cy = y - HALF_H;
 
         switch (facingDirection) {
-            case UP -> {
-                // Wings (wider, darker)
-                batch.setColor(WING_R, WING_G, WING_B, 1f);
-                batch.draw(getWhiteTexture(), cx - 2, cy, 20, 8);
-                // Main body
-                batch.setColor(SHIP_R, SHIP_G, SHIP_B, 1f);
-                batch.draw(getWhiteTexture(), cx, cy + 2, 16, 14);
-                // Cockpit highlight
-                batch.setColor(COCKPIT_R, COCKPIT_G, COCKPIT_B, 1f);
-                batch.draw(getWhiteTexture(), cx + 5, cy + 8, 6, 6);
-            }
-            case DOWN -> {
-                // Wings
-                batch.setColor(WING_R, WING_G, WING_B, 1f);
-                batch.draw(getWhiteTexture(), cx - 2, cy + 8, 20, 8);
-                // Main body
-                batch.setColor(SHIP_R, SHIP_G, SHIP_B, 1f);
-                batch.draw(getWhiteTexture(), cx, cy, 16, 14);
-                // Cockpit highlight
-                batch.setColor(COCKPIT_R, COCKPIT_G, COCKPIT_B, 1f);
-                batch.draw(getWhiteTexture(), cx + 5, cy + 2, 6, 6);
-            }
-            case LEFT -> {
-                // Wings
-                batch.setColor(WING_R, WING_G, WING_B, 1f);
-                batch.draw(getWhiteTexture(), cx, cy - 2, 8, 20);
-                // Main body
-                batch.setColor(SHIP_R, SHIP_G, SHIP_B, 1f);
-                batch.draw(getWhiteTexture(), cx + 2, cy, 14, 16);
-                // Cockpit highlight
-                batch.setColor(COCKPIT_R, COCKPIT_G, COCKPIT_B, 1f);
-                batch.draw(getWhiteTexture(), cx + 8, cy + 5, 6, 6);
-            }
-            case RIGHT -> {
-                // Wings
-                batch.setColor(WING_R, WING_G, WING_B, 1f);
-                batch.draw(getWhiteTexture(), cx + 8, cy - 2, 8, 20);
-                // Main body
-                batch.setColor(SHIP_R, SHIP_G, SHIP_B, 1f);
-                batch.draw(getWhiteTexture(), cx, cy, 14, 16);
-                // Cockpit highlight
-                batch.setColor(COCKPIT_R, COCKPIT_G, COCKPIT_B, 1f);
-                batch.draw(getWhiteTexture(), cx + 2, cy + 5, 6, 6);
-            }
+            case UP:
+                {
+                    // Wings (wider, darker)
+                    batch.setColor(WING_R, WING_G, WING_B, 1f);
+                    batch.draw(getWhiteTexture(), cx - 2, cy, 20, 8);
+                    // Main body
+                    batch.setColor(SHIP_R, SHIP_G, SHIP_B, 1f);
+                    batch.draw(getWhiteTexture(), cx, cy + 2, 16, 14);
+                    // Cockpit highlight
+                    batch.setColor(COCKPIT_R, COCKPIT_G, COCKPIT_B, 1f);
+                    batch.draw(getWhiteTexture(), cx + 5, cy + 8, 6, 6);
+                    break;
+                }
+            case DOWN:
+                {
+                    // Wings
+                    batch.setColor(WING_R, WING_G, WING_B, 1f);
+                    batch.draw(getWhiteTexture(), cx - 2, cy + 8, 20, 8);
+                    // Main body
+                    batch.setColor(SHIP_R, SHIP_G, SHIP_B, 1f);
+                    batch.draw(getWhiteTexture(), cx, cy, 16, 14);
+                    // Cockpit highlight
+                    batch.setColor(COCKPIT_R, COCKPIT_G, COCKPIT_B, 1f);
+                    batch.draw(getWhiteTexture(), cx + 5, cy + 2, 6, 6);
+                    break;
+                }
+            case LEFT:
+                {
+                    // Wings
+                    batch.setColor(WING_R, WING_G, WING_B, 1f);
+                    batch.draw(getWhiteTexture(), cx, cy - 2, 8, 20);
+                    // Main body
+                    batch.setColor(SHIP_R, SHIP_G, SHIP_B, 1f);
+                    batch.draw(getWhiteTexture(), cx + 2, cy, 14, 16);
+                    // Cockpit highlight
+                    batch.setColor(COCKPIT_R, COCKPIT_G, COCKPIT_B, 1f);
+                    batch.draw(getWhiteTexture(), cx + 8, cy + 5, 6, 6);
+                    break;
+                }
+            case RIGHT:
+                {
+                    // Wings
+                    batch.setColor(WING_R, WING_G, WING_B, 1f);
+                    batch.draw(getWhiteTexture(), cx + 8, cy - 2, 8, 20);
+                    // Main body
+                    batch.setColor(SHIP_R, SHIP_G, SHIP_B, 1f);
+                    batch.draw(getWhiteTexture(), cx, cy, 14, 16);
+                    // Cockpit highlight
+                    batch.setColor(COCKPIT_R, COCKPIT_G, COCKPIT_B, 1f);
+                    batch.draw(getWhiteTexture(), cx + 2, cy + 5, 6, 6);
+                    break;
+                }
         }
 
         batch.setColor(Color.WHITE);
