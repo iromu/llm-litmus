@@ -117,6 +117,9 @@ public class PlayerShip implements SpatialEntity {
 
     // Shield (absorbs damage before ship HP)
     private int shieldHP;
+    // Pre-allocated vertex arrays for shield hexagon rendering (avoids per-frame GC)
+    private final float[] shieldVx = new float[SHIELD_HEX_SEGMENTS];
+    private final float[] shieldVy = new float[SHIELD_HEX_SEGMENTS];
 
     // Timers (remaining seconds)
     private float invincibilityTimer;
@@ -521,23 +524,21 @@ public class PlayerShip implements SpatialEntity {
         float halfThick = SHIELD_LINE_THICKNESS / 2f;
         TextureRegion region = getWhiteRegion();
 
-        // Compute hexagon vertices (flat-topped)
-        float[] vx = new float[SHIELD_HEX_SEGMENTS];
-        float[] vy = new float[SHIELD_HEX_SEGMENTS];
+        // Compute hexagon vertices into pre-allocated arrays (avoids per-frame GC)
         for (int i = 0; i < SHIELD_HEX_SEGMENTS; i++) {
             float angle = (float) (Math.PI / 3) * i;
-            vx[i] = x + r * (float) Math.cos(angle);
-            vy[i] = y + r * (float) Math.sin(angle);
+            shieldVx[i] = x + r * (float) Math.cos(angle);
+            shieldVy[i] = y + r * (float) Math.sin(angle);
         }
 
         // Draw hexagon outline as thin rotated quads along each edge
         batch.setColor(SHIELD_R, SHIELD_G, SHIELD_B, SHIELD_ALPHA);
         for (int i = 0; i < SHIELD_HEX_SEGMENTS; i++) {
             int next = (i + 1) % SHIELD_HEX_SEGMENTS;
-            float dx = vx[next] - vx[i];
-            float dy = vy[next] - vy[i];
-            float mx = (vx[i] + vx[next]) / 2f;
-            float my = (vy[i] + vy[next]) / 2f;
+            float dx = shieldVx[next] - shieldVx[i];
+            float dy = shieldVy[next] - shieldVy[i];
+            float mx = (shieldVx[i] + shieldVx[next]) / 2f;
+            float my = (shieldVy[i] + shieldVy[next]) / 2f;
             float px = -dy * halfThick;
             float py = dx * halfThick;
             float cos = dx > 0 ? 1f : -1f;
@@ -557,10 +558,10 @@ public class PlayerShip implements SpatialEntity {
             batch.setColor(1f, 1f, 1f, flashAlpha * 0.6f);
             for (int i = 0; i < SHIELD_HEX_SEGMENTS; i++) {
                 int next = (i + 1) % SHIELD_HEX_SEGMENTS;
-                float dx = vx[next] - vx[i];
-                float dy = vy[next] - vy[i];
-                float mx = (vx[i] + vx[next]) / 2f;
-                float my = (vy[i] + vy[next]) / 2f;
+                float dx = shieldVx[next] - shieldVx[i];
+                float dy = shieldVy[next] - shieldVy[i];
+                float mx = (shieldVx[i] + shieldVx[next]) / 2f;
+                float my = (shieldVy[i] + shieldVy[next]) / 2f;
                 float px = -dy * flashHalfThick;
                 float py = dx * flashHalfThick;
                 float cos = dx > 0 ? 1f : -1f;

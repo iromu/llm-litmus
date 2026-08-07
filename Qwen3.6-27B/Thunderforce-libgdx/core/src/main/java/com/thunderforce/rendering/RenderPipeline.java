@@ -43,6 +43,10 @@ public class RenderPipeline {
     private final Rectangle renderBounds;
     private final Vector2 unprojectResult; // Pooled result for unproject
 
+    // Profiling counters (libGDX 1.13.1 has no built-in draw call tracking)
+    private int drawCallCount;
+    private int triangleCount;
+
     public RenderPipeline() {
         this.camera = new OrthographicCamera();
         this.camera.position.set(INTERNAL_WIDTH / 2f, INTERNAL_HEIGHT / 2f, 0);
@@ -142,6 +146,7 @@ public class RenderPipeline {
 
     /**
      * Render the frame buffer to the screen with integer scaling.
+     * Tracks draw calls for profiling purposes.
      */
     public void renderToScreen() {
         screenBatch.begin();
@@ -153,7 +158,24 @@ public class RenderPipeline {
             renderBounds.x, renderBounds.y,
             renderBounds.width, renderBounds.height
         );
+        // Track: 1 draw call, 2 triangles (full-screen quad)
+        drawCallCount++;
+        triangleCount += 2;
         screenBatch.end();
+    }
+
+    /**
+     * @return cumulative draw calls since last reset
+     */
+    public int getDrawCalls() {
+        return drawCallCount;
+    }
+
+    /**
+     * @return cumulative triangles rendered since last reset
+     */
+    public int getTrianglesRendered() {
+        return triangleCount;
     }
 
     /**

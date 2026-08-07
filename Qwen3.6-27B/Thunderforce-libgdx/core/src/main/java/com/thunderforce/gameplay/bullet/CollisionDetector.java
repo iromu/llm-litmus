@@ -8,7 +8,11 @@ import com.thunderforce.engine.FixedPool;
  * Collision detection system using spatial hashing for broad-phase
  * and AABB checks for narrow-phase.
  *
- * Uses pooled Collision objects to avoid per-frame allocation.
+ * Cache-friendly design:
+ * - Pre-allocates temp results buffer with fixed capacity
+ * - Uses direct cell array access for hot-path collision queries
+ * - Pooled Collision objects to avoid per-frame allocation
+ * - Separate clear for collisions vs grid (avoids redundant clears)
  */
 public class CollisionDetector {
 
@@ -16,7 +20,12 @@ public class CollisionDetector {
     public static final int ENEMY_ENTITY_TYPE = 2;
     public static final int PLAYER_BULLET_ENTITY_TYPE = 3;
 
+    // Max expected entities in a single query (4x4 cell window × 8 per cell = 128)
+    private static final int MAX_QUERY_RESULTS = 128;
+
     public final GridSpatialHash grid;
+
+    // Pre-allocated query results buffer — fixed capacity, no resize
     public final Array<SpatialEntity> tempResults;
 
     private final FixedPool<Collision> collisionPool;
@@ -24,7 +33,7 @@ public class CollisionDetector {
 
     public CollisionDetector() {
         this.grid = new GridSpatialHash();
-        this.tempResults = new Array<>();
+        this.tempResults = new Array<>(true, MAX_QUERY_RESULTS); // noResize=true
         this.collisionPool = new FixedPool<>(64, Collision::create);
         this.collisions = new Array<>(32);
     }
@@ -36,7 +45,7 @@ public class CollisionDetector {
      * @param enemies       active enemies
      * @param playerBullets active player bullets
      * @param player        the player entity
-     * @return array of pooled collision pairs (return via {@link #clear()} after use)
+     * @return array of pooled collision pairs (return via {@link #returnCollisions()} after use)
      */
     public Array<Collision> update(
             Array<Bullet> enemyBullets,
@@ -45,6 +54,7 @@ public class CollisionDetector {
             SpatialEntity player) {
 
         collisions.clear();
+        grid.clear();
 
         checkPlayerBulletsVsEnemies(playerBullets, enemies);
         checkEnemyBulletsVsPlayer(enemyBullets, player);
@@ -54,29 +64,53 @@ public class CollisionDetector {
 
     /**
      * Check player bullets against all enemies using spatial hash.
+     * Uses direct cell array access for cache-friendly iteration.
      */
     public Array<Collision> checkPlayerBulletsVsEnemies(
             Array<SpatialEntity> playerBullets,
             Array<SpatialEntity> enemies) {
 
-        grid.clear();
+        // Build spatial index: insert all enemies into grid
         for (int i = 0; i < enemies.size; i++) {
             grid.insert(enemies.get(i));
         }
 
+        // Query each bullet against the grid
+        Array<Array<SpatialEntity>> cells = grid.getCells();
+        @SuppressWarnings("unchecked")
+        Array<SpatialEntity>[] cellsItems = (Array<SpatialEntity>[]) cells.items;
+
         for (int i = 0; i < playerBullets.size; i++) {
             SpatialEntity bullet = playerBullets.get(i);
             Rectangle b = bullet.getBounds();
-            grid.query(b.x, b.y, b.width, b.height, tempResults);
 
+            // Compute cell range
+            int cellX1 = GridSpatialHash.cellX(b.x);
+            int cellY1 = GridSpatialHash.cellY(b.y);
+            int cellX2 = GridSpatialHash.cellX(b.x + b.width);
+            int cellY2 = GridSpatialHash.cellY(b.y + b.height);
+
+            // Direct cell scan — avoids query() method overhead
+            tempResults.clear();
+            for (int cy = cellY1; cy <= cellY2; cy++) {
+                int rowOffset = cy * GridSpatialHash.GRID_WIDTH;
+                for (int cx = cellX1; cx <= cellX2; cx++) {
+                    Array<SpatialEntity> cell = cellsItems[rowOffset + cx];
+                    for (int j = 0; j < cell.size; j++) {
+                        tempResults.add(cell.items[j]);
+                    }
+                }
+            }
+
+            // Narrow-phase: AABB check against candidates
             for (int j = 0; j < tempResults.size; j++) {
-                SpatialEntity enemy = tempResults.get(j);
-                if (enemy.getEntityType() == ENEMY_ENTITY_TYPE) {
-                    Rectangle e = enemy.getBounds();
+                SpatialEntity candidate = tempResults.items[j];
+                if (candidate.getEntityType() == ENEMY_ENTITY_TYPE) {
+                    Rectangle e = candidate.getBounds();
                     if (checkAABB(b, e)) {
                         Collision c = collisionPool.obtain();
                         c.a = bullet;
-                        c.b = enemy;
+                        c.b = candidate;
                         collisions.add(c);
                     }
                 }
@@ -87,6 +121,7 @@ public class CollisionDetector {
 
     /**
      * Check enemy bullets against the player.
+     * Simple linear scan — player is a single entity.
      */
     public Array<Collision> checkEnemyBulletsVsPlayer(
             Array<Bullet> enemyBullets,
@@ -120,19 +155,28 @@ public class CollisionDetector {
     }
 
     /**
-     * Clear all recorded collisions and return them to the pool.
-     * Must be called after processing collisions to avoid leaks.
+     * Return all recorded collisions to the pool and clear the grid.
+     * Must be called after processing collisions to avoid pool leaks.
      */
-    public void clear() {
+    public void returnCollisions() {
         for (int i = 0; i < collisions.size; i++) {
-            Collision c = collisions.get(i);
+            Collision c = collisions.items[i];
             c.a = null;
             c.b = null;
             collisionPool.free(c);
         }
         collisions.clear();
-        grid.clear();
-        tempResults.clear();
+    }
+
+    /**
+     * Clear the grid for the next frame (separate from collision return).
+     * Called at the start of the next update() to avoid redundant clears.
+     *
+     * @deprecated Use {@link #update} which clears the grid at the start.
+     */
+    @Deprecated
+    public void clear() {
+        returnCollisions();
     }
 
     /**

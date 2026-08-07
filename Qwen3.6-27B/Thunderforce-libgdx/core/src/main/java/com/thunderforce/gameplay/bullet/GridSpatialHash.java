@@ -8,9 +8,11 @@ import com.badlogic.gdx.utils.Array;
  * 16×16 pixel cells over a 320×224 playfield (20×14 grid).
  *
  * Cache-friendly design:
+ * - Exposes raw cell arrays for zero-overhead hot-path access
  * - Pre-allocated inner arrays (no resize during gameplay)
  * - Direct index computation (no object indirection beyond cell arrays)
  * - GC-free query via caller-provided results buffer
+ * - Linear scan helpers for tight collision loops
  */
 public class GridSpatialHash {
 
@@ -110,5 +112,44 @@ public class GridSpatialHash {
             count += cells.get(i).size;
         }
         return count;
+    }
+
+    // ------------------------------------------------------------------
+    // Direct array access for cache-friendly hot paths
+    // ------------------------------------------------------------------
+
+    /**
+     * Get the backing array of cells. Callers can iterate directly
+     * over cells.items[index] for zero-method-call overhead.
+     *
+     * @return the cells array (do not modify structure)
+     */
+    public Array<Array<SpatialEntity>> getCells() {
+        return cells;
+    }
+
+    /**
+     * Compute the linear cell index for given grid coordinates.
+     * Clamps to valid range.
+     */
+    public static int cellIndex(int cellX, int cellY) {
+        return Math.max(0, Math.min(GRID_HEIGHT - 1, cellY)) * GRID_WIDTH
+             + Math.max(0, Math.min(GRID_WIDTH - 1, cellX));
+    }
+
+    /**
+     * Compute the grid cell X coordinate for a world X position.
+     */
+    public static int cellX(float worldX) {
+        int cx = (int) (worldX / CELL_SIZE);
+        return Math.max(0, Math.min(GRID_WIDTH - 1, cx));
+    }
+
+    /**
+     * Compute the grid cell Y coordinate for a world Y position.
+     */
+    public static int cellY(float worldY) {
+        int cy = (int) (worldY / CELL_SIZE);
+        return Math.max(0, Math.min(GRID_HEIGHT - 1, cy));
     }
 }

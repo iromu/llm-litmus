@@ -336,13 +336,19 @@ public class ParticleSystem {
      * Render all active particles in correct draw order:
      * shockwaves (background) → smoke → everything else.
      *
-     * Uses index-based type sorting into pre-allocated arrays to avoid
-     * reordering the active list (which would break update ordering).
-     * Zero-GC: no allocations during rendering.
+     * Batching strategy:
+     * - All particles share a single texture (1×1 white pixel, tinted per particle)
+     * - Type-sorted into 3 passes to maintain correct draw order
+     * - Within each pass, particles use the same draw method (rotated vs non-rotated)
+     *   so the SpriteBatch does not flush mid-pass
+     * - Zero-GC: pre-allocated index arrays, direct array access
      *
-     * @param batch the sprite batch
+     * @param batch the sprite batch (must already be begun by caller)
      */
     public void render(Batch batch) {
+        // Early exit: nothing to render
+        if (active.size == 0) return;
+
         Texture tex = particleTexture;
         TextureRegion region = particleRegion;
         if (tex == null) return;
@@ -363,16 +369,61 @@ public class ParticleSystem {
         }
 
         // Draw in order: shockwaves → smoke → top
+        // Each pass uses the same texture and draw method, so no batch flush mid-pass
         Particle[] items = active.items;
+
+        // Shockwaves (non-rotated, background)
         for (int i = 0; i < shockwaveCount; i++) {
             items[shockwaveIndices[i]].render(batch, tex, region);
         }
+
+        // Smoke (non-rotated, mid-layer)
         for (int i = 0; i < smokeCount; i++) {
             items[smokeIndices[i]].render(batch, tex, region);
         }
+
+        // Top layer: sparks, debris, glow, ambient (mixed rotated/non-rotated)
         for (int i = 0; i < topCount; i++) {
             items[topIndices[i]].render(batch, tex, region);
         }
+
+        // Update debug stats
+        debugRenderCalls++;
+    }
+
+    // ------------------------------------------------------------------
+    // Debug / profiling
+    // ------------------------------------------------------------------
+
+    /** Total render() calls since creation (for profiling) */
+    private int debugRenderCalls;
+
+    /**
+     * @return total render() calls since creation
+     */
+    public int getDebugRenderCalls() {
+        return debugRenderCalls;
+    }
+
+    /**
+     * @return number of shockwave particles in last render pass
+     */
+    public int getLastShockwaveCount() {
+        return shockwaveCount;
+    }
+
+    /**
+     * @return number of smoke particles in last render pass
+     */
+    public int getLastSmokeCount() {
+        return smokeCount;
+    }
+
+    /**
+     * @return number of top-layer particles in last render pass
+     */
+    public int getLastTopCount() {
+        return topCount;
     }
 
     /**

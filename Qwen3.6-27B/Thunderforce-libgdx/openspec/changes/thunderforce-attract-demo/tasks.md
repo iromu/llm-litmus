@@ -135,12 +135,12 @@
 
 ## 14. Performance Optimization
 
-- [ ] 14.1 Profile rendering pipeline and optimize draw call batching
+- [x] 14.1 Profile rendering pipeline and optimize draw call batching
 - [ ] 14.2 Verify zero GC pressure during gameplay (profile allocation hotspots)
-- [ ] 14.3 Optimize spatial hash grid for cache-friendly access patterns
-- [ ] 14.4 Implement particle system batch rendering
+- [x] 14.3 Optimize spatial hash grid for cache-friendly access patterns
+- [x] 14.4 Implement particle system batch rendering
 - [ ] 14.5 Verify 60 FPS stability on target desktop hardware
-- [ ] 14.6 Memory usage audit (texture atlases, asset disposal, pool sizing)
+- [x] 14.6 Memory usage audit (texture atlases, asset disposal, pool sizing)
 
 ## 15. Art and Asset Production
 

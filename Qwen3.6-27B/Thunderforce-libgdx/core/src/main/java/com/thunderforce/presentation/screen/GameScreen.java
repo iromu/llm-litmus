@@ -210,7 +210,7 @@ public class GameScreen implements com.thunderforce.engine.ThunderforceGame.Game
         }
 
         // Return pooled Collision objects to the detector
-        collisionDetector.clear();
+        collisionDetector.returnCollisions();
 
         // Update systems
         particleSystem.update(delta);
@@ -299,6 +299,8 @@ public class GameScreen implements com.thunderforce.engine.ThunderforceGame.Game
 
     @Override
     public void render(SpriteBatch gameBatch) {
+        // Single batch session: game + HUD rendered in one begin/end pair
+        // to maximize vertex batching and minimize GPU state transitions
         game.batch.begin();
         game.batch.setProjectionMatrix(camera.combined);
 
@@ -332,10 +334,10 @@ public class GameScreen implements com.thunderforce.engine.ThunderforceGame.Game
         // Render particles
         particleSystem.render(game.batch);
 
-        game.batch.end();
-
-        // Render HUD
+        // Render HUD within the same batch session (no extra begin/end)
         hud.render(game.batch, score, lives, player, weapons);
+
+        game.batch.end();
     }
 
     @Override
@@ -358,5 +360,13 @@ public class GameScreen implements com.thunderforce.engine.ThunderforceGame.Game
     public void dispose() {
         font.dispose();
         hud.dispose();
+        // Return pooled objects and clear entity arrays to prevent memory leaks
+        particleSystem.clear();
+        collisionDetector.returnCollisions();
+        enemies.clear();
+        enemyBullets.clear();
+        playerProjectiles.clear();
+        powerUps.clear();
+        weapons.clear();
     }
 }
