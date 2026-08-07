@@ -2,6 +2,7 @@ package com.thunderforce.particle;
 
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.Batch;
+import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.utils.Array;
 import com.thunderforce.engine.FixedPool;
@@ -17,8 +18,17 @@ public class ParticleSystem {
     private final Array<Particle> active;
     private final int maxActive;
 
-    // Rendering texture (1x1 white pixel, tinted per particle)
+    // Rendering: cached TextureRegion (avoids per-particle allocation)
     private Texture particleTexture;
+    private TextureRegion particleRegion;
+
+    // Pre-allocated index arrays for type-sorted rendering (zero-GC)
+    private final int[] shockwaveIndices;
+    private final int[] smokeIndices;
+    private final int[] topIndices;
+    private int shockwaveCount;
+    private int smokeCount;
+    private int topCount;
 
     // Pre-allocated random values to avoid GC
     private final float[] randomAngles;
@@ -33,6 +43,9 @@ public class ParticleSystem {
         this.maxActive = maxActive;
         this.pool = new FixedPool<>(maxActive, Particle::new);
         this.active = new Array<>(maxActive);
+        this.shockwaveIndices = new int[maxActive];
+        this.smokeIndices = new int[maxActive];
+        this.topIndices = new int[maxActive];
         this.randomAngles = new float[RANDOM_BUCKET_COUNT];
         for (int i = 0; i < RANDOM_BUCKET_COUNT; i++) {
             randomAngles[i] = MathUtils.random() * MathUtils.PI2;
@@ -320,45 +333,59 @@ public class ParticleSystem {
     }
 
     /**
-     * Render all active particles.
-     * Shockwaves are drawn first (behind), then smoke, then debris/sparks/glow/ambient.
+     * Render all active particles in correct draw order:
+     * shockwaves (background) → smoke → everything else.
+     *
+     * Uses index-based type sorting into pre-allocated arrays to avoid
+     * reordering the active list (which would break update ordering).
+     * Zero-GC: no allocations during rendering.
      *
      * @param batch the sprite batch
      */
     public void render(Batch batch) {
         Texture tex = particleTexture;
-        // Shockwaves first (background layer)
+        TextureRegion region = particleRegion;
+        if (tex == null) return;
+
+        // Single-pass type sort into index arrays
+        shockwaveCount = 0;
+        smokeCount = 0;
+        topCount = 0;
         for (int i = 0; i < active.size; i++) {
-            Particle p = active.get(i);
-            if (p.particleType == Particle.ParticleType.SHOCKWAVE) {
-                p.render(batch, tex);
+            Particle.ParticleType type = active.get(i).particleType;
+            if (type == Particle.ParticleType.SHOCKWAVE) {
+                shockwaveIndices[shockwaveCount++] = i;
+            } else if (type == Particle.ParticleType.SMOKE) {
+                smokeIndices[smokeCount++] = i;
+            } else {
+                topIndices[topCount++] = i;
             }
         }
-        // Smoke behind everything else
-        for (int i = 0; i < active.size; i++) {
-            Particle p = active.get(i);
-            if (p.particleType == Particle.ParticleType.SMOKE) {
-                p.render(batch, tex);
-            }
+
+        // Draw in order: shockwaves → smoke → top
+        Particle[] items = active.items;
+        for (int i = 0; i < shockwaveCount; i++) {
+            items[shockwaveIndices[i]].render(batch, tex, region);
         }
-        // Remaining types on top
-        for (int i = 0; i < active.size; i++) {
-            Particle p = active.get(i);
-            if (p.particleType != Particle.ParticleType.SHOCKWAVE
-                    && p.particleType != Particle.ParticleType.SMOKE) {
-                p.render(batch, tex);
-            }
+        for (int i = 0; i < smokeCount; i++) {
+            items[smokeIndices[i]].render(batch, tex, region);
+        }
+        for (int i = 0; i < topCount; i++) {
+            items[topIndices[i]].render(batch, tex, region);
         }
     }
 
     /**
      * Set the texture used for particle rendering.
-     * Typically a 1x1 white pixel texture that gets tinted by particle color.
+     * Creates a cached TextureRegion for rotated draws.
      *
-     * @param texture the particle texture
+     * @param texture the particle texture (typically 1×1 white pixel)
      */
     public void setParticleTexture(Texture texture) {
         this.particleTexture = texture;
+        if (texture != null) {
+            this.particleRegion = new TextureRegion(texture);
+        }
     }
 
     // ------------------------------------------------------------------

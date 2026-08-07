@@ -11,6 +11,7 @@ import com.badlogic.gdx.graphics.glutils.ShaderProgram;
 import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.math.Vector3;
+import com.badlogic.gdx.math.Matrix4;
 import com.thunderforce.config.GameConfig;
 
 /**
@@ -28,6 +29,7 @@ public class RenderPipeline {
     private final FrameBuffer frameBuffer;
     private final Texture frameBufferTexture;
     private final SpriteBatch screenBatch;
+    private final Matrix4 screenProjection; // Pooled projection matrix (avoids per-frame allocation)
 
     // Viewport calculation
     private float viewportWidth;
@@ -39,6 +41,7 @@ public class RenderPipeline {
     // Render bounds (for overscan crop)
     private final Vector3 touchPos;
     private final Rectangle renderBounds;
+    private final Vector2 unprojectResult; // Pooled result for unproject
 
     public RenderPipeline() {
         this.camera = new OrthographicCamera();
@@ -55,8 +58,10 @@ public class RenderPipeline {
         );
 
         this.screenBatch = new SpriteBatch();
+        this.screenProjection = new Matrix4();
         this.touchPos = new Vector3();
         this.renderBounds = new Rectangle();
+        this.unprojectResult = new Vector2();
 
         updateViewport(Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
     }
@@ -141,8 +146,7 @@ public class RenderPipeline {
     public void renderToScreen() {
         screenBatch.begin();
         screenBatch.setProjectionMatrix(
-            new com.badlogic.gdx.math.Matrix4()
-                .setToOrtho2D(0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight())
+            screenProjection.setToOrtho2D(0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight())
         );
         screenBatch.draw(
             frameBufferTexture,
@@ -154,8 +158,18 @@ public class RenderPipeline {
 
     /**
      * Unproject screen coordinates to world coordinates.
+     * Returns a pooled Vector2 — do not store the reference.
+     * For safe storage, use {@link #unproject(float, float, Vector2)}.
      */
     public Vector2 unproject(float screenX, float screenY) {
+        return unproject(screenX, screenY, unprojectResult);
+    }
+
+    /**
+     * Unproject screen coordinates into a caller-provided result buffer.
+     * Zero-allocation variant.
+     */
+    public Vector2 unproject(float screenX, float screenY, Vector2 out) {
         touchPos.set(screenX, screenY, 0);
         // Adjust for render bounds offset
         touchPos.x -= renderBounds.x;
@@ -164,7 +178,8 @@ public class RenderPipeline {
         touchPos.x *= (renderBounds.width / INTERNAL_WIDTH);
         touchPos.y *= (renderBounds.height / INTERNAL_HEIGHT);
         camera.unproject(touchPos);
-        return new Vector2(touchPos.x, touchPos.y);
+        out.set(touchPos.x, touchPos.y);
+        return out;
     }
 
     public OrthographicCamera getCamera() {

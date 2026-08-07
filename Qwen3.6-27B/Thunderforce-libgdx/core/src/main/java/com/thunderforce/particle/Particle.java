@@ -211,50 +211,62 @@ public class Particle {
     }
 
     /**
-     * Render the particle to the batch using the provided texture.
-     * The batch color is set per particle for tinted rendering.
+     * Render the particle to the batch using the provided texture and optional region.
+     * Rotated particles (SPARK, DEBRIS, AMBIENT) require a TextureRegion;
+     * non-rotated types use direct texture draws to avoid allocation.
      *
-     * @param batch    the sprite batch to draw on
-     * @param texture  1×1 white pixel texture (tinted by particle color)
+     * @param batch   the sprite batch to draw on
+     * @param texture 1×1 white pixel texture (tinted by particle color)
+     * @param region  reusable TextureRegion for rotated draws (may be null)
      */
-    public void render(Batch batch, Texture texture) {
-        if (!alive || texture == null) return;
+    public void render(Batch batch, Texture texture, TextureRegion region) {
+        if (!alive) return;
 
         batch.setColor(r, g, b, a);
         float halfSize = size / 2f;
-        float origin = size / 2f;
 
         switch (particleType) {
             case SPARK:
             case DEBRIS:
             case AMBIENT:
-                // Rotated square
-                batch.draw(new TextureRegion(texture),
-                        x - halfSize, y - halfSize,
-                        origin, origin,
-                        size, size,
-                        1f, 1f, rotation);
+                // Rotated square — requires TextureRegion (9-param draw with rotation)
+                if (region != null) {
+                    batch.draw(region, x - halfSize, y - halfSize,
+                            halfSize, halfSize,  // origin at particle centre
+                            size, size, 1f, 1f, rotation);
+                }
                 break;
 
             case SMOKE:
             case GLOW:
             case SHOCKWAVE:
-                // Non-rotated square (radial symmetry)
-                batch.draw(new TextureRegion(texture),
-                        x - halfSize, y - halfSize,
-                        size, size);
+                // Non-rotated square — direct texture draw (no allocation)
+                if (texture != null) {
+                    batch.draw(texture, x - halfSize, y - halfSize, size, size);
+                }
                 break;
         }
     }
 
     /**
+     * Render with only a texture (no region). Non-rotated types work;
+     * rotated types are silently skipped.
+     *
+     * @param batch   the sprite batch to draw on
+     * @param texture 1×1 white pixel texture
+     */
+    public void render(Batch batch, Texture texture) {
+        render(batch, texture, null);
+    }
+
+    /**
      * Render the particle to the batch (no texture, uses batch color only).
-     * Useful when no particle texture is available — draws a colored quad.
+     * Useful when no particle texture is available — draws nothing.
      *
      * @param batch the sprite batch to draw on
      */
     public void render(Batch batch) {
-        render(batch, null);
+        // No-op: requires texture to render
     }
 
     /**

@@ -6,6 +6,11 @@ import com.badlogic.gdx.utils.Array;
 /**
  * Grid-based spatial hash for O(1) average-case collision lookup.
  * 16×16 pixel cells over a 320×224 playfield (20×14 grid).
+ *
+ * Cache-friendly design:
+ * - Pre-allocated inner arrays (no resize during gameplay)
+ * - Direct index computation (no object indirection beyond cell arrays)
+ * - GC-free query via caller-provided results buffer
  */
 public class GridSpatialHash {
 
@@ -19,6 +24,7 @@ public class GridSpatialHash {
     public GridSpatialHash() {
         this.cells = new Array<>(TOTAL_CELLS);
         for (int i = 0; i < TOTAL_CELLS; i++) {
+            // Pre-size to typical occupancy to avoid resize allocations
             cells.add(new Array<>(true, 8));
         }
     }
@@ -44,16 +50,23 @@ public class GridSpatialHash {
         int cellY2 = Math.min(GRID_HEIGHT - 1, (int) ((bounds.y + bounds.height) / CELL_SIZE));
 
         for (int y = cellY1; y <= cellY2; y++) {
+            int rowOffset = y * GRID_WIDTH;
             for (int x = cellX1; x <= cellX2; x++) {
-                int index = y * GRID_WIDTH + x;
-                cells.get(index).add(entity);
+                cells.get(rowOffset + x).add(entity);
             }
         }
     }
 
     /**
      * Query all entities that overlap the given bounding box.
-     * Results are deduplicated by the caller.
+     * Uses a caller-provided results buffer to avoid allocation.
+     *
+     * @param x        query X
+     * @param y        query Y
+     * @param width    query width
+     * @param height   query height
+     * @param results  pre-allocated buffer (will be cleared)
+     * @return the results buffer populated with matching entities
      */
     public Array<SpatialEntity> query(
         float x, float y, float width, float height,
@@ -66,11 +79,13 @@ public class GridSpatialHash {
         int cellY2 = Math.min(GRID_HEIGHT - 1, (int) ((y + height) / CELL_SIZE));
 
         for (int cy = cellY1; cy <= cellY2; cy++) {
+            int rowOffset = cy * GRID_WIDTH;
             for (int cx = cellX1; cx <= cellX2; cx++) {
-                int index = cy * GRID_WIDTH + cx;
-                Array<SpatialEntity> cell = cells.get(index);
-                for (int i = 0; i < cell.size; i++) {
-                    results.add(cell.get(i));
+                Array<SpatialEntity> cell = cells.get(rowOffset + cx);
+                int cellSize = cell.size;
+                SpatialEntity[] cellItems = cell.items;
+                for (int i = 0; i < cellSize; i++) {
+                    results.add(cellItems[i]);
                 }
             }
         }

@@ -142,9 +142,9 @@ public class GameScreen implements com.thunderforce.engine.ThunderforceGame.Game
         InputDirection dir = InputDirection.fromCode(input.direction);
         player.update(delta, dir);
 
-        // Update weapons
-        for (Weapon weapon : weapons) {
-            weapon.update(delta, player.x, player.y, playerProjectiles, enemies);
+        // Update weapons (indexed loop avoids Iterator allocation)
+        for (int i = 0; i < weapons.size; i++) {
+            weapons.get(i).update(delta, player.x, player.y, playerProjectiles, enemies);
         }
 
         // Update enemies
@@ -192,8 +192,10 @@ public class GameScreen implements com.thunderforce.engine.ThunderforceGame.Game
             (Array<SpatialEntity>) (Array<?>) playerProjectiles,
             player);
 
-        // Handle player damage
-        for (CollisionDetector.Collision collision : collisions) {
+        // Handle collisions (indexed loop avoids Iterator allocation)
+        boolean playerHit = false;
+        for (int i = 0; i < collisions.size; i++) {
+            CollisionDetector.Collision collision = collisions.get(i);
             if (collision.a == player || collision.b == player) {
                 if (player.takeDamage()) {
                     lives--;
@@ -202,9 +204,13 @@ public class GameScreen implements com.thunderforce.engine.ThunderforceGame.Game
                         gameTime = 0;
                     }
                 }
+                playerHit = true;
                 break;
             }
         }
+
+        // Return pooled Collision objects to the detector
+        collisionDetector.clear();
 
         // Update systems
         particleSystem.update(delta);
@@ -303,21 +309,21 @@ public class GameScreen implements com.thunderforce.engine.ThunderforceGame.Game
         // Render parallax background
         parallax.render(game.batch, camera, camera.viewportWidth);
 
-        // Render entities
-        for (Enemy enemy : enemies) {
-            enemy.render(game.batch);
+        // Render entities (indexed loops avoid Iterator allocation)
+        for (int i = 0; i < enemies.size; i++) {
+            enemies.get(i).render(game.batch);
         }
 
-        for (Bullet bullet : enemyBullets) {
-            bullet.render(game.batch);
+        for (int i = 0; i < enemyBullets.size; i++) {
+            enemyBullets.get(i).render(game.batch);
         }
 
-        for (Projectile proj : playerProjectiles) {
-            proj.render(game.batch);
+        for (int i = 0; i < playerProjectiles.size; i++) {
+            playerProjectiles.get(i).render(game.batch);
         }
 
-        for (PowerUp pu : powerUps) {
-            pu.render(game.batch);
+        for (int i = 0; i < powerUps.size; i++) {
+            powerUps.get(i).render(game.batch);
         }
 
         // Render player

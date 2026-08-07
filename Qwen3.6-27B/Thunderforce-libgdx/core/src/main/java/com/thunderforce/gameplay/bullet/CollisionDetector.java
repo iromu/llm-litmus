@@ -2,10 +2,13 @@ package com.thunderforce.gameplay.bullet;
 
 import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.utils.Array;
+import com.thunderforce.engine.FixedPool;
 
 /**
  * Collision detection system using spatial hashing for broad-phase
  * and AABB checks for narrow-phase.
+ *
+ * Uses pooled Collision objects to avoid per-frame allocation.
  */
 public class CollisionDetector {
 
@@ -16,12 +19,14 @@ public class CollisionDetector {
     public final GridSpatialHash grid;
     public final Array<SpatialEntity> tempResults;
 
-    private final Array<Collision> collisions;
+    private final FixedPool<Collision> collisionPool;
+    public final Array<Collision> collisions;
 
     public CollisionDetector() {
         this.grid = new GridSpatialHash();
         this.tempResults = new Array<>();
-        this.collisions = new Array<>();
+        this.collisionPool = new FixedPool<>(64, Collision::create);
+        this.collisions = new Array<>(32);
     }
 
     /**
@@ -31,7 +36,7 @@ public class CollisionDetector {
      * @param enemies       active enemies
      * @param playerBullets active player bullets
      * @param player        the player entity
-     * @return array of collision pairs
+     * @return array of pooled collision pairs (return via {@link #clear()} after use)
      */
     public Array<Collision> update(
             Array<Bullet> enemyBullets,
@@ -49,10 +54,6 @@ public class CollisionDetector {
 
     /**
      * Check player bullets against all enemies using spatial hash.
-     *
-     * @param playerBullets array of player bullet entities
-     * @param enemies       array of enemy entities
-     * @return collisions found
      */
     public Array<Collision> checkPlayerBulletsVsEnemies(
             Array<SpatialEntity> playerBullets,
@@ -73,7 +74,10 @@ public class CollisionDetector {
                 if (enemy.getEntityType() == ENEMY_ENTITY_TYPE) {
                     Rectangle e = enemy.getBounds();
                     if (checkAABB(b, e)) {
-                        collisions.add(new Collision(bullet, enemy));
+                        Collision c = collisionPool.obtain();
+                        c.a = bullet;
+                        c.b = enemy;
+                        collisions.add(c);
                     }
                 }
             }
@@ -83,10 +87,6 @@ public class CollisionDetector {
 
     /**
      * Check enemy bullets against the player.
-     *
-     * @param enemyBullets array of enemy bullets
-     * @param player       the player entity
-     * @return collisions found
      */
     public Array<Collision> checkEnemyBulletsVsPlayer(
             Array<Bullet> enemyBullets,
@@ -100,7 +100,10 @@ public class CollisionDetector {
 
             Rectangle bulletBounds = bullet.getBounds();
             if (checkAABB(bulletBounds, playerBounds)) {
-                collisions.add(new Collision(bullet, player));
+                Collision c = collisionPool.obtain();
+                c.a = bullet;
+                c.b = player;
+                collisions.add(c);
             }
         }
         return collisions;
@@ -108,10 +111,6 @@ public class CollisionDetector {
 
     /**
      * Simple AABB overlap check between two rectangles.
-     *
-     * @param rect1 first rectangle
-     * @param rect2 second rectangle
-     * @return true if rectangles overlap
      */
     public static boolean checkAABB(Rectangle rect1, Rectangle rect2) {
         return rect1.x < rect2.x + rect2.width
@@ -121,24 +120,34 @@ public class CollisionDetector {
     }
 
     /**
-     * Clear all recorded collisions.
+     * Clear all recorded collisions and return them to the pool.
+     * Must be called after processing collisions to avoid leaks.
      */
     public void clear() {
+        for (int i = 0; i < collisions.size; i++) {
+            Collision c = collisions.get(i);
+            c.a = null;
+            c.b = null;
+            collisionPool.free(c);
+        }
         collisions.clear();
         grid.clear();
         tempResults.clear();
     }
 
     /**
-     * A collision pair between two spatial entities.
+     * A pooled collision pair between two spatial entities.
+     * Do not allocate directly — obtained from CollisionDetector.
      */
     public static class Collision {
-        public final SpatialEntity a;
-        public final SpatialEntity b;
+        public SpatialEntity a;
+        public SpatialEntity b;
 
-        public Collision(SpatialEntity a, SpatialEntity b) {
-            this.a = a;
-            this.b = b;
+        private Collision() {
+        }
+
+        static Collision create() {
+            return new Collision();
         }
     }
 }
