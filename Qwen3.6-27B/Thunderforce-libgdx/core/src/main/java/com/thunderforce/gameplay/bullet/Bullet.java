@@ -114,11 +114,17 @@ public class Bullet implements SpatialEntity {
             float dist = (float) Math.sqrt(dx * dx + dy * dy);
             if (dist > 1f) {
                 float turnRate = 3.0f;
-                Vector2 desired = new Vector2(dx, dy).nor();
+                // Zero-allocation: normalize inline instead of new Vector2
+                float invLen = 1f / dist;
+                float desiredX = dx * invLen;
+                float desiredY = dy * invLen;
                 float t = Math.min(1f, turnRate * delta);
-                velocity.x = velocity.x + (desired.x - velocity.x) * t;
-                velocity.y = velocity.y + (desired.y - velocity.y) * t;
-                velocity.nor().scl(velocity.len());
+                velocity.x = velocity.x + (desiredX - velocity.x) * t;
+                velocity.y = velocity.y + (desiredY - velocity.y) * t;
+                float speed = velocity.len();
+                if (speed > 0) {
+                    velocity.scl(1f / speed);
+                }
             }
         }
 

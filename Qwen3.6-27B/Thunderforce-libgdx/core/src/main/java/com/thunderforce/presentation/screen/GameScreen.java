@@ -5,6 +5,7 @@ import com.badlogic.gdx.Input;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.utils.Array;
+import com.thunderforce.engine.FixedPool;
 import com.thunderforce.engine.ThunderforceGame;
 import com.thunderforce.gameplay.bullet.Bullet;
 import com.thunderforce.gameplay.bullet.CollisionDetector;
