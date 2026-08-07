@@ -14,8 +14,6 @@ public class DesktopLauncher {
         config.setTitle("Thunderforce");
         config.setWindowedMode(1280, 960);
         config.useVsync(true);
-        config.setWindowIcon("icons/thunderforce-64.png", "icons/thunderforce-32.png",
-            "icons/thunderforce-16.png");
 
         new Lwjgl3Application(new ThunderforceGame(), config);
     }
