@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Voxel Pagoda Garden</title>
+<style>
+  html, body { margin: 0; padding: 0; overflow: hidden; height: 100%; background: #0b1020; }
+  #app { position: fixed; inset: 0; }
+  canvas { display: block; }
+  #title {
+    position: fixed; left: 16px; top: 14px; z-index: 10;
+    font-family: Georgia, 'Times New Roman', serif;
+    color: rgba(255,255,255,.94); font-size: 20px; letter-spacing: .5px;
+    text-shadow: 0 1px 4px rgba(0,0,0,.7); pointer-events: none; user-select: none;
+  }
+  #title small {
+    display: block; margin-top: 3px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 11px; opacity: .72; letter-spacing: 0;
+  }
+  #hud {
+    position: fixed; left: 16px; bottom: 12px; z-index: 10;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    color: rgba(255,255,255,.85); font-size: 12px; line-height: 1.5;
+    text-shadow: 0 1px 3px rgba(0,0,0,.6); pointer-events: none; user-select: none;
+  }
+  #hud b { color: #ffd9a0; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="title">Voxel Pagoda Garden<small>drag to orbit &middot; scroll to zoom &middot; 5-tier pagoda, koi pond, drifting petals</small></div>
+<div id="hud"><b>voxel pagoda garden</b><br/>three.js r160 &middot; instanced voxels &middot; seeded chaos</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+/* ============================================================
+   Voxel Pagoda Garden — single-file Three.js scene
+   Everything is built from unit cubes via InstancedMesh,
+   grouped by color into a handful of draw calls.
+   ============================================================ */
+
+// ---------- Seeded PRNG (deterministic layout every load) ----------
+function mulberry32(seed) {
+  let a = seed >>> 0;
+  return function () {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+const rand = mulberry32(20260815);
+const rr = (a, b) => a + rand() * (b - a);
+const ri = (a, b) => Math.floor(rr(a, b + 1));
+const pick = arr => arr[Math.floor(rand() * arr.length)];
+
+// ---------- Renderer / Scene / Camera ----------
+const container = document.getElementById('app');
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+container.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xb9ddf0);
+scene.fog = new THREE.Fog(0xcfe8f2, 70, 240);
+
+const camera = new THREE.PerspectiveCamera(48, window.innerWidth / window.innerHeight, 0.1, 800);
+camera.position.set(46, 32, 62);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(0, 15, 0);
+controls.enableDamping = true;
+controls.dampingFactor = 0.06;
+controls.minDistance = 14;
+controls.maxDistance = 200;
+controls.maxPolarAngle = Math.PI * 0.495;
+controls.autoRotate = true;
+controls.autoRotateSpeed = 0.5;
+controls.update();
+window.__debug = { camera, controls, scene, renderer };
+
+// ---------- Lighting ----------
+scene.add(new THREE.HemisphereLight(0xc4e6ff, 0x3c5c2c, 0.85));
+
+const sun = new THREE.DirectionalLight(0xfff2d6, 1.55);
+sun.position.set(42, 72, 30);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.camera.near = 1;
+sun.shadow.camera.far = 260;
+const S = 75;
+sun.shadow.camera.left = -S; sun.shadow.camera.right = S;
+sun.shadow.camera.top = S;    sun.shadow.camera.bottom = -S;
+sun.shadow.bias = -0.0004;
+sun.shadow.normalBias = 0.02;
+scene.add(sun);
+
+const fill = new THREE.DirectionalLight(0x9fc4ff, 0.35);
+fill.position.set(-32, 42, -28);
+scene.add(fill);
+
+// Warm glints on the stone path (lantern ambience, cheap)
+const pathGlow = new THREE.PointLight(0xffb168, 12, 26, 2);
+pathGlow.position.set(0, 4, 20);
+scene.add(pathGlow);
+
+// ---------- Palette ----------
+const C = {
+  stone:   [0x8b929c, 0x7c838d, 0xa0a6ae, 0x6a7078],
+  roof:    [0x3a4563, 0x2e3852],
+  red:     0xb23b2a,
+  cream:   0xf0e2c0,
+  rail:    0xe8d9b4,
+  dark:    0x322d3a,
+  gold:    0xd9a83e,
+  trunk:   0x6d4c33,
+  pineTr:  0x59422e,
+  pine:    [0x35633a, 0x2f5a34, 0x40704a],
+  bamboo:  [0x5d9a44, 0x6fae50],
+  leaf:    0x3f7a35,
+  water:   0x4d8cc2,
+  lily:    0x4e9b52,
+  glow:    0xffd9a0,
+  dirt:    0x7a5230,
+  grass:   [0x5f8f3f, 0x6f9c4a, 0x537f36],
+  pink:    [0xffc9dd, 0xffc9dd, 0xffc9dd, 0xff9ec7, 0xff9ec7, 0xff9ec7, 0xfff3f7, 0xfff3f7, 0xff77ae, 0xff77ae],
+  flower:  [0xe74c3c, 0xf1c40f, 0xfdfefe, 0x9b59b6, 0xff8f3f],
+};
+
+// ---------- Voxel builder (color-bucketed) ----------
+const boxGeo = new THREE.BoxGeometry(1, 1, 1);
+boxGeo.translate(0, 0.5, 0); // pivot at base: y is the ground level of the cube
+
+const buckets = new Map(); // key -> { color, opts, items }
+let voxelCount = 0;
+
+function addVox(x, y, z, color, opts = {}) {
+  const key = color + (opts.glow ? '|g' : '') + (opts.metal ? '|m' : '') + (opts.trans ? '|t' : '');
+  let b = buckets.get(key);
+  if (!b) { b = { color, opts, items: [] }; buckets.set(key, b); }
+  b.items.push([x, y, z, opts]);
+  voxelCount++;
+}
+
+// Filled circle of voxels at height y (flat discs: pine canopies, lily pads)
+function disc(cx, y, cz, r, color) {
+  for (let x = -r; x <= r; x++) for (let z = -r; z <= r; z++) {
+    if (x * x + z * z <= r * r) addVox(cx + x, y, cz + z, color);
+  }
+}
+
+// Boundary of a (2r+1)^2 square at height y
+function squareRing(r, y, color) {
+  if (r === 0) { addVox(0, y, 0, color); return; }
+  for (let x = -r; x <= r; x++) { addVox(x, y, r, color); addVox(x, y, -r, color); }
+  for (let z = -r + 1; z <= r - 1; z++) { addVox(r, y, z, color); addVox(-r, y, z, color); }
+}
+
+// ============================================================
+//  THE PAGODA — 5 tiers, lacquered walls, upturned eaves, gold spire
+// ============================================================
+(function buildPagoda() {
+  // Stone platform, 19x19
+  for (let x = -9; x <= 9; x++) for (let z = -9; z <= 9; z++) {
+    addVox(x, 0, z, pick(C.stone));
+  }
+
+  const halves = [6, 5, 4, 3, 2];
+  let Y = 1; // top of the platform
+
+  halves.forEach((h, tier) => {
+    // floor slab
+    for (let x = -h; x <= h; x++) for (let z = -h; z <= h; z++) {
+      addVox(x, Y, z, pick(C.stone));
+    }
+
+    // walls: two rows of cream, red pillars, dark door + windows
+    const wallRows = [Y + 1, Y + 2];
+    wallRows.forEach((wy, row) => {
+      const coords = [];
+      for (let x = -h; x <= h; x++) { coords.push([x, h]); coords.push([x, -h]); }
+      for (let z = -h + 1; z <= h - 1; z++) { coords.push([h, z]); coords.push([-h, z]); }
+      coords.forEach(([x, z]) => {
+        const isCorner = Math.abs(x) === h && Math.abs(z) === h;
+        const isMid = (x === 0 && Math.abs(z) === h) || (Math.abs(x) === h && z === 0);
+        const isDoor = x === 0 && z === h;
+        const isWin = row === 1 && h - 1 >= 1 &&
+          ((Math.abs(x) === h - 1 && z === 0) || (x === 0 && Math.abs(z) === h - 1));
+        if (isCorner || isMid) addVox(x, wy, z, C.red);
+        else if (isDoor) addVox(x, wy, z, C.dark);
+        else if (isWin) addVox(x, wy, z, C.dark);
+        else addVox(x, wy, z, C.cream);
+      });
+    });
+
+    // balcony railing ring
+    squareRing(h + 1, Y + 3, C.rail);
+
+    // roof: square pyramid with 2-voxel overhang, tiled with two dark blues
+    const r0 = h + 2;
+    for (let k = 0; k <= r0; k++) {
+      const r = r0 - k;
+      const y = Y + 4 + k;
+      for (let x = -r; x <= r; x++) { addVox(x, y, r, pick(C.roof)); addVox(x, y, -r, pick(C.roof)); }
+      for (let z = -r + 1; z <= r - 1; z++) { addVox(r, y, z, pick(C.roof)); addVox(-r, y, z, pick(C.roof)); }
+      if (r === 0) continue;
+      // upturned eave corners on the bottom roof row (classic silhouette)
+      if (k === 0) {
+        [[1, 1], [1, -1], [-1, 1], [-1, -1]].forEach(([sx, sz]) => {
+          addVox(sx * (r0 + 1), y + 1, sz * (r0 + 1), C.roof[0]);
+          addVox(sx * (r0 + 1), y + 2, sz * (r0 + 1), C.gold, { metal: true, sy: 0.45 });
+        });
+      }
+    }
+
+    // gold spire on the topmost tier
+    if (tier === halves.length - 1) {
+      const top = Y + 4 + r0 + 1;
+      for (let y = top; y < top + 2; y++) {
+        for (let x = -1; x <= 1; x++) for (let z = -1; z <= 1; z++) {
+          addVox(x, y, z, C.gold, { metal: true });
+        }
+      }
+      for (let y = top + 2; y < top + 5; y++) addVox(0, y, 0, C.gold, { metal: true, sy: 0.8 });
+      addVox(0, top + 5, 0, C.gold, { metal: true, sy: 0.5, sx: 0.5, sz: 0.5 });
+    }
+
+    Y = Y + h + 7; // next tier base = roof apex + 1
+  });
+})();
+
+// ============================================================
+//  TREES — cherry blossoms, pines, bamboo grove
+// ============================================================
+function randInSphere(r) {
+  let x, y, z, tries = 0;
+  do { x = rr(-r, r); y = rr(-r, r); z = rr(-r, r); tries++; }
+  while (x * x + y * y + z * z > r * r && tries < 40);
+  return [x, y, z];
+}
+
+function cherryTree(cx, cz, scale = 1) {
+  const th = ri(5, 7);
+  let x = cx, z = cz;
+  for (let y = 1; y <= th; y++) {
+    addVox(x, y, z, C.trunk);
+    if (y > th - 2) { addVox(x + ri(-1, 1), y + 1, z + ri(-1, 1), C.trunk); }
+    if (rand() < 0.15) { x += ri(-1, 1); z += ri(-1, 1); }
+  }
+  const topY = th;
+  const R = rr(3, 4.2) * scale;
+  const n = Math.floor(650 * scale * scale);
+  // main blossom cloud
+  for (let i = 0; i < n; i++) {
+    const [px, py, pz] = randInSphere(R);
+    const vx = Math.round(cx + px);
+    const vy = Math.round(topY + 1 + R * 0.55 + py - R * 0.45);
+    const vz = Math.round(cz + pz);
+    if (vy < topY) continue;
+    if (rand() < 0.85) addVox(vx, vy, vz, pick(C.pink));
+  }
+  // two satellite clusters
+  for (let s = 0; s < 2; s++) {
+    const [ox, oy, oz] = randInSphere(R * 0.9);
+    const sr = rr(1.4, 2.4);
+    for (let i = 0; i < 140 * scale; i++) {
+      const [px, py, pz] = randInSphere(sr);
+      const vx = Math.round(cx + ox + px);
+      const vy = Math.round(topY + 2 + oy * 0.7 + py);
+      const vz = Math.round(cz + oz + pz);
+      if (vy < topY) continue;
+      if (rand() < 0.9) addVox(vx, vy, vz, pick(C.pink));
+    }
+  }
+}
+
+function pineTree(cx, cz) {
+  const th = ri(4, 6);
+  for (let y = 1; y <= th; y++) {
+    addVox(cx, y, cz, C.pineTr);
+    if (y === Math.floor(th * 0.5)) { addVox(cx + 1, y, cz, C.pineTr); addVox(cx - 1, y + 1, cz, C.pineTr); }
+  }
+  const tiers = [3, 2, 1];
+  tiers.forEach((r, i) => {
+    disc(cx, th + 1 + i * 2, cz, r, pick(C.pine));
+    if (i < tiers.length - 1) addVox(cx, th + 1 + i * 2 + 1, cz, C.pineTr);
+  });
+}
+
+function bambooGrove(cx, cz) {
+  for (let i = 0; i < 16; i++) {
+    const x = cx + ri(-3, 3);
+    const z = cz + ri(-3, 3);
+    const h = ri(9, 13);
+    let px = x, pz = z;
+    for (let y = 1; y <= h; y++) {
+      addVox(px, y, pz, pick(C.bamboo));
+      if (rand() < 0.12) { px += ri(-1, 1); pz += ri(-1, 1); }
+    }
+    for (let l = 0; l < 4; l++) {
+      addVox(px + ri(-1, 1), h + ri(0, 1), pz + ri(-1, 1), C.leaf);
+    }
+  }
+  // little stone ring around the grove
+  for (let a = 0; a < 12; a++) {
+    const ang = (a / 12) * Math.PI * 2;
+    addVox(Math.round(cx + Math.cos(ang) * 5), 0, Math.round(cz + Math.sin(ang) * 5), pick(C.stone), { sy: 0.4 });
+  }
+}
+
+[[ -8, 15, 1.05], [10, 13, 0.95], [15, 3, 1.1], [-14, -9, 1.0], [4, -15, 0.9]]
+  .forEach(([x, z, s]) => cherryTree(x, z, s));
+[[-17, -13], [20, -14], [-5, -20]].forEach(([x, z]) => pineTree(x, z));
+bambooGrove(-19, 3);
+
+// ============================================================
+//  KOI POND — water, rim, lilies, arched bridge, animated koi
+// ============================================================
+const POND = { x: 15, z: -5, rx: 5, rz: 4 };
+
+(function buildPond() {
+  for (let x = -POND.rx - 2; x <= POND.rx + 2; x++) {
+    for (let z = -POND.rz - 2; z <= POND.rz + 2; z++) {
+      const d = (x / POND.rx) ** 2 + (z / POND.rz) ** 2;
+      if (d <= 1) {
+        addVox(POND.x + x, 0, POND.z + z, C.water, { trans: true });
+      } else if (d <= 2.4 && rand() < 0.9) {
+        addVox(POND.x + x, 0, POND.z + z, pick(C.stone), { sy: 0.7 });
+      }
+    }
+  }
+  // lily pads + a lotus
+  [[2, -1], [-2, 1], [0, 2], [1, -2]].forEach(([ox, oz]) => {
+    const px = POND.x + ox, pz = POND.z + oz;
+    disc(px, 1.02, pz, 1, C.lily);
+    if (rand() < 0.5) addVox(px, 1.06, pz, pick(C.pink), { sy: 0.25 });
+  });
+
+  // arched stone bridge crossing the pond east-west
+  for (let i = 0; i <= 8; i++) {
+    const t = i / 8;
+    const hgt = 1 + Math.round(1.7 * Math.sin(Math.PI * t));
+    addVox(POND.x - POND.rx + i, 0, POND.z, pick(C.stone), { sy: hgt });
+    if (i === 0 || i === 8) addVox(POND.x - POND.rx + i, hgt, POND.z, C.red, { sy: 0.5 });
+  }
+})();
+
+// koi (three little animated groups swimming in circles)
+const koiMats = [0xff7f2a, 0xfff2e0, 0xd94f30].map(col =>
+  new THREE.MeshStandardMaterial({ color: col, roughness: 0.55 }));
+const koiGeoBody = new THREE.BoxGeometry(1.5, 0.26, 0.38);
+const koiGeoTail = new THREE.BoxGeometry(0.38, 0.22, 0.32);
+const koiTailMat = new THREE.MeshStandardMaterial({ color: 0xfff6ea, roughness: 0.55 });
+const koi = [];
+for (let i = 0; i < 3; i++) {
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(koiGeoBody, koiMats[i]);
+  const tail = new THREE.Mesh(koiGeoTail, koiTailMat);
+  tail.position.x = -1.0;
+  g.add(body, tail);
+  scene.add(g);
+  koi.push({ g, r: rr(1.6, 3.0), w: rr(0.18, 0.32), a: rr(0, 6.28) });
+}
+
+// ============================================================
+//  STONE PATH, LANTERNS, FLOWERS, ROCKS, GROUND SCATTER
+// ============================================================
+const pathX = z => Math.round(1.6 * Math.sin(z * 0.32));
+
+for (let z = 11; z <= 30; z++) {
+  if (z % 2 === 0) {
+    const x = pathX(z);
+    const wide = z % 4 === 0 ? 2 : 1;
+    for (let dx = -Math.floor(wide / 2); dx <= Math.floor((wide + 1) / 2) - 1; dx++) {
+      addVox(x + dx, 0, z, pick(C.stone), { sy: 0.14, sz: 1 });
+    }
+  }
+}
+
+function stoneLantern(x, z) {
+  addVox(x, 0, z, pick(C.stone), { sy: 0.5, sx: 1.5, sz: 1.5 });
+  addVox(x, 0.5, z, pick(C.stone), { sy: 0.9 });
+  addVox(x, 1.4, z, C.glow, { glow: true, sy: 0.55 });
+  addVox(x, 1.95, z, C.dark, { sy: 0.3, sx: 1.6, sz: 1.6 });
+  addVox(x, 2.28, z, C.gold, { sy: 0.28, sx: 0.5, sz: 0.5 });
+}
+[[pathX(14) - 3, 14], [pathX(14) + 3, 14], [pathX(24) - 3, 24], [pathX(24) + 3, 24]]
+  .forEach(([x, z]) => stoneLantern(x, z));
+
+function flowerBed(cx, cz) {
+  for (let x = -2; x <= 2; x++) for (let z = -2; z <= 2; z++) {
+    if (rand() < 0.85) addVox(cx + x, 0, cz + z, C.dirt, { sy: 0.18 });
+  }
+  for (let i = 0; i < 12; i++) {
+    const x = cx + ri(-2, 2), z = cz + ri(-2, 2);
+    addVox(x, 0.1, z, 0x4e7a36, { sy: 0.55 });
+    addVox(x, 0.6, z, pick(C.flower), { sy: 0.35, sx: 0.7, sz: 0.7 });
+  }
+}
+[[-12, 9], [12, 9], [-15, -3], [12, 5], [-3, 19]].forEach(([x, z]) => flowerBed(x, z));
+
+function rockCluster(cx, cz) {
+  const n = ri(3, 5);
+  for (let i = 0; i < n; i++) {
+    const x = cx + ri(-1, 1), z = cz + ri(-1, 1);
+    const h = ri(0.4, 1.2);
+    addVox(x, 0, z, pick(C.stone), { sy: h, sx: rr(0.7, 1.4), sz: rr(0.7, 1.4) });
+    if (rand() < 0.4) addVox(x, h * 0.85, z, C.leaf, { sy: 0.2, sx: 0.8, sz: 0.8 });
+  }
+}
+[[-7, -17], [9, 19], [23, 6], [-24, 12], [6, 26]].forEach(([x, z]) => rockCluster(x, z));
+
+// grass tufts + pebbles scattered over the meadow
+function onPond(x, z) { return ((x - POND.x) / (POND.rx + 1.5)) ** 2 + ((z - POND.z) / (POND.rz + 1.5)) ** 2 <= 1; }
+function onPlatform(x, z) { return Math.abs(x) <= 10.5 && Math.abs(z) <= 10.5; }
+function onPath(x, z) { return z >= 10 && z <= 31 && Math.abs(x - pathX(z)) < 2.5; }
+function freeGround(x, z) {
+  if (Math.hypot(x, z) > 34) return false;
+  if (onPond(x, z) || onPlatform(x, z) || onPath(x, z)) return false;
+  return true;
+}
+for (let i = 0; i < 220; i++) {
+  const x = ri(-34, 34), z = ri(-34, 34);
+  if (!freeGround(x, z)) continue;
+  if (i % 3 === 0) {
+    addVox(x, 0, z, pick(C.grass), { sy: rr(0.25, 0.5), sx: 0.5, sz: 0.5 });
+  } else {
+    addVox(x, 0, z, pick(C.stone), { sy: 0.22, sx: 0.55, sz: 0.55 });
+  }
+}
+
+// ground plane (meadow)
+const ground = new THREE.Mesh(
+  new THREE.PlaneGeometry(260, 260),
+  new THREE.MeshStandardMaterial({ color: 0x74a256, roughness: 1.0 })
+);
+ground.rotation.x = -Math.PI / 2;
+ground.position.y = -0.02;
+ground.receiveShadow = true;
+scene.add(ground);
+
+// ============================================================
+//  Bake every color bucket into one InstancedMesh each
+// ============================================================
+const dummy = new THREE.Object3D();
+for (const b of buckets.values()) {
+  const mat = new THREE.MeshStandardMaterial({
+    color: b.color,
+    roughness: b.opts.metal ? 0.35 : b.opts.trans ? 0.3 : 0.9,
+    metalness: b.opts.metal ? 0.6 : 0.0,
+    emissive: b.opts.glow ? b.color : 0x000000,
+    emissiveIntensity: b.opts.glow ? 1.4 : 0,
+    transparent: !!b.opts.trans,
+    opacity: b.opts.trans ? 0.78 : 1,
+  });
+  const mesh = new THREE.InstancedMesh(boxGeo, mat, b.items.length);
+  b.items.forEach(([x, y, z, o], i) => {
+    dummy.position.set(x, y, z);
+    dummy.scale.set(o.sx ?? 1, o.sy ?? 1, o.sz ?? 1);
+    dummy.rotation.set(0, 0, 0);
+    dummy.updateMatrix();
+    mesh.setMatrixAt(i, dummy.matrix);
+  });
+  mesh.instanceMatrix.needsUpdate = true;
+  mesh.castShadow = !b.opts.trans;
+  mesh.receiveShadow = true;
+  scene.add(mesh);
+}
+
+// ============================================================
+//  ANIMATED: cherry petals, water sparkles, sky lanterns
+// ============================================================
+// --- drifting cherry blossom petals ---
+const PETALS = 260;
+const petalGeo = new THREE.BoxGeometry(0.32, 0.06, 0.32);
+const petalMat = new THREE.MeshStandardMaterial({ color: 0xffb7d5, roughness: 0.85, transparent: true, opacity: 0.95 });
+const petals = new THREE.InstancedMesh(petalGeo, petalMat, PETALS);
+petals.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+const petalData = [];
+for (let i = 0; i < PETALS; i++) {
+  petalData.push({
+    x: rr(-30, 30), y: rr(0.5, 17), z: rr(-24, 34),
+    vx: rr(0.15, 0.5), vz: rr(-0.1, 0.1),
+    ph: rr(0, 6.28), spin: rr(0.4, 1.2),
+  });
+}
+scene.add(petals);
+
+// --- water sparkles on the pond ---
+const SPARKS = 48;
+const sparkGeo = new THREE.BoxGeometry(0.5, 0.05, 0.5);
+const sparkMat = new THREE.MeshStandardMaterial({ color: 0xa8dcf5, roughness: 0.2, emissive: 0x6fb8dd, emissiveIntensity: 0.5 });
+const sparks = new THREE.InstancedMesh(sparkGeo, sparkMat, SPARKS);
+sparks.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+const sparkData = [];
+for (let i = 0; i < SPARKS; i++) {
+  const [px, pz] = randInSphere(1);
+  sparkData.push({ x: POND.x + px * (POND.rx - 0.7), z: POND.z + pz * (POND.rz - 0.7), ph: rr(0, 6.28) });
+}
+scene.add(sparks);
+
+// --- rising sky lanterns ---
+const skyLanternMat = new THREE.MeshStandardMaterial({
+  color: 0xffc879, emissive: 0xffa94d, emissiveIntensity: 1.15, transparent: true, opacity: 0.95,
+});
+const skyLanterns = [];
+for (let i = 0; i < 3; i++) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(1.3, 1.7, 1.3), skyLanternMat);
+  m.position.set(rr(-22, 22), rr(8, 42), rr(-20, 24));
+  scene.add(m);
+  skyLanterns.push({ m, vy: rr(0.15, 0.3), ph: rr(0, 6.28) });
+}
+
+// ============================================================
+//  Animation loop
+// ============================================================
+const clock = new THREE.Clock();
+let frames = 0, firstFrameDone = false;
+
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.05);
+  const t = clock.elapsedTime;
+
+  // petals: drift on the wind, bob, wrap around the garden
+  for (let i = 0; i < PETALS; i++) {
+    const p = petalData[i];
+    p.x += p.vx * dt * 2.2;
+    p.z += p.vz * dt * 2.2;
+    p.y += Math.sin(t * 0.8 + p.ph) * 0.12 * dt * 10;
+    if (p.x > 32) p.x = -32;
+    if (p.y < 0.4) p.y = 0.4;
+    if (p.y > 19) p.y = 19;
+    dummy.position.set(p.x, p.y, p.z);
+    dummy.rotation.set(0, t * p.spin + p.ph, Math.sin(t + p.ph) * 0.6);
+    dummy.scale.set(1, 1, 1);
+    dummy.updateMatrix();
+    petals.setMatrixAt(i, dummy.matrix);
+  }
+  petals.instanceMatrix.needsUpdate = true;
+
+  // water sparkles: pulse flat <-> raised
+  for (let i = 0; i < SPARKS; i++) {
+    const s = sparkData[i];
+    const w = 0.35 + 0.65 * Math.abs(Math.sin(t * 0.9 + s.ph));
+    dummy.position.set(s.x, 1.0 + 0.06 * w, s.z);
+    dummy.rotation.set(0, 0, 0);
+    dummy.scale.set(1, w, 1);
+    dummy.updateMatrix();
+    sparks.setMatrixAt(i, dummy.matrix);
+  }
+  sparks.instanceMatrix.needsUpdate = true;
+
+  // koi swim in slow ellipses under the bridge light
+  for (const k of koi) {
+    k.a += k.w * dt;
+    k.g.position.set(
+      POND.x + Math.cos(k.a) * k.r * 0.95,
+      1.02,
+      POND.z + Math.sin(k.a) * k.r * 0.7
+    );
+    k.g.rotation.y = -k.a + Math.PI / 2;
+  }
+
+  // sky lanterns rise and reset
+  for (const l of skyLanterns) {
+    l.m.position.y += l.vy * dt * 3;
+    l.m.position.x += Math.sin(t * 0.4 + l.ph) * 0.05;
+    l.m.position.z += Math.cos(t * 0.3 + l.ph) * 0.05;
+    if (l.m.position.y > 48) { l.m.position.y = 7; }
+  }
+
+  controls.update();
+  renderer.render(scene, camera);
+
+  if (!firstFrameDone) {
+    firstFrameDone = true;
+    window.__pagodaStats = {
+      buckets: buckets.size,
+      voxels: voxelCount,
+      petals: PETALS,
+      sparks: SPARKS,
+    };
+  }
+  frames++;
+}
+animate();
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+</script>
+</body>
+</html>
