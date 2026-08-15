@@ -1,0 +1,17 @@
+# Bokeh Dreams
+
+## Creative Prompt
+Create a soft bokeh circle visualization with large blurred colored orbs drifting gently across a dark gradient background. Each circle has a radial gradient with a brighter inner spot, simulating lens bokeh. Circles have various sizes, blur amounts, alpha levels, and hue/saturation values, creating a rich, dreamlike depth of field effect. They drift slowly with sine-wave acceleration and wrap around screen edges. Clicking spawns a burst of new circles at the cursor position with explosive velocity. The title "Bokeh Dreams" is rendered in faint overlay text. The overall feel is calm, dreamy, and photographic.
+
+## Techniques Used
+- Canvas circle rendering with CSS filter blur for bokeh effect
+- Multi-stop radial gradients for lens-like light falloff
+- Phase-based drift acceleration
+- Screen wrapping
+- Click-to-burst spawning with velocity
+- Hue variety across the spectrum
+- Limited circle count (200 max) for performance
+- Background gradient overlay
+
+## Interaction Model
+Circles drift passively. Click or tap creates a burst of new circles at that position with outward velocity. Circle count displayed. Background continuously animates.

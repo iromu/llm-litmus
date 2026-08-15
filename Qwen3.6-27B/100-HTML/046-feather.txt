@@ -1,0 +1,20 @@
+# Feather
+
+## Creative Prompt
+Create an organic feather barb simulation. A detailed feather is rendered on canvas with a central shaft and barbs extending on both sides. Each barb has tiny barbules that create the feather's texture. The feather gently sways in the breeze with sine-wave motion. The color palette is natural — iridescent blues, greens, and golds. The background is soft and neutral. The overall aesthetic is organic, detailed, and natural — like studying a feather under magnification.
+
+## Techniques Used
+- Canvas feather rendering with central shaft (rachis) and hollow calamus
+- Branching barbs extending from both sides of the shaft
+- Barbule detail rendering for realistic feather texture
+- Hooklet rendering connecting adjacent barbs
+- Sine-wave sway animation with per-barb phase offsets for organic movement
+- Iridescent color gradients along feather length using HSL shifts
+- Radial gradient iridescence shimmer effects
+- Soft shadow rendering for depth
+- Vane translucency layer
+- Barb tip highlight particles
+- Responsive canvas filling the viewport
+
+## Interaction Model
+Passive animation — the feather sways gently in a simulated breeze. Each barb moves with independent phase offsets creating an organic, flowing motion. Iridescent shimmer spots drift across the feather surface over time.

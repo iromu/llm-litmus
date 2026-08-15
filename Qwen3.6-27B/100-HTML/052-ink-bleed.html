@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ink Bleed</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{overflow:hidden;background:#2a2320;cursor:crosshair}
+canvas{display:block;position:fixed;top:0;left:0}
+.hint{position:fixed;bottom:28px;left:50%;transform:translateX(-50%);font-family:Georgia,'Times New Roman',serif;font-size:0.8rem;color:rgba(90,60,40,0.45);letter-spacing:0.12em;pointer-events:none;transition:opacity 2s ease;z-index:2}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div class="hint" id="hint">click to drop ink</div>
+<script>
+const canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
+let W,H;
+
+/* ── Simulation grid ─────────────────────────────────── */
+const N=256;
+let inkR=new Float32Array(N*N),inkG=new Float32Array(N*N),inkB=new Float32Array(N*N);
+let resistance=new Float32Array(N*N);
+
+/* ── Ink color palette ───────────────────────────────── */
+const COLORS=[
+  {r:0.04,g:0.12,b:0.42},  /* deep blue    */
+  {r:0.52,g:0.06,b:0.14},  /* burgundy     */
+  {r:0.04,g:0.28,b:0.12},  /* forest green */
+  {r:0.10,g:0.08,b:0.12},  /* charcoal     */
+];
+
+/* ── Noise helpers ───────────────────────────────────── */
+function noise(x,y){
+  return(Math.sin(x*0.071+y*0.113)*0.5+1)*0.5
+       +(Math.sin(x*0.143-y*0.087+2.1)*0.5+1)*0.25
+       +(Math.sin(x*0.291+y*0.247+4.3)*0.5+1)*0.125
+       +(Math.sin(x*0.587-y*0.503+1.7)*0.5+1)*0.0625;
+}
+
+function channelNoise(x,y){
+  const a=Math.atan2(y-x,y+x);
+  const r=Math.sqrt(x*x+y*y);
+  return(Math.sin(a*3.7+r*0.31)*0.5+1)*0.5
+       +(Math.sin(a*5.3-r*0.19+1.1)*0.5+1)*0.3
+       +(Math.sin(a*2.1+r*0.47+3.3)*0.5+1)*0.2;
+}
+
+/* ── Build resistance field ─────────────────────────── */
+function buildResistance(){
+  for(let j=0;j<N;j++)for(let i=0;i<N;i++){
+    const s=i/N,e=j/N;
+    const n=noise(i,j);
+    const ch=channelNoise(i*0.8,j*0.8);
+    let v=n*0.55+ch*0.45;
+    v=v*v*(3-2*v);
+    resistance[j*N+i]=0.25+v*0.75;
+  }
+}
+
+/* ── Ink drop ────────────────────────────────────────── */
+class InkDrop{
+  constructor(x,y,color){
+    this.gx=Math.floor(x/W*N);
+    this.gy=Math.floor(y/H*N);
+    this.color=color;
+    this.initialConc=1.0;
+    this.conc=this.initialConc;
+    this.age=0;
+    this.spread=this._seed();
+  }
+  _seed(){
+    const r=8+Math.random()*6;
+    for(let dj=-r;dj<=r;dj++)for(let di=-r;di<=r;di++){
+      const d=Math.sqrt(di*di+dj*dj);
+      if(d<r){
+        const ni=this.gx+di,nj=this.gy+dj;
+        if(ni>=0&&ni<N&&nj>=0&&nj<N){
+          const falloff=Math.pow(1-d/r,2.5);
+          const sigma=r*0.35;
+          const gauss=Math.exp(-d*d/(2*sigma*sigma));
+          const v=falloff*gauss*(0.85+Math.random()*0.15);
+          const idx=nj*N+ni;
+          inkR[idx]=Math.min(1,inkR[idx]+v*this.color.r);
+          inkG[idx]=Math.min(1,inkG[idx]+v*this.color.g);
+          inkB[idx]=Math.min(1,inkB[idx]+v*this.color.b);
+        }
+      }
+    }
+  }
+  update(){
+    this.age++;
+    this.conc=this.initialConc*Math.pow(0.997,this.age);
+    this._diffuse(inkR);
+    this._diffuse(inkG);
+    this._diffuse(inkB);
+  }
+  _diffuse(ch){
+    const rate=0.018*this.conc;
+    const thr=0.003;
+    const tmp=new Float32Array(N*N);
+    for(let j=1;j<N-1;j++)for(let i=1;i<N-1;i++){
+      const idx=j*N+i;
+      if(ch[idx]<thr)continue;
+      const res=resistance[idx];
+      const sr=rate*(1-res*0.78);
+      let fl=ch[idx]-ch[Math.max(0,i-1)*N+j];
+      let fr=ch[Math.min(N-1,i+1)*N+j]-ch[idx];
+      let fu=ch[idx]-ch[idx-N];
+      let fd=ch[idx+N]-ch[idx];
+      fl=Math.max(0,fl)*sr;fr=Math.max(0,fr)*sr;
+      fu=Math.max(0,fu)*sr;fd=Math.max(0,fd)*sr;
+      tmp[idx]-=fl+fr+fu+fd;
+      if(i>0)tmp[(j*N+(i-1))]+=fl;
+      if(i<N-1)tmp[j*N+(i+1)]+=fr;
+      tmp[idx-N]+=fu;tmp[idx+N]+=fd;
+    }
+    for(let k=0;k<N*N;k++)ch[k]=Math.max(0,ch[k]+tmp[k]);
+  }
+}
+
+/* ── Render canvas (grid resolution) ────────────────── */
+const rc=document.createElement('canvas');
+const rctx=rc.getContext('2d');
+let rdata;
+
+function renderInk(){
+  if(rc.width!==N){rc.width=N;rc.height=N;rdata=rctx.createImageData(N,N);}
+  const d=rdata.data;
+  for(let j=0;j<N;j++)for(let i=0;i<N;i++){
+    const idx=j*N+i,pidx=idx*4;
+    const c=Math.min(1,inkR[idx]+inkG[idx]+inkB[idx]);
+    if(c<0.002){d[pidx]=0;d[pidx+1]=0;d[pidx+2]=0;d[pidx+3]=0;continue;}
+    const alpha=Math.pow(Math.min(1,c*2.5),0.65);
+    let r,g,b;
+    if(c>0.002){
+      const sum=inkR[idx]+inkG[idx]+inkB[idx]||1;
+      r=inkR[idx]/sum;g=inkG[idx]/sum;b=inkB[idx]/sum;
+    }else{r=0;g=0;b=0;}
+    const darken=Math.pow(1-c,0.55);
+    const sat=0.55+c*0.45;
+    const lum=(r*0.299+g*0.587+b*0.114);
+    const pr=r*sat+lum*(1-sat);
+    const pg=g*sat+lum*(1-sat);
+    const pb=b*sat+lum*(1-sat);
+    d[pidx]=Math.round(pr*darken*255);
+    d[pidx+1]=Math.round(pg*darken*255);
+    d[pidx+2]=Math.round(pb*darken*255);
+    d[pidx+3]=Math.round(alpha*225);
+  }
+  rctx.putImageData(rdata,0,0);
+}
+
+/* ── Paper texture ───────────────────────────────────── */
+const pc=document.createElement('canvas');
+const pctx=pc.getContext('2d');
+
+function buildPaper(){
+  pc.width=W;pc.height=H;
+  pctx.fillStyle='#ede4d3';
+  pctx.fillRect(0,0,W,H);
+  const pd=pctx.getImageData(0,0,W,H);
+  const p=pd.data;
+  for(let i=0;i<p.length;i+=4){
+    const nx=(Math.random()-0.5)*18;
+    p[i]=Math.min(255,Math.max(0,p[i]+nx));
+    p[i+1]=Math.min(255,Math.max(0,p[i+1]+nx*0.85));
+    p[i+2]=Math.min(255,Math.max(0,p[i+2]+nx*0.7));
+  }
+  pctx.putImageData(pd,0,0);
+  for(let i=0;i<300;i++){
+    const x=Math.random()*W,y=Math.random()*H;
+    const len=3+Math.random()*12;
+    const angle=Math.random()*Math.PI;
+    pctx.strokeStyle=`rgba(180,160,130,${0.015+Math.random()*0.025})`;
+    pctx.lineWidth=0.3+Math.random()*0.5;
+    pctx.beginPath();
+    pctx.moveTo(x,y);
+    pctx.lineTo(x+Math.cos(angle)*len,y+Math.sin(angle)*len);
+    pctx.stroke();
+  }
+  const vg=pctx.createRadialGradient(W/2,H/2,Math.min(W,H)*0.25,W/2,H/2,Math.max(W,H)*0.75);
+  vg.addColorStop(0,'rgba(0,0,0,0)');
+  vg.addColorStop(1,'rgba(40,25,15,0.18)');
+  pctx.fillStyle=vg;
+  pctx.fillRect(0,0,W,H);
+}
+
+/* ── State ───────────────────────────────────────────── */
+let drops=[];
+let hintEl=document.getElementById('hint');
+let hintFade=false;
+
+function resize(){
+  W=canvas.width=window.innerWidth;
+  H=canvas.height=window.innerHeight;
+  buildPaper();
+}
+
+/* ── Animation loop ──────────────────────────────────── */
+function frame(){
+  for(const d of drops)d.update();
+  renderInk();
+  ctx.clearRect(0,0,W,H);
+  ctx.imageSmoothingEnabled=true;
+  ctx.imageSmoothingQuality='high';
+  ctx.drawImage(pc,0,0);
+  ctx.globalCompositeOperation='multiply';
+  ctx.drawImage(rc,0,0,W,H);
+  ctx.globalCompositeOperation='source-over';
+  requestAnimationFrame(frame);
+}
+
+/* ── Interaction ─────────────────────────────────────── */
+canvas.addEventListener('click',e=>{
+  const color=COLORS[Math.floor(Math.random()*COLORS.length)];
+  drops.push(new InkDrop(e.clientX,e.clientY,color));
+  if(!hintFade){hintFade=true;hintEl.style.opacity='0';}
+});
+
+/* ── Init ────────────────────────────────────────────── */
+window.addEventListener('resize',resize);
+resize();
+buildResistance();
+
+const cx=W/2,cy=H/2;
+drops.push(new InkDrop(cx+Math.random()*60-30,cy+Math.random()*60-30,COLORS[0]));
+drops.push(new InkDrop(cx+120+Math.random()*40,cy-80+Math.random()*40,COLORS[1]));
+drops.push(new InkDrop(cx-100+Math.random()*40,cy+100+Math.random()*40,COLORS[2]));
+
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

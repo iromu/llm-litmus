@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Night Sky</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{overflow:hidden;background:#020208;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
+canvas{display:block;position:fixed;top:0;left:0}
+#info{position:fixed;bottom:40px;left:50%;transform:translateX(-50%);background:rgba(10,12,28,0.85);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid rgba(120,160,255,0.15);border-radius:16px;padding:24px 36px;color:#fff;text-align:center;opacity:0;transition:opacity 0.6s ease,transform 0.6s ease;pointer-events:none;z-index:10;max-width:520px}
+#info.visible{opacity:1;transform:translateX(-50%) translateY(0)}
+#info h2{font-size:1.6rem;font-weight:600;letter-spacing:0.04em;margin-bottom:6px;background:linear-gradient(135deg,#a8d4ff,#e8c8ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+#info .latin{font-size:0.85rem;color:rgba(160,180,220,0.7);font-style:italic;margin-bottom:10px}
+#info .desc{font-size:0.9rem;color:rgba(200,210,240,0.75);line-height:1.6}
+#info .meta{display:flex;gap:20px;justify-content:center;margin-top:12px;font-size:0.78rem;color:rgba(140,160,200,0.6)}
+#hint{position:fixed;top:24px;left:50%;transform:translateX(-50%);color:rgba(160,180,220,0.35);font-size:0.8rem;letter-spacing:0.08em;z-index:10;pointer-events:none;transition:opacity 2s ease}
+</style>
+</head>
+<body>
+<canvas id="sky"></canvas>
+<div id="info">
+<h2 id="infoName"></h2>
+<div class="latin" id="infoLatin"></div>
+<div class="desc" id="infoDesc"></div>
+<div class="meta"><span id="infoStars"></span><span id="infoMagnitude"></span></div>
+</div>
+<div id="hint">Click a constellation to explore</div>
+<script>
+const canvas=document.getElementById('sky'),ctx=canvas.getContext('2d');
+const infoEl=document.getElementById('info'),infoName=document.getElementById('infoName');
+const infoLatin=document.getElementById('infoLatin'),infoDesc=document.getElementById('infoDesc');
+const infoStars=document.getElementById('infoStars'),infoMagnitude=document.getElementById('infoMagnitude');
+const hint=document.getElementById('hint');
+let W,H,dpr,selected=null,hovered=null,time=0;
+
+const constellations=[
+{name:"Orion",latin:"The Hunter",stars:9,mag:"0.12",desc:"One of the most recognizable constellations, Orion straddles the celestial equator. His three belt stars — Alnitak, Alnilam, and Mintaka — form a perfect line across the winter sky.",
+points:[[0.48,0.22],[0.46,0.28],[0.49,0.35],[0.47,0.42],[0.50,0.42],[0.53,0.40],[0.51,0.35],[0.44,0.48],[0.55,0.46]],
+lines:[[0,1],[1,2],[2,3],[2,4],[4,5],[5,6],[6,2],[3,7],[5,8],[7,6],[8,6]]},
+{name:"Ursa Major",latin:"The Great Bear",stars:7,mag:"1.79",desc:"Home of the Big Dipper asterism, Ursa Major circles the north celestial pole. Its two pointer stars, Dubhe and Merak, lead the eye to Polaris, the North Star.",
+points:[[0.22,0.18],[0.26,0.20],[0.30,0.17],[0.33,0.21],[0.30,0.26],[0.26,0.28],[0.22,0.25]],
+lines:[[0,1],[1,2],[2,3],[3,4],[4,5],[5,6],[6,0]]},
+{name:"Cassiopeia",latin:"The Queen",stars:5,mag:"2.24",desc:"A distinctive W-shaped constellation sitting opposite the Big Dipper from Polaris. Cassiopeia was a vain queen in Greek mythology, punished to be tied to a chair for eternity.",
+points:[[0.18,0.32],[0.22,0.28],[0.26,0.33],[0.30,0.29],[0.34,0.34]],
+lines:[[0,1],[1,2],[2,3],[3,4]]},
+{name:"Leo",latin:"The Lion",stars:7,mag:"1.35",desc:"The majestic lion roars across spring skies. Its sickle-shaped head is marked by Regulus, one of the brightest stars in the sky, sitting at the lion's heart.",
+points:[[0.72,0.30],[0.68,0.26],[0.64,0.28],[0.62,0.34],[0.66,0.40],[0.70,0.42],[0.74,0.38]],
+lines:[[0,1],[1,2],[2,3],[3,4],[4,5],[5,6],[6,0],[0,3]]},
+{name:"Scorpius",latin:"The Scorpion",stars:8,mag:"1.06",desc:"A dramatic southern constellation with the brilliant red supergiant Antares at its heart. Its curved tail and sprawling claws dominate the summer night sky.",
+points:[[0.62,0.52],[0.65,0.56],[0.68,0.60],[0.72,0.62],[0.76,0.60],[0.78,0.56],[0.74,0.50],[0.70,0.48]],
+lines:[[0,1],[1,2],[2,3],[3,4],[4,5],[5,6],[6,7],[7,0],[2,7]]},
+{name:"Cygnus",latin:"The Swan",stars:7,mag:"1.25",desc:"Also known as the Northern Cross, Cygnus flies along the Milky Way. Deneb, its brightest star, forms one corner of the famous Summer Triangle asterism.",
+points:[[0.55,0.15],[0.58,0.22],[0.56,0.30],[0.54,0.38],[0.48,0.28],[0.62,0.28]],
+lines:[[0,1],[1,2],[2,3],[3,4],[3,5],[4,5]]},
+{name:"Lyra",latin:"The Harp",stars:5,mag:"0.03",desc:"A small but brilliant constellation dominated by Vega, the fifth-brightest star in the night sky. Vega was Earth's north star about 12,000 years ago and will be again in 13,700 years.",
+points:[[0.60,0.12],[0.63,0.16],[0.61,0.20],[0.58,0.18],[0.57,0.14]],
+lines:[[0,1],[1,2],[2,3],[3,4],[4,0]]},
+{name:"Aquila",latin:"The Eagle",stars:6,mag:"0.77",desc:"The eagle soars alongside Cygnus in the Milky Way. Its heart star Altair is the third vertex of the Summer Triangle, paired with Deneb and Vega.",
+points:[[0.68,0.22],[0.72,0.26],[0.70,0.32],[0.66,0.30],[0.64,0.26],[0.66,0.20]],
+lines:[[0,1],[1,2],[2,3],[3,4],[4,5],[5,0]]},
+{name:"Taurus",latin:"The Bull",stars:8,mag:"0.87",desc:"The charging bull carries the Pleiades and Hyades star clusters in its face. Aldebaran, its fiery orange eye, is one of the most distinctive stars in the sky.",
+points:[[0.38,0.42],[0.35,0.46],[0.32,0.50],[0.30,0.55],[0.34,0.58],[0.40,0.56],[0.44,0.52],[0.42,0.46]],
+lines:[[0,1],[1,2],[2,3],[3,4],[4,5],[5,6],[6,7],[7,0],[0,4]]},
+{name:"Gemini",latin:"The Twins",stars:7,mag:"1.16",desc:"Castor and Pollux, the brilliant twin stars, mark the heads of the legendary brothers. Gemini straddles the ecliptic, so planets and the Moon frequently pass through it.",
+points:[[0.44,0.24],[0.42,0.30],[0.40,0.36],[0.42,0.42],[0.50,0.22],[0.48,0.28],[0.46,0.34]],
+lines:[[0,1],[1,2],[2,3],[4,5],[5,6],[0,4],[1,5],[2,6]]},
+{name:"Sagittarius",latin:"The Archer",stars:7,mag:"1.85",desc:"The archer aims toward the center of our galaxy. The Teapot asterism makes Sagittarius easy to spot, and within its boundaries lies the galactic core.",
+points:[[0.78,0.42],[0.82,0.46],[0.80,0.52],[0.76,0.56],[0.72,0.52],[0.74,0.46],[0.76,0.40]],
+lines:[[0,1],[1,2],[2,3],[3,4],[4,5],[5,6],[6,0],[1,4]]},
+{name:"Draco",latin:"The Dragon",stars:7,mag:"2.23",desc:"The serpentine dragon winds between the Big Dipper and Cassiopeia. Its head star Thuban was once Earth's north star, over 4,800 years ago, before precession shifted the pole.",
+points:[[0.28,0.12],[0.32,0.10],[0.36,0.12],[0.34,0.16],[0.30,0.18],[0.26,0.16],[0.24,0.14]],
+lines:[[0,1],[1,2],[2,3],[3,4],[4,5],[5,6]]},
+{name:"Pegasus",latin:"The Winged Horse",stars:5,mag:"2.38",desc:"The Great Square of Pegasus is one of the largest asterisms in the sky. This celestial horse gallops across autumn skies, its square body formed by four nearly equal-brightness stars.",
+points:[[0.12,0.42],[0.18,0.40],[0.20,0.48],[0.14,0.50],[0.10,0.46]],
+lines:[[0,1],[1,2],[2,3],[3,4],[4,0]]},
+{name:"Aquarius",latin:"The Water Bearer",stars:6,mag:"2.90",desc:"The water bearer pours an endless stream toward the Southern Fish. Though faint, Aquarius sits on the ecliptic and marks the zodiac sign of the ages.",
+points:[[0.82,0.34],[0.86,0.38],[0.84,0.44],[0.80,0.48],[0.78,0.44],[0.76,0.38]],
+lines:[[0,1],[1,2],[2,3],[3,4],[4,5],[5,0],[0,3]]},
+{name:"Pisces",latin:"The Fish",stars:6,mag:"3.62",desc:"Two fish tied together by a ribbon, Pisces straddles the celestial equator. The Sun enters Pisces at the beginning of each new astrological age, roughly every 2,150 years.",
+points:[[0.40,0.52],[0.44,0.56],[0.48,0.54],[0.52,0.58],[0.48,0.62],[0.44,0.60]],
+lines:[[0,1],[1,2],[2,3],[3,4],[4,5],[5,0],[0,3]]}
+];
+
+// Milky Way parameters
+const milkyWayAngle=-0.35;
+const milkyWayWidth=0.28;
+
+function starColor(temp){
+if(temp<0.2)return[200,220,255];
+if(temp<0.4)return[180,200,255];
+if(temp<0.6)return[255,245,230];
+if(temp<0.8)return[255,220,180];
+return[255,180,140];
+}
+
+let stars=[];
+function generateStars(){
+stars=[];
+const count=Math.floor(W*H/600);
+const mw=Math.sin(milkyWayAngle),mh=Math.cos(milkyWayAngle);
+for(let i=0;i<count;i++){
+let x,y,attempts=0;
+do{x=Math.random();y=Math.random();attempts++}while(attempts<20&&inMilkyWay(x,y,mw,mh,0.06));
+const inMW=inMilkyWay(x,y,mw,mh,milkyWayWidth*0.5);
+const density=inMW?1+Math.random()*3:1;
+if(Math.random()>1/(0.3+density))continue;
+const temp=Math.random();
+const[r,g,b]=starColor(temp);
+const mag=Math.random();
+const brightness=mag<0.95?0.15+Math.random()*0.45:0.6+Math.random()*0.4;
+const size=brightness>0.8?1.2+Math.random()*1.5:brightness>0.5?0.6+Math.random()*0.8:0.3+Math.random()*0.5;
+const twinkleSpeed=0.5+Math.random()*3;
+const twinklePhase=Math.random()*Math.PI*2;
+stars.push({x:x*W,y:y*H,r:g,b,brightness,size,twinkleSpeed,twinklePhase,temp,isBright:mag>0.97})}
+// Milky Way dense band
+for(let i=0;i<count*0.6;i++){
+const along=Math.random();
+const perp=(Math.random()-0.5)*milkyWayWidth;
+const cx=0.5,cy=0.5;
+const dx=mh,dy=-mw;
+const px=cx+dx*along*1.2+perp*mw;
+const py=cy+dy*along*1.2+perp*(-mh);
+if(px<0||px>1||py<0||py>1)continue;
+const temp=Math.random();
+const[r,g,b]=starColor(temp);
+const brightness=0.08+Math.random()*0.25;
+const size=0.2+Math.random()*0.6;
+const twinkleSpeed=0.3+Math.random()*2;
+const twinklePhase=Math.random()*Math.PI*2;
+stars.push({x:px*W,y:py*H,r,g,b,brightness,size,twinkleSpeed,twinklePhase,temp,isBright:false})}}
+
+function inMilkyWay(x,y,mw,mh,width){
+const cx=0.5,cy=0.5;
+const dx=x-cx,dy=y-cy;
+const proj=dx*mw+dy*mh;
+const perpDist=Math.abs(-dx*mh+dy*mw);
+return perpDist<width/2}
+
+function drawBackground(){
+const grad=ctx.createRadialGradient(W*0.5,H*0.4,0,W*0.5,H*0.4,Math.max(W,H)*0.8);
+grad.addColorStop(0,'#0a0a1e');
+grad.addColorStop(0.5,'#060614');
+grad.addColorStop(1,'#020208');
+ctx.fillStyle=grad;
+ctx.fillRect(0,0,W,H);
+// Milky Way glow
+const mw=Math.sin(milkyWayAngle),mh=Math.cos(milkyWayAngle);
+const grad2=ctx.createLinearGradient(
+W*0.5-mh*W*0.6,H*0.5+mw*H*0.6,
+W*0.5+mh*W*0.6,H*0.5-mw*H*0.6);
+grad2.addColorStop(0,'rgba(40,35,60,0)');
+grad2.addColorStop(0.3,'rgba(50,40,80,0.04)');
+grad2.addColorStop(0.5,'rgba(60,50,90,0.07)');
+grad2.addColorStop(0.7,'rgba(50,40,80,0.04)');
+grad2.addColorStop(1,'rgba(40,35,60,0)');
+ctx.save();
+ctx.translate(W*0.5,H*0.5);
+ctx.rotate(milkyWayAngle);
+ctx.fillStyle=grad2;
+ctx.fillRect(-W,-H*0.15,W*2,H*0.3);
+ctx.restore();
+// Subtle nebula patches
+const nebulaGrad=ctx.createRadialGradient(W*0.52,H*0.38,0,W*0.52,H*0.38,W*0.15);
+nebulaGrad.addColorStop(0,'rgba(80,40,120,0.025)');
+nebulaGrad.addColorStop(1,'rgba(80,40,120,0)');
+ctx.fillStyle=nebulaGrad;
+ctx.fillRect(0,0,W,H);
+const nebulaGrad2=ctx.createRadialGradient(W*0.7,H*0.55,0,W*0.7,H*0.55,W*0.12);
+nebulaGrad2.addColorStop(0,'rgba(40,60,120,0.02)');
+nebulaGrad2.addColorStop(1,'rgba(40,60,120,0)');
+ctx.fillStyle=nebulaGrad2;
+ctx.fillRect(0,0,W,H)}
+
+function drawStars(){
+for(const s of stars){
+const twinkle=0.6+0.4*Math.sin(time*s.twinkleSpeed+s.twinklePhase);
+const alpha=s.brightness*twinkle;
+if(alpha<0.02)continue;
+ctx.beginPath();
+ctx.arc(s.x,s.y,s.size,0,Math.PI*2);
+ctx.fillStyle=`rgba(${s.r},${s.g},${s.b},${alpha})`;
+ctx.fill();
+if(s.isBright){
+const glowAlpha=alpha*0.15;
+const glowSize=s.size*4;
+const glow=ctx.createRadialGradient(s.x,s.y,0,s.x,s.y,glowSize);
+glow.addColorStop(0,`rgba(${s.r},${s.g},${s.b},${glowAlpha})`);
+glow.addColorStop(1,`rgba(${s.r},${s.g},${s.b},0)`);
+ctx.beginPath();
+ctx.arc(s.x,s.y,glowSize,0,Math.PI*2);
+ctx.fillStyle=glow;
+ctx.fill()}}}
+
+function constellationHitTest(mx,my,constellation){
+const pts=constellation.points.map(p=>({x:p[0]*W,y:p[1]*H}));
+const padding=40;
+for(let i=0;i<pts.length;i++){
+for(let j=i+1;j<pts.length;j++){
+const dist=pointToSegmentDist(mx,my,pts[i].x,pts[i].y,pts[j].x,pts[j].y);
+if(dist<padding)return true}}
+for(const p of pts){
+const dist=Math.sqrt((mx-p.x)**2+(my-p.y)**2);
+if(dist<padding)return true}
+return false}
+
+function pointToSegmentDist(px,py,ax,ay,bx,by){
+const dx=bx-ax,dy=by-ay;
+const lenSq=dx*dx+dy*dy;
+if(lenSq===0)return Math.sqrt((px-ax)**2+(py-ay)**2);
+let t=((px-ax)*dx+(py-ay)*dy)/lenSq;
+t=Math.max(0,Math.min(1,t));
+const cx=ax+t*dx,cy=ay+t*dy;
+return Math.sqrt((px-cx)**2+(py-cy)**2)}
+
+function drawConstellation(c,idx){
+const pts=c.points.map(p=>({x:p[0]*W,y:p[1]*H}));
+const isSelected=selected===idx;
+const isHovered=hovered===idx;
+const alpha=isSelected?0.9:isHovered?0.6:0.2;
+const lineWidth=isSelected?2.5:isHovered?1.8:1;
+const glowColor=isSelected?'rgba(120,180,255,':'rgba(140,160,200,';
+ctx.save();
+ctx.strokeStyle=glowColor+(alpha*0.6)+')';
+ctx.lineWidth=lineWidth+2;
+ctx.globalAlpha=0.3;
+for(const l of c.lines){
+ctx.beginPath();
+ctx.moveTo(pts[l[0]].x,pts[l[0]].y);
+ctx.lineTo(pts[l[1]].x,pts[l[1]].y);
+ctx.stroke()}
+ctx.globalAlpha=1;
+ctx.strokeStyle=glowColor+alpha+')';
+ctx.lineWidth=lineWidth;
+for(const l of c.lines){
+ctx.beginPath();
+ctx.moveTo(pts[l[0]].x,pts[l[0]].y);
+ctx.lineTo(pts[l[1]].x,pts[l[1]].y);
+ctx.stroke()}
+// Star dots
+const dotAlpha=isSelected?1:isHovered?0.8:0.4;
+const dotSize=isSelected?4:isHovered?3.5:2.5;
+for(const p of pts){
+ctx.beginPath();
+ctx.arc(p.x,p.y,dotSize,0,Math.PI*2);
+ctx.fillStyle=glowColor+dotAlpha+')';
+ctx.fill();
+if(isSelected){
+const glow=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,dotSize*3);
+glow.addColorStop(0,glowColor+'0.3)');
+glow.addColorStop(1,glowColor+'0)');
+ctx.beginPath();
+ctx.arc(p.x,p.y,dotSize*3,0,Math.PI*2);
+ctx.fillStyle=glow;
+ctx.fill()}}
+// Label
+if(isSelected||isHovered){
+const labelAlpha=isSelected?0.95:0.6;
+const cx=pts.reduce((s,p)=>s+p.x,0)/pts.length;
+const cy=pts.reduce((s,p)=>s+p.y,0)/pts.length;
+ctx.font=`${isSelected?'600':'400'} ${isSelected?14:12}px -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif`;
+ctx.fillStyle=`rgba(200,220,255,${labelAlpha})`;
+ctx.textAlign='center';
+ctx.textBaseline='bottom';
+ctx.fillText(c.name,cx,cy-12)}
+ctx.restore()}
+
+function showInfo(c){
+infoName.textContent=c.name;
+infoLatin.textContent=c.latin;
+infoDesc.textContent=c.desc;
+infoStars.textContent=`${c.stars} stars`;
+infoMagnitude.textContent=`Brightest: ${c.mag} mag`;
+infoEl.classList.add('visible');
+hint.style.opacity='0'}
+
+function hideInfo(){
+infoEl.classList.remove('visible');
+if(selected===null)hint.style.opacity='1'}
+
+function resize(){
+dpr=window.devicePixelRatio||1;
+W=window.innerWidth;H=window.innerHeight;
+canvas.width=W*dpr;canvas.height=H*dpr;
+canvas.style.width=W+'px';canvas.style.height=H+'px';
+ctx.setTransform(dpr,0,0,dpr,0,0);
+generateStars()}
+
+canvas.addEventListener('click',(e)=>{
+const mx=e.clientX,my=e.clientY;
+let found=null;
+for(let i=constellations.length-1;i>=0;i--){
+if(constellationHitTest(mx,my,constellations[i])){found=i;break}}
+if(found!==null){
+if(selected===found){selected=null;hideInfo()}
+else{selected=found;showInfo(constellations[found])}}
+else{selected=null;hideInfo()}});
+
+canvas.addEventListener('mousemove',(e)=>{
+const mx=e.clientX,my=e.clientY;
+let found=null;
+for(let i=constellations.length-1;i>=0;i--){
+if(constellationHitTest(mx,my,constellations[i])){found=i;break}}
+if(found!==hovered){
+hovered=found;
+canvas.style.cursor=found!==null?'pointer':'default'}});
+
+function animate(){
+time+=0.016;
+ctx.clearRect(0,0,W,H);
+drawBackground();
+drawStars();
+for(let i=0;i<constellations.length;i++){
+drawConstellation(constellations[i],i)}
+requestAnimationFrame(animate)}
+
+window.addEventListener('resize',resize);
+resize();
+animate();
+</script>
+</body>
+</html>

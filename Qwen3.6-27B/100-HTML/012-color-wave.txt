@@ -1,0 +1,16 @@
+# Color Wave
+
+## Creative Prompt
+Create a generative wave visualization with multiple layered sinusoidal waves in vibrant colors. Each wave has its own amplitude, frequency, speed, phase, and vertical offset, creating a complex, flowing composition. The waves are rendered both as filled semi-transparent areas and as thin stroke lines, producing a rich, layered look. Five color palettes cycle on click, shifting between pink/blue/purple, green/magenta, cyan/hot pink, orange/violet, and pastel combinations. The title "Chromatic Flow" appears in white with overlay blend mode. The overall aesthetic is fluid, vibrant, and hypnotic.
+
+## Techniques Used
+- Canvas sinusoidal wave rendering with dual sine terms for complexity
+- Filled wave shapes with alpha transparency
+- Layered wave strokes
+- Multiple independent wave parameters
+- Palette cycling on click
+- requestAnimationFrame loop with trailing effect
+- Responsive canvas
+
+## Interaction Model
+Click or tap to cycle through color palettes and regenerate wave configurations. Waves animate continuously with independent speeds and phases.

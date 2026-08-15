@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Glass Calculator</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{min-height:100vh;display:flex;align-items:center;justify-content:center;background:#1a0a2e;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
+.orb{position:fixed;border-radius:50%;filter:blur(80px);animation:float 10s ease-in-out infinite}
+.orb-1{width:400px;height:400px;background:rgba(100,50,200,0.3);top:-10%;left:-10%;animation-delay:0s}
+.orb-2{width:350px;height:350px;background:rgba(50,100,200,0.25);bottom:-10%;right:-10%;animation-delay:5s}
+@keyframes float{0%,100%{transform:translate(0,0)}50%{transform:translate(30px,-30px)}}
+.calc{position:relative;background:rgba(255,255,255,0.08);backdrop-filter:blur(40px);-webkit-backdrop-filter:blur(40px);border:1px solid rgba(255,255,255,0.15);border-radius:24px;padding:24px;width:340px;box-shadow:0 20px 60px rgba(0,0,0,0.3)}
+.display{background:rgba(0,0,0,0.2);border-radius:16px;padding:20px;margin-bottom:20px;text-align:right;min-height:100px;display:flex;flex-direction:column;justify-content:flex-end}
+.expression{font-size:0.9rem;color:rgba(255,255,255,0.4);min-height:24px;word-break:break-all}
+.result{font-size:2.5rem;font-weight:300;color:#fff;word-break:break-all}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.btn{padding:18px;border:none;border-radius:16px;font-size:1.2rem;cursor:pointer;transition:all 0.15s ease;position:relative;overflow:hidden;font-family:inherit}
+.btn:active{transform:scale(0.95)}
+.btn-num{background:rgba(255,255,255,0.1);color:#fff}
+.btn-num:hover{background:rgba(255,255,255,0.18)}
+.btn-op{background:rgba(0,200,255,0.15);color:#00c8ff}
+.btn-op:hover{background:rgba(0,200,255,0.25)}
+.btn-fn{background:rgba(255,255,255,0.05);color:rgba(255,255,255,0.6)}
+.btn-fn:hover{background:rgba(255,255,255,0.1)}
+.btn-eq{background:linear-gradient(135deg,#667eea,#764ba2);color:#fff}
+.btn-eq:hover{background:linear-gradient(135deg,#7b93e8,#8b5fbf)}
+.btn-zero{grid-column:span 2}
+</style>
+</head>
+<body>
+<div class="orb orb-1"></div>
+<div class="orb orb-2"></div>
+<div class="calc">
+<div class="display"><div class="expression" id="expr"></div><div class="result" id="result">0</div></div>
+<div class="grid">
+<button class="btn btn-fn" onclick="clearAll()">AC</button>
+<button class="btn btn-fn" onclick="toggleSign()">±</button>
+<button class="btn btn-fn" onclick="percent()">%</button>
+<button class="btn btn-op" onclick="op('/')">÷</button>
+<button class="btn btn-num" onclick="num('7')">7</button>
+<button class="btn btn-num" onclick="num('8')">8</button>
+<button class="btn btn-num" onclick="num('9')">9</button>
+<button class="btn btn-op" onclick="op('*')">×</button>
+<button class="btn btn-num" onclick="num('4')">4</button>
+<button class="btn btn-num" onclick="num('5')">5</button>
+<button class="btn btn-num" onclick="num('6')">6</button>
+<button class="btn btn-op" onclick="op('-')">−</button>
+<button class="btn btn-num" onclick="num('1')">1</button>
+<button class="btn btn-num" onclick="num('2')">2</button>
+<button class="btn btn-num" onclick="num('3')">3</button>
+<button class="btn btn-op" onclick="op('+')">+</button>
+<button class="btn btn-num btn-zero" onclick="num('0')">0</button>
+<button class="btn btn-num" onclick="decimal()">.</button>
+<button class="btn btn-eq" onclick="equal()">=</button>
+</div>
+</div>
+<script>
+let current='0',previous='',operation='',resetNext=false;
+const exprEl=document.getElementById('expr'),resultEl=document.getElementById('result');
+function update(){resultEl.textContent=current;exprEl.textContent=previous}
+function num(n){if(current==='0'||resetNext){current=n;resetNext=false}else current+=n;update()}
+function op(o){if(previous&&operation&&!resetNext)equal();previous=current+' ';operation=o;resetNext=true;update()}
+function equal(){if(!operation||!previous)return;const a=parseFloat(previous),b=parseFloat(current);let r;switch(operation){case'+':r=a+b;break;case'-':r=a-b;break;case'*':r=a*b;break;case'/':r=b!==0?a/b:'Error';break}previous='';operation='';current=String(r);resetNext=true;update()}
+function clearAll(){current='0';previous='';operation='';resetNext=false;update()}
+function toggleSign(){if(current!=='0')current=String(-parseFloat(current));update()}
+function percent(){current=String(parseFloat(current)/100);update()}
+function decimal(){if(!current.includes('.'))current+='.';update()}
+</script>
+</body>
+</html>

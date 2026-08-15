@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aurora Glass</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--card-bg:rgba(255,255,255,0.08);--card-border:rgba(255,255,255,0.15);--card-hover:rgba(255,255,255,0.12)}
+body{min-height:100vh;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0a0a1a;color:#fff;overflow-x:hidden}
+canvas#stars{position:fixed;top:0;left:0;width:100%;height:100%;z-index:0}
+.aurora{position:fixed;top:0;left:0;width:100%;height:100%;z-index:0;overflow:hidden}
+.aurora::before,.aurora::after{content:'';position:absolute;width:150%;height:150%;top:-25%;left:-25%;background:radial-gradient(ellipse at 30% 20%,rgba(0,255,150,0.15) 0%,transparent 50%),radial-gradient(ellipse at 70% 60%,rgba(0,150,255,0.12) 0%,transparent 50%),radial-gradient(ellipse at 50% 80%,rgba(150,0,255,0.1) 0%,transparent 50%);animation:aurora 15s ease-in-out infinite alternate}
+.aurora::after{background:radial-gradient(ellipse at 60% 30%,rgba(0,200,255,0.12) 0%,transparent 50%),radial-gradient(ellipse at 30% 70%,rgba(200,0,255,0.1) 0%,transparent 50%),radial-gradient(ellipse at 80% 50%,rgba(0,255,200,0.08) 0%,transparent 50%);animation:aurora2 18s ease-in-out infinite alternate}
+@keyframes aurora{0%{transform:translate(0,0) rotate(0deg) scale(1)}50%{transform:translate(-5%,3%) rotate(3deg) scale(1.05)}100%{transform:translate(5%,-2%) rotate(-2deg) scale(1.02)}}
+@keyframes aurora2{0%{transform:translate(0,0) rotate(0deg) scale(1.05)}50%{transform:translate(3%,-5%) rotate(-4deg) scale(1)}100%{transform:translate(-3%,2%) rotate(2deg) scale(1.03)}}
+.container{position:relative;z-index:1;max-width:1200px;margin:0 auto;padding:60px 24px}
+header{text-align:center;margin-bottom:60px}
+h1{font-size:clamp(2.5rem,6vw,4.5rem);font-weight:800;letter-spacing:-0.02em;background:linear-gradient(135deg,#a8edea 0%,#fed6e3 25%,#d299c2 50%,#a8edea 75%,#fed6e3 100%);background-size:200% 200%;-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;animation:gradient 8s ease infinite;margin-bottom:16px}
+@keyframes gradient{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
+.subtitle{font-size:1.1rem;color:rgba(255,255,255,0.6);font-weight:300;letter-spacing:0.05em}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:24px}
+.card{position:relative;background:var(--card-bg);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid var(--card-border);border-radius:20px;padding:32px;overflow:hidden;transition:transform 0.4s cubic-bezier(0.25,0.46,0.45,0.94),box-shadow 0.4s ease,background 0.3s ease;cursor:default}
+.card::before{content:'';position:absolute;top:0;left:0;right:0;bottom:0;background:radial-gradient(600px circle at var(--mouse-x,50%) var(--mouse-y,50%),rgba(255,255,255,0.06),transparent 40%);opacity:0;transition:opacity 0.3s ease;pointer-events:none}
+.card:hover::before{opacity:1}
+.card:hover{transform:translateY(-8px) scale(1.02);box-shadow:0 20px 60px rgba(0,0,0,0.3),0 0 40px rgba(100,200,255,0.1);background:var(--card-hover)}
+.card-icon{font-size:2.5rem;margin-bottom:16px;display:block}
+.card h2{font-size:1.3rem;font-weight:600;margin-bottom:8px;letter-spacing:-0.01em}
+.card p{font-size:0.9rem;color:rgba(255,255,255,0.6);line-height:1.6;margin-bottom:16px}
+.badge{display:inline-block;padding:4px 12px;border-radius:20px;font-size:0.75rem;font-weight:500;letter-spacing:0.05em;text-transform:uppercase}
+.badge-1{background:rgba(100,200,255,0.15);color:#a8edea}
+.badge-2{background:rgba(200,100,255,0.15);color:#d299c2}
+.badge-3{background:rgba(255,150,100,0.15);color:#fed6e3}
+.badge-4{background:rgba(100,255,200,0.15);color:#a8edea}
+footer{text-align:center;margin-top:60px;padding:24px;color:rgba(255,255,255,0.3);font-size:0.85rem}
+</style>
+</head>
+<body>
+<canvas id="stars"></canvas>
+<div class="aurora"></div>
+<div class="container">
+<header>
+<h1>Aurora Glass</h1>
+<p class="subtitle">Ethereal interfaces, crystalline design</p>
+</header>
+<div class="grid">
+<div class="card">
+<span class="card-icon">✦</span>
+<h2>Glassmorphism</h2>
+<p>Frosted transparency with backdrop blur creates depth and layering in modern interfaces.</p>
+<span class="badge badge-1">Visual</span>
+</div>
+<div class="card">
+<span class="card-icon">◈</span>
+<h2>Aurora Borealis</h2>
+<p>Animated gradient layers simulate the dancing northern lights across the dark canvas.</p>
+<span class="badge badge-2">Animation</span>
+</div>
+<div class="card">
+<span class="card-icon">❋</span>
+<h2>Light Refraction</h2>
+<p>Mouse-tracking radial gradients simulate light passing through polished crystal surfaces.</p>
+<span class="badge badge-3">Interactive</span>
+</div>
+<div class="card">
+<span class="card-icon">✧</span>
+<h2>Star Field</h2>
+<p>Procedurally generated stars twinkle with varying brightness across the cosmic backdrop.</p>
+<span class="badge badge-4">Generative</span>
+</div>
+<div class="card">
+<span class="card-icon">◇</span>
+<h2>Depth Layering</h2>
+<p>Multiple visual planes create a sense of three-dimensional space through careful opacity.</p>
+<span class="badge badge-1">Design</span>
+</div>
+<div class="card">
+<span class="card-icon">⬡</span>
+<h2>Responsive Grid</h2>
+<p>CSS Grid with auto-fit adapts the layout seamlessly from mobile to ultrawide displays.</p>
+<span class="badge badge-2">Layout</span>
+</div>
+</div>
+<footer>Crafted with pure HTML, CSS &amp; JavaScript — no dependencies</footer>
+</div>
+<script>
+const c=document.getElementById('stars'),ctx=c.getContext('2d');
+let stars=[];
+function resize(){c.width=window.innerWidth;c.height=window.innerHeight;init()}
+function init(){stars=[];for(let i=0;i<200;i++)stars.push({x:Math.random()*c.width,y:Math.random()*c.height,r:Math.random()*1.5+0.5,a:Math.random(),da:Math.random()*0.02+0.005})}
+function draw(){ctx.clearRect(0,0,c.width,c.height);stars.forEach(s=>{s.a+=s.da;if(s.a>1||s.a<0.2)s.da*=-1;ctx.beginPath();ctx.arc(s.x,s.y,s.r,0,Math.PI*2);ctx.fillStyle=`rgba(255,255,255,${s.a})`;ctx.fill()});requestAnimationFrame(draw)}
+document.querySelectorAll('.card').forEach(card=>{card.addEventListener('mousemove',e=>{const r=card.getBoundingClientRect();card.style.setProperty('--mouse-x',((e.clientX-r.left)/r.width*100)+'%');card.style.setProperty('--mouse-y',((e.clientY-r.top)/r.height*100)+'%')})});
+window.addEventListener('resize',resize);resize();draw();
+</script>
+</body>
+</html>

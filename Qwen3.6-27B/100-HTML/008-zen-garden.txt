@@ -1,0 +1,16 @@
+# Zen Garden
+
+## Creative Prompt
+Create a digital zen rock garden with a warm sand-colored background, raked sand patterns (horizontal lines and concentric ellipses around rocks), and five hand-crafted stone shapes rendered as SVG paths with subtle highlight strokes. Bamboo stalks on the right side, a stepping-stone path on the left, and minimalist "Zen Garden" text centered at the bottom. The rocks have a drop shadow and hover lift effect. Mouse movement causes the rocks to drift subtly in response to cursor position, like a gentle breeze. The overall mood is serene, balanced, and meditative.
+
+## Techniques Used
+- SVG shapes for rocks with organic path data
+- SVG pattern for raked sand lines
+- CSS ellipses for concentric raked circles around rock groups
+- CSS filter drop-shadow for rock depth
+- Bamboo segments with linear-gradient and pseudo-element joints
+- Mouse-driven translation on rocks for gentle interactivity
+- Responsive layout with media queries
+
+## Interaction Model
+Mouse movement creates subtle parallax drift on rocks. Hovering a rock causes it to lift (translateY). The scene is otherwise still and contemplative.

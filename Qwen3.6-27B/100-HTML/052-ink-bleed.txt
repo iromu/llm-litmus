@@ -1,0 +1,19 @@
+# Ink Bleed
+
+## Creative Prompt
+Create a watercolor ink spreading effect on paper. Ink drops fall onto a textured paper surface and spread outward with organic, branching patterns. The ink has color variations (deep blue, burgundy, forest green) and creates realistic bleeding effects with capillary-like branching. The paper has a subtle texture and warm tone. Clicking adds new ink drops. The overall aesthetic is artistic, organic, and painterly — like watching ink spread on watercolor paper.
+
+## Techniques Used
+- Grid-based ink diffusion simulation at reduced resolution
+- Multi-octave sine noise for paper resistance field
+- Channel noise for capillary-like branching patterns
+- Concentration-dependent diffusion rate with gradient-based flow
+- Per-channel (R/G/B) independent ink diffusion
+- Alpha compositing with power-law concentration mapping
+- Canvas `multiply` blend mode for ink-on-paper darkening
+- Procedural paper texture with noise grain, fiber streaks, and vignette
+- Scaled render canvas with high-quality bilinear interpolation
+- Click interaction with randomized ink color selection
+
+## Interaction Model
+Click anywhere on the canvas to drop a new ink blob at that position. Each drop randomly selects from four ink colors (deep blue, burgundy, forest green, charcoal). The ink diffuses outward following the noise-based resistance field, creating organic branching patterns. Multiple drops overlap and blend, producing rich color mixing effects. Three initial drops appear at page load to demonstrate the effect.

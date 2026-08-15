@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Marbling</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;overflow:hidden;background:#1a1410}
+canvas{display:block;width:100%;height:100%;cursor:pointer}
+#hint{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);font-family:system-ui,sans-serif;font-size:0.8rem;color:rgba(255,255,255,0.35);letter-spacing:0.06em;pointer-events:none;transition:opacity 2s ease}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hint">click to regenerate</div>
+<script>
+const canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
+let W,H,particles=[],streams=[],noiseOffX=0,noiseOffY=0,noiseOffZ=0,noiseScale=0.003,streamCount=6,particleCount=8000,evolveSpeed=0.0004,generation=0;
+
+// --- Simplex Noise (compact 2D) ---
+const F2=0.5*(Math.sqrt(3)-1),G2=(3-Math.sqrt(3))/6;
+const grad3=[[1,1],[-1,1],[1,-1],[-1,-1],[1,0],[-1,0],[0,1],[0,-1]];
+const perm=new Uint8Array(512);
+function seedNoise(s){const p=new Uint8Array(256);for(let i=0;i<256;i++)p[i]=i;for(let i=255;i>0;i--){s=(s*16807+0)%2147483647;const j=s%(i+1);[p[i],p[j]]=[p[j],p[i]]}for(let i=0;i<512;i++)perm[i]=p[i&255]}
+function simplex2(x,y){const s=(x+y)*F2;i0=Math.floor(x+s),j0=Math.floor(y+s);const t=(i0+j0)*G2;const x0=x-(i0-t),y0=y-(j0-t);const i1=x0>y0?1:0,j1=x0>y0?0:1;const x1=x0-i1+G2,y1=y0-j1+G2;const x2=x0-1+2*G2,y2=y0-1+2*G2;const ii=i0&255,jj=j0&255;let n0=0,n1=0,n2=0;let t0=0.5-x0*x0-y0*y0;if(t0>0){t0*=t0;const g=grad3[perm[ii+perm[jj]]%8];n0=t0*t0*(g[0]*x0+g[1]*y0)}let t1=0.5-x1*x1-y1*y1;if(t1>0){t1*=t1;const g=grad3[perm[ii+i1+perm[jj+j1]]%8];n1=t1*t1*(g[0]*x1+g[1]*y1)}let t2=0.5-x2*x2-y2*y2;if(t2>0){t2*=t2;const g=grad3[perm[ii+1+perm[jj+1]]%8];n2=t2*t2*(g[0]*x2+g[1]*y2)}return 70*(n0+n1+n2)}
+
+// --- Color palettes for marbling ---
+const palettes=[
+[[220,40,60],[255,140,30],[240,210,60],[40,180,140],[60,80,200],[160,40,180]],
+[[255,60,120],[255,160,40],[120,220,80],[40,160,220],[80,60,200],[255,200,60]],
+[[200,30,80],[255,100,50],[220,180,30],[30,200,160],[50,100,220],[180,50,160]],
+[[255,80,60],[255,200,80],[180,220,60],[60,180,220],[120,60,200],[240,60,140]],
+[[230,50,100],[255,130,40],[200,200,50],[50,200,130],[70,70,210],[200,70,170]],
+[[255,100,120],[255,180,60],[160,210,40],[40,190,200],[100,50,190],[220,80,150]],
+];
+
+// --- Stream (color channel) ---
+function createStream(i){
+const pal=palettes[generation%palettes.length];
+const base=pal[i%pal.length];
+const angle=Math.random()*Math.PI*2;
+const speed=0.3+Math.random()*0.7;
+return{
+color:base,
+angle:angle,
+speed:speed,
+noiseAngle:Math.random()*Math.PI*2,
+noiseAmp:0.8+Math.random()*1.2,
+flowOffset:Math.random()*1000,
+alpha:0.0006+Math.random()*0.0008,
+radius:1.5+Math.random()*2.5
+};
+}
+
+// --- Particle ---
+function createParticle(streamIdx){
+return{
+x:Math.random()*W,
+y:Math.random()*H,
+stream:streamIdx,
+life:0,
+maxLife:300+Math.random()*500
+};
+}
+
+// --- Initialize ---
+function init(){
+seedNoise(Date.now()+(generation*7919));
+streams=[];
+particles=[];
+for(let i=0;i<streamCount;i++)streams.push(createStream(i));
+for(let i=0;i<particleCount;i++){
+const si=Math.floor(Math.random()*streamCount);
+particles.push(createParticle(si));
+}
+noiseOffX=0;noiseOffY=0;noiseOffZ=Math.random()*1000;
+}
+
+// --- Resize ---
+function resize(){
+const dpr=Math.min(window.devicePixelRatio||1,2);
+W=window.innerWidth;H=window.innerHeight;
+canvas.width=W*dpr;canvas.height=H*dpr;
+canvas.style.width=W+'px';canvas.style.height=H+'px';
+ctx.setTransform(dpr,0,0,dpr,0,0);
+// Paint paper background
+paintPaper();
+}
+
+// --- Paper texture background ---
+function paintPaper(){
+ctx.fillStyle='#f5f0e6';
+ctx.fillRect(0,0,W,H);
+// Subtle paper grain
+const imgData=ctx.getImageData(0,0,canvas.width,canvas.height);
+const d=imgData.data;
+for(let i=0;i<d.length;i+=4){
+const noise=(Math.random()-0.5)*12;
+d[i]=Math.min(255,Math.max(0,d[i]+noise));
+d[i+1]=Math.min(255,Math.max(0,d[i+1]+noise));
+d[i+2]=Math.min(255,Math.max(0,d[i+2]+noise));
+}
+ctx.putImageData(imgData,0,0);
+}
+
+// --- Get flow angle at position ---
+function flowAngle(x,y,stream,time){
+const ns=noiseScale;
+const a=stream.angle;
+const na=stream.noiseAngle;
+const amp=stream.noiseAmp;
+const fo=stream.flowOffset;
+const t=time*0.0003;
+const nx=simplex2(x*ns+fo+na,y*ns+fo+na+t)*amp;
+const ny=simplex2(x*ns+fo+na+100,y*ns+fo+na+100+t)*amp;
+const angle=a+nx*Math.PI+ny*0.5;
+const curl=simplex2(x*ns*2+fo,y*ns*2+fo+t*1.5);
+return angle+curl*0.8;
+}
+
+// --- Update and draw ---
+let lastTime=0;
+function frame(time){
+const dt=Math.min(time-lastTime,50);
+lastTime=time;
+
+// Evolve noise fields slowly
+noiseOffX+=evolveSpeed*dt;
+noiseOffY+=evolveSpeed*dt*0.7;
+
+// Update particles and draw ink
+for(let i=0;i<particles.length;i++){
+const p=particles[i];
+const s=streams[p.stream];
+const angle=flowAngle(p.x,p.y,s,time);
+const speed=s.speed*dt*0.15;
+const vx=Math.cos(angle)*speed;
+const vy=Math.sin(angle)*speed;
+
+p.x+=vx;
+p.y+=vy;
+p.life++;
+
+// Draw ink deposit
+const sc=s.color;
+ctx.beginPath();
+ctx.arc(p.x,p.y,s.radius,0,Math.PI*2);
+ctx.fillStyle=`rgba(${sc[0]},${sc[1]},${sc[2]},${s.alpha})`;
+ctx.fill();
+
+// Wrap or respawn
+if(p.x<-50||p.x>W+50||p.y<-50||p.y>H+50||p.life>p.maxLife){
+const si=Math.floor(Math.random()*streamCount);
+Object.assign(p,{x:Math.random()*W,y:Math.random()*H,stream:si,life:0,maxLife:300+Math.random()*500});
+}
+}
+
+// Secondary flow layer — fainter, wider strokes for depth
+for(let i=0;i<particles.length;i+=8){
+const p=particles[i];
+const s=streams[p.stream];
+const angle=flowAngle(p.x+50,p.y+50,s,time*0.7);
+const spread=Math.sin(angle*0.5)*0.3;
+ctx.beginPath();
+ctx.arc(p.x+spread*30,p.y+spread*20,s.radius*2.5,0,Math.PI*2);
+const sc=s.color;
+ctx.fillStyle=`rgba(${sc[0]},${sc[1]},${sc[2]},${s.alpha*0.3})`;
+ctx.fill();
+}
+
+requestAnimationFrame(frame);
+}
+
+// --- Regenerate on click ---
+canvas.addEventListener('click',()=>{
+generation++;
+init();
+});
+
+// --- Start ---
+window.addEventListener('resize',resize);
+resize();
+init();
+requestAnimationFrame(frame);
+
+// Fade hint
+setTimeout(()=>{document.getElementById('hint').style.opacity='0'},4000);
+</script>
+</body>
+</html>

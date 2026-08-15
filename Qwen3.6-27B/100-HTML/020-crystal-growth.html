@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Crystal Growth</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: #05060d; }
+canvas { display: block; }
+#title {
+  position: fixed;
+  bottom: 24px;
+  width: 100%;
+  text-align: center;
+  font-family: 'Helvetica Neue', Arial, sans-serif;
+  font-size: 14px;
+  letter-spacing: 6px;
+  text-transform: uppercase;
+  color: rgba(140, 160, 220, 0.18);
+  pointer-events: none;
+  user-select: none;
+}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="title">Crystal Growth</div>
+<script>
+(() => {
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d');
+  let W, H;
+
+  function resize() {
+    W = canvas.width = window.innerWidth;
+    H = canvas.height = window.innerHeight;
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  const MAX_CRYSTALS = 120;
+  const crystals = [];
+  let mouseX = -1000, mouseY = -1000;
+  let mouseActive = false;
+  let lastMouseX = 0, lastMouseY = 0;
+
+  /* ── Crystal ────────────────────────────────────────── */
+  class Crystal {
+    constructor(x, y, hueBase) {
+      this.x = x;
+      this.y = y;
+      this.hueBase = hueBase;
+      this.age = 0;
+      this.maxAge = 600 + Math.random() * 600;
+      this.generation = 0;
+      this.maxGeneration = 3 + Math.floor(Math.random() * 3);
+      this.growInterval = 40 + Math.floor(Math.random() * 60);
+      this.facets = [];
+      this.dead = false;
+
+      const numArms = 3 + Math.floor(Math.random() * 4);
+      const armAngles = [];
+      for (let i = 0; i < numArms; i++) {
+        armAngles.push((Math.PI * 2 / numArms) * i + (Math.random() - 0.5) * 0.4);
+      }
+      armAngles.sort((a, b) => a - b);
+      this.armAngles = armAngles;
+      this.armLengths = armAngles.map(() => 0);
+      this.armTargets = armAngles.map(() => 25 + Math.random() * 55);
+      this.spread = 0.15 + Math.random() * 0.25;
+      this.hueShift = Math.random() * 30 - 15;
+      this.opacity = 0;
+      this.targetOpacity = 0.5 + Math.random() * 0.4;
+    }
+
+    grow() {
+      if (this.age >= this.maxAge) {
+        this.dead = true;
+        return;
+      }
+      this.age++;
+      this.opacity = Math.min(this.opacity + 0.005, this.targetOpacity);
+
+      if (this.age > this.maxAge * 0.7) {
+        this.opacity *= 0.998;
+      }
+
+      for (let i = 0; i < this.armLengths.length; i++) {
+        if (this.armLengths[i] < this.armTargets[i]) {
+          this.armLengths[i] += 0.3 + Math.random() * 0.5;
+          if (this.armLengths[i] > this.armTargets[i]) {
+            this.armLengths[i] = this.armTargets[i];
+          }
+        }
+      }
+
+      if (this.age % this.growInterval === 0 && this.generation < this.maxGeneration) {
+        this.spawnFacet();
+      }
+    }
+
+    spawnFacet() {
+      this.generation++;
+      const armIdx = Math.floor(Math.random() * this.armAngles.length);
+      const angle = this.armAngles[armIdx] + (Math.random() - 0.5) * this.spread;
+      const progress = 0.4 + Math.random() * 0.6;
+      const armLen = this.armLengths[armIdx];
+      const cx = this.x + Math.cos(angle) * armLen * progress;
+      const cy = this.y + Math.sin(angle) * armLen * progress;
+      const len = 12 + Math.random() * 28;
+      const facetAngle = angle + (Math.random() - 0.5) * 0.8;
+      const width = 6 + Math.random() * 14;
+
+      this.facets.push({
+        x: cx, y: cy,
+        angle: facetAngle,
+        length: 0,
+        targetLength: len,
+        width: 0,
+        targetWidth: width,
+        hueOffset: this.hueShift + Math.random() * 40 - 20,
+        alpha: this.targetOpacity * (0.6 + Math.random() * 0.4),
+        born: this.age
+      });
+    }
+
+    updateFacets() {
+      for (const f of this.facets) {
+        const age = this.age - f.born;
+        const t = Math.min(age / 30, 1);
+        const ease = t * t * (3 - 2 * t);
+        f.length = f.targetLength * ease;
+        f.width = f.targetWidth * ease;
+      }
+    }
+
+    draw() {
+      if (this.opacity < 0.01) return;
+
+      /* Draw main arms */
+      for (let i = 0; i < this.armAngles.length; i++) {
+        const angle = this.armAngles[i];
+        const len = this.armLengths[i];
+        if (len < 1) continue;
+
+        const tipX = this.x + Math.cos(angle) * len;
+        const tipY = this.y + Math.sin(angle) * len;
+        const perpAngle = angle + Math.PI / 2;
+        const w = len * this.spread * 0.3;
+
+        const hue = (this.hueBase + this.hueShift + i * 15) % 360;
+        const sat = 60 + Math.sin(this.age * 0.02 + i) * 15;
+        const light = 55 + Math.sin(this.age * 0.015 + i * 0.7) * 15;
+
+        ctx.beginPath();
+        ctx.moveTo(this.x, this.y);
+        ctx.lineTo(tipX + Math.cos(perpAngle) * w, tipY + Math.sin(perpAngle) * w);
+        ctx.lineTo(tipX, tipY);
+        ctx.lineTo(tipX - Math.cos(perpAngle) * w, tipY - Math.sin(perpAngle) * w);
+        ctx.closePath();
+
+        const grad = ctx.createLinearGradient(this.x, this.y, tipX, tipY);
+        grad.addColorStop(0, `hsla(${hue}, ${sat}%, ${light}%, ${this.opacity * 0.3})`);
+        grad.addColorStop(1, `hsla(${hue}, ${sat}%, ${light + 15}%, ${this.opacity * 0.8})`);
+        ctx.fillStyle = grad;
+        ctx.fill();
+
+        ctx.strokeStyle = `hsla(${hue}, ${sat + 10}%, ${light + 20}%, ${this.opacity * 0.6})`;
+        ctx.lineWidth = 0.5;
+        ctx.stroke();
+
+        /* Tip glow */
+        if (len > 15) {
+          const glowR = 8 + Math.sin(this.age * 0.05 + i) * 3;
+          const glow = ctx.createRadialGradient(tipX, tipY, 0, tipX, tipY, glowR);
+          glow.addColorStop(0, `hsla(${hue}, 80%, 85%, ${this.opacity * 0.5})`);
+          glow.addColorStop(1, `hsla(${hue}, 80%, 85%, 0)`);
+          ctx.fillStyle = glow;
+          ctx.beginPath();
+          ctx.arc(tipX, tipY, glowR, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      /* Draw spawned facets */
+      for (const f of this.facets) {
+        if (f.length < 1) continue;
+
+        const tipX = f.x + Math.cos(f.angle) * f.length;
+        const tipY = f.y + Math.sin(f.angle) * f.length;
+        const perpAngle = f.angle + Math.PI / 2;
+        const w = f.width;
+
+        const hue = (this.hueBase + f.hueOffset) % 360;
+        const sat = 65 + Math.sin(this.age * 0.025 + f.hueOffset) * 12;
+        const light = 50 + Math.sin(this.age * 0.018 + f.hueOffset * 0.5) * 18;
+
+        ctx.beginPath();
+        ctx.moveTo(f.x, f.y);
+        ctx.lineTo(tipX + Math.cos(perpAngle) * w * 0.5, tipY + Math.sin(perpAngle) * w * 0.5);
+        ctx.lineTo(tipX, tipY);
+        ctx.lineTo(tipX - Math.cos(perpAngle) * w * 0.5, tipY - Math.sin(perpAngle) * w * 0.5);
+        ctx.closePath();
+
+        const grad = ctx.createLinearGradient(f.x, f.y, tipX, tipY);
+        grad.addColorStop(0, `hsla(${hue}, ${sat}%, ${light}%, ${f.alpha * 0.25})`);
+        grad.addColorStop(1, `hsla(${hue}, ${sat}%, ${light + 12}%, ${f.alpha * 0.7})`);
+        ctx.fillStyle = grad;
+        ctx.fill();
+
+        ctx.strokeStyle = `hsla(${hue}, ${sat + 8}%, ${light + 18}%, ${f.alpha * 0.5})`;
+        ctx.lineWidth = 0.4;
+        ctx.stroke();
+
+        /* Facet tip glow */
+        if (f.length > 10) {
+          const glowR = 5 + Math.sin(this.age * 0.06 + f.hueOffset) * 2;
+          const glow = ctx.createRadialGradient(tipX, tipY, 0, tipX, tipY, glowR);
+          glow.addColorStop(0, `hsla(${hue}, 75%, 88%, ${f.alpha * 0.4})`);
+          glow.addColorStop(1, `hsla(${hue}, 75%, 88%, 0)`);
+          ctx.fillStyle = glow;
+          ctx.beginPath();
+          ctx.arc(tipX, tipY, glowR, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      /* Center glow */
+      const centerGlow = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, 18);
+      const chue = this.hueBase + this.hueShift;
+      centerGlow.addColorStop(0, `hsla(${chue}, 70%, 80%, ${this.opacity * 0.35})`);
+      centerGlow.addColorStop(1, `hsla(${chue}, 70%, 80%, 0)`);
+      ctx.fillStyle = centerGlow;
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, 18, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  /* ── Spawn helpers ─────────────────────────────────── */
+  function spawnCrystal(x, y) {
+    if (crystals.length >= MAX_CRYSTALS) {
+      crystals.shift();
+    }
+    const hue = 200 + Math.random() * 80;
+    crystals.push(new Crystal(x, y, hue));
+  }
+
+  function spawnCluster(x, y, count) {
+    for (let i = 0; i < count; i++) {
+      spawnCrystal(
+        x + (Math.random() - 0.5) * 40,
+        y + (Math.random() - 0.5) * 40
+      );
+    }
+  }
+
+  /* ── Events ────────────────────────────────────────── */
+  canvas.addEventListener('click', (e) => {
+    spawnCluster(e.clientX, e.clientY, 5 + Math.floor(Math.random() * 4));
+  });
+
+  canvas.addEventListener('mousemove', (e) => {
+    mouseX = e.clientX;
+    mouseY = e.clientY;
+    mouseActive = true;
+  });
+
+  canvas.addEventListener('mouseleave', () => {
+    mouseActive = false;
+  });
+
+  /* ── Mouse trail spawning ──────────────────────────── */
+  let mouseSpawnTimer = 0;
+  function handleMouseSpawn() {
+    if (!mouseActive) return;
+    mouseSpawnTimer++;
+    if (mouseSpawnTimer % 8 === 0) {
+      const dx = mouseX - lastMouseX;
+      const dy = mouseY - lastMouseY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist > 5) {
+        spawnCrystal(
+          mouseX + (Math.random() - 0.5) * 20,
+          mouseY + (Math.random() - 0.5) * 20
+        );
+        lastMouseX = mouseX;
+        lastMouseY = mouseY;
+      }
+    }
+  }
+
+  /* ── Initial crystals ──────────────────────────────── */
+  for (let i = 0; i < 8; i++) {
+    spawnCrystal(
+      W * 0.2 + Math.random() * W * 0.6,
+      H * 0.2 + Math.random() * H * 0.6
+    );
+  }
+
+  /* ── Render loop ───────────────────────────────────── */
+  function frame() {
+    /* Trailing background */
+    ctx.fillStyle = 'rgba(5, 6, 13, 0.06)';
+    ctx.fillRect(0, 0, W, H);
+
+    handleMouseSpawn();
+
+    /* Update and draw */
+    for (let i = crystals.length - 1; i >= 0; i--) {
+      const c = crystals[i];
+      c.grow();
+      c.updateFacets();
+      c.draw();
+      if (c.dead) {
+        crystals.splice(i, 1);
+      }
+    }
+
+    requestAnimationFrame(frame);
+  }
+
+  /* Clear fully on first frame */
+  ctx.fillStyle = '#05060d';
+  ctx.fillRect(0, 0, W, H);
+
+  frame();
+})();
+</script>
+</body>
+</html>

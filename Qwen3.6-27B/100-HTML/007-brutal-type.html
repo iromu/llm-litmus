@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Brutal Type</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{min-height:100vh;background:#0a0a0a;color:#fff;font-family:Impact,'Arial Black',sans-serif;overflow-x:hidden;position:relative}
+.noise{position:fixed;top:0;left:0;width:100%;height:100%;opacity:0.04;pointer-events:none;z-index:100;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");background-size:256px}
+.scanline{position:fixed;top:0;left:0;width:100%;height:4px;background:rgba(255,255,255,0.03);z-index:99;animation:scan 4s linear infinite;pointer-events:none}
+@keyframes scan{0%{top:-4px}100%{top:100vh}}
+.container{max-width:1200px;margin:0 auto;padding:60px 24px;position:relative;z-index:1}
+.hero{text-align:center;margin-bottom:80px}
+.line{display:block;font-size:clamp(4rem,12vw,10rem);line-height:0.9;animation:glitch 0.3s infinite}
+.line-1{color:#ff0000;animation-delay:0s}
+.line-2{-webkit-text-stroke:3px #fff;color:transparent;animation-delay:0.1s}
+.line-3{color:#0044ff;animation-delay:0.2s}
+@keyframes glitch{0%,100%{transform:translate(0)}20%{transform:translate(-3px,2px)}40%{transform:translate(3px,-1px)}60%{transform:translate(-2px,-2px)}80%{transform:translate(2px,1px)}}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:2px;margin-bottom:60px}
+.stat{padding:24px;border:1px solid rgba(255,255,255,0.1);position:relative;overflow:hidden}
+.stat::after{content:'';position:absolute;bottom:0;left:0;width:100%;height:3px;background:#ff0000;animation:pulse 2s ease-in-out infinite}
+.stat:nth-child(2)::after{background:#fff;animation-delay:0.3s}
+.stat:nth-child(3)::after{background:#0044ff;animation-delay:0.6s}
+@keyframes pulse{0%,100%{transform:scaleX(0.3);transform-origin:left}50%{transform:scaleX(1);transform-origin:left}}
+.stat-value{font-size:2.5rem;font-weight:700;margin-bottom:4px}
+.stat-label{font-family:monospace;font-size:0.7rem;text-transform:uppercase;letter-spacing:0.15em;color:rgba(255,255,255,0.4)}
+.quote{text-align:center;font-style:italic;font-size:clamp(1.2rem,3vw,2rem);font-weight:400;color:rgba(255,255,255,0.6);margin-bottom:60px;line-height:1.6;max-width:700px;margin-left:auto;margin-right:auto}
+.quote cite{display:block;font-style:normal;font-size:0.8rem;margin-top:16px;color:rgba(255,255,255,0.3);font-family:monospace;letter-spacing:0.1em}
+.desc{display:grid;grid-template-columns:1fr 1fr;gap:40px;font-family:monospace;font-size:0.85rem;color:rgba(255,255,255,0.5);line-height:1.8}
+.desc h3{font-family:Impact,sans-serif;font-size:1.2rem;color:#fff;margin-bottom:12px;text-transform:uppercase}
+@media(max-width:600px){.desc{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="noise"></div>
+<div class="scanline"></div>
+<div class="container">
+<div class="hero">
+<span class="line line-1">BRUTAL</span>
+<span class="line line-2">TYPOGRAPHY</span>
+<span class="line line-3">SHOWCASE</span>
+</div>
+<div class="stats">
+<div class="stat"><div class="stat-value">96pt</div><div class="stat-label">Minimum size</div></div>
+<div class="stat"><div class="stat-value">0.85</div><div class="stat-label">Line height ratio</div></div>
+<div class="stat"><div class="stat-value">-0.02em</div><div class="stat-label">Letter spacing</div></div>
+</div>
+<div class="quote">
+"Good design is as little design as possible. Less, but better — because it concentrates on the essential aspects."
+<cite>— Dieter Rams, 2001</cite>
+</div>
+<div class="desc">
+<div><h3>Philosophy</h3>Brutalist typography strips away ornamentation to reveal the raw power of type. Heavy weights, tight spacing, and aggressive scale create an unapologetic visual statement that demands attention.</div>
+<div><h3>Execution</h3>Every element serves the hierarchy. Noise textures add analog warmth. Glitch animations introduce digital tension. The result is a confrontation between order and chaos, rendered in pure type.</div>
+</div>
+</div>
+<script>
+document.addEventListener('click',()=>{document.querySelectorAll('.line').forEach(l=>{l.style.animation='none';requestAnimationFrame(()=>{l.style.animation=''})})});
+</script>
+</body>
+</html>

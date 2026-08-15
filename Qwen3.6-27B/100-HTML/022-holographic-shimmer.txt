@@ -1,0 +1,21 @@
+# Holographic Shimmer
+
+## Creative Prompt
+Create a holographic premium card with an iridescent shimmer effect. The card has a conic-gradient animated border that spins continuously, a multi-color shimmer background, and a moving light overlay. The content includes a badge, gradient title, description, pricing, feature list with checks, and a gradient CTA button. The card tilts in 3D on mouse move, responding to cursor position with perspective transforms. The conic gradient border angle also follows the cursor. The aesthetic is futuristic, premium, and iridescent — like a holographic credit card or limited edition collectible.
+
+## Techniques Used
+- CSS `@property` custom property for animatable `--border-angle` with `conic-gradient`
+- Animated `conic-gradient` border via `@keyframes` rotating the angle property
+- Shimmer overlay with `linear-gradient` at `background-size: 300%` and position animation
+- 3D perspective tilt using JavaScript mouse tracking with `rotateX`/`rotateY`/`translateZ`
+- Gradient text clipping with `-webkit-background-clip: text`
+- Floating idle animation with `translateY` oscillation
+- Grid overlay texture via repeating `linear-gradient` background
+- Glassmorphism card inner with `backdrop-filter: blur`
+- Radial light overlay following cursor via CSS custom properties
+- Hover scale + glow on CTA button with `box-shadow` transition
+- Responsive sizing with `min(380px, 88vw)`
+- Corner accent blurs for ambient color bleed
+
+## Interaction Model
+Mouse movement over the card creates a 3D tilt effect — `rotateX` and `rotateY` are computed from cursor offset relative to card center, with `translateZ` for depth pop. The `conic-gradient` border angle follows the cursor position via `Math.atan2`. A radial light overlay tracks the cursor inside the card. On mouse leave, the card smoothly returns to flat with a `cubic-bezier` easing. When not hovered, the card gently floats up and down.

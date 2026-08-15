@@ -1,0 +1,21 @@
+# Sound Visualizer
+
+## Creative Prompt
+Create a generative audio frequency bar visualization. A series of vertical bars animate with simulated frequency data, creating a music visualizer effect. Bars have gradient fills, glow effects, and smooth animation. The visualization includes a central waveform display, circular frequency rings, and particle effects. The color palette is vibrant neon (cyan, magenta, purple). The overall aesthetic is energetic, colorful, and rhythmic — like a music visualizer at a concert.
+
+## Techniques Used
+- HTML5 Canvas frequency bar rendering with gradient fills
+- Simulated audio data with multi-layered sine wave generation
+- Waveform display with smooth bezier curves and gradient stroke
+- Circular frequency rings with radial symmetry and counter-rotation
+- Particle effects that spawn on frequency peaks with gravity
+- Neon color palette (cyan → magenta → purple) with per-bar color mapping
+- Bar height transitions driven by continuous sine-based simulation
+- Mirror reflection bars beneath the main frequency display
+- Canvas shadow blur for neon glow effect on bars, waveform, and rings
+- Subtle background grid for depth
+- Alpha-based trailing effect for motion blur
+- Responsive canvas filling the full viewport
+
+## Interaction Model
+Passive animation — bars pulse, waveform flows, rings rotate, and particles react to frequency peaks. The visualization simulates a music track with varying intensity over time. No user interaction required.

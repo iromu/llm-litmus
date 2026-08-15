@@ -1,0 +1,16 @@
+# Kinetic Letterforms
+
+## Creative Prompt
+Create an interactive kinetic typography visualization where letters dance and respond to mouse movement. The word "KINETIC" forms the core, with each letter springing toward its target position but repelled by the mouse cursor. Additional random floating letters drift around. Letters have subtle rotation, size pulsing, and glow that intensifies near the cursor. Connection lines appear between adjacent main letters when they are close. Clicking re-randomizes all positions. The background is dark, and the letters glow in soft blue-white. The overall feel is playful, responsive, and elegant.
+
+## Techniques Used
+- Canvas text rendering with spring physics (target attraction + mouse repulsion)
+- Per-letter phase-based oscillation for organic feel
+- Shadow glow rendering with dynamic intensity based on cursor proximity
+- Connection lines between neighboring letters
+- Click-based reinitialization
+- Responsive typography sizing
+- save/restore for per-letter transforms
+
+## Interaction Model
+Mouse moves push letters away (repulsion). Letters spring back toward their target positions. Click reshuffles everything. Connection lines appear between adjacent main letters when close.

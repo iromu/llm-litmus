@@ -1,0 +1,20 @@
+# Night Sky
+
+## Creative Prompt
+Create an interactive constellation viewer. A star field with thousands of stars of varying brightness and color. Constellation patterns are overlaid with connecting lines and labels. Clicking on a constellation highlights it and shows information. The Milky Way is visible as a band of denser stars. The overall aesthetic is scientific, beautiful, and educational — like a star chart come to life.
+
+## Techniques Used
+- Canvas star field rendering with thousands of procedurally generated stars
+- Star color temperature variation (blue-white to orange-red)
+- Bright star glow halos with radial gradients
+- Star twinkling animation with per-star phase and frequency
+- Milky Way band with denser star distribution and subtle nebula glow
+- Constellation line rendering with multi-layer glow effect
+- Point-to-segment distance calculation for click hit testing
+- Smooth constellation highlighting with selection and hover states
+- Information display overlay with backdrop blur and gradient text
+- Dark sky radial gradient background
+- Responsive canvas with DPR-aware rendering
+
+## Interaction Model
+Click on a constellation to highlight it and display its name, Latin designation, description, star count, and brightest magnitude. Click the same constellation again or click empty sky to deselect. Hovering over a constellation changes the cursor and partially highlights it. Stars twinkle continuously with independent phases.

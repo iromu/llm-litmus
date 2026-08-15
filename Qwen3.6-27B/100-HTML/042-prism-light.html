@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Prism Light</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{min-height:100vh;background:#080810;overflow:hidden}
+canvas{display:block;position:fixed;top:0;left:0}
+.hint{position:fixed;bottom:28px;left:50%;transform:translateX(-50%);font:12px/1 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:rgba(255,255,255,0.25);letter-spacing:0.12em;z-index:2;pointer-events:none;text-align:center;transition:opacity 3s ease}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div class="hint" id="hint">move mouse to adjust light angle</div>
+<script>
+const c = document.getElementById('c'), ctx = c.getContext('2d');
+let W, H, mouse = { x: 0, y: 0 }, mouseActive = false;
+const PRISM_N = 1.52;
+const SPECTRUM = [
+  { wl: 700, r: 255, g: 40,  b: 20  },
+  { wl: 620, r: 255, g: 120, b: 30  },
+  { wl: 580, r: 255, g: 220, b: 40  },
+  { wl: 530, r: 60,  g: 255, b: 80  },
+  { wl: 490, r: 30,  g: 180, b: 255 },
+  { wl: 450, r: 60,  g: 60,  b: 255 },
+  { wl: 400, r: 140, g: 40,  b: 255 }
+];
+
+function resize() {
+  W = c.width = window.innerWidth;
+  H = c.height = window.innerHeight;
+  if (!mouseActive) { mouse.x = W * 0.35; mouse.y = H * 0.5; }
+}
+
+window.addEventListener('resize', resize);
+window.addEventListener('mousemove', e => {
+  mouse.x = e.clientX;
+  mouse.y = e.clientY;
+  mouseActive = true;
+  const hint = document.getElementById('hint');
+  if (hint) hint.style.opacity = '0';
+});
+window.addEventListener('touchmove', e => {
+  e.preventDefault();
+  mouse.x = e.touches[0].clientX;
+  mouse.y = e.touches[0].clientY;
+  mouseActive = true;
+  const hint = document.getElementById('hint');
+  if (hint) hint.style.opacity = '0';
+}, { passive: false });
+
+resize();
+
+function prismVertices() {
+  const cx = W * 0.5, cy = H * 0.5;
+  const size = Math.min(W, H) * 0.22;
+  const h = size * Math.sqrt(3) / 2;
+  return [
+    { x: cx, y: cy - h * 2 / 3 },
+    { x: cx - size / 2, y: cy + h / 3 },
+    { x: cx + size / 2, y: cy + h / 3 }
+  ];
+}
+
+function lineIntersect(p1, p2, p3, p4) {
+  const d1x = p2.x - p1.x, d1y = p2.y - p1.y;
+  const d2x = p4.x - p3.x, d2y = p4.y - p3.y;
+  const denom = d1x * d2y - d1y * d2x;
+  if (Math.abs(denom) < 1e-10) return null;
+  const t = ((p3.x - p1.x) * d2y - (p3.y - p1.y) * d2x) / denom;
+  return { x: p1.x + t * d1x, y: p1.y + t * d1y, t };
+}
+
+function normalEdge(v1, v2) {
+  const dx = v2.x - v1.x, dy = v2.y - v1.y;
+  const len = Math.sqrt(dx * dx + dy * dy);
+  return { x: -dy / len, y: dx / len };
+}
+
+function refract(incidentX, incidentY, nx, ny, n1, n2) {
+  const eta = n1 / n2;
+  const cosI = -(nx * incidentX + ny * incidentY);
+  const sinT2 = eta * eta * (1 - cosI * cosI);
+  if (sinT2 > 1) return null;
+  const cosT = Math.sqrt(1 - sinT2);
+  return {
+    x: eta * incidentX + (eta * cosI - cosT) * nx,
+    y: eta * incidentY + (eta * cosI - cosT) * ny
+  };
+}
+
+function wavelengthToN(wl) {
+  const Cauchy = { A: 1.500, B: 4200, C: 60000 };
+  return Cauchy.A + Cauchy.B / (wl * wl) + Cauchy.C / (wl * wl * wl * wl);
+}
+
+function drawPrismGlass(v) {
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(v[0].x, v[0].y);
+  ctx.lineTo(v[1].x, v[1].y);
+  ctx.lineTo(v[2].x, v[2].y);
+  ctx.closePath();
+
+  const grad = ctx.createRadialGradient(
+    v[0].x, v[0].y - 20, 0,
+    (v[0].x + v[1].x + v[2].x) / 3, (v[0].y + v[1].y + v[2].y) / 3,
+    Math.min(W, H) * 0.25
+  );
+  grad.addColorStop(0, 'rgba(200,220,255,0.06)');
+  grad.addColorStop(0.5, 'rgba(180,200,240,0.03)');
+  grad.addColorStop(1, 'rgba(150,180,220,0.02)');
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  ctx.strokeStyle = 'rgba(180,210,255,0.2)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  ctx.strokeStyle = 'rgba(220,240,255,0.1)';
+  ctx.lineWidth = 0.8;
+  ctx.beginPath();
+  ctx.moveTo(v[0].x + 4, v[0].y + 12);
+  ctx.lineTo(v[1].x + 10, v[1].y - 8);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+function drawBeam(fromX, fromY, toX, toY, color, width, alpha, glowSize) {
+  const dx = toX - fromX, dy = toY - fromY;
+  const len = Math.sqrt(dx * dx + dy * dy);
+  if (len < 1) return;
+
+  const nx = -dy / len, ny = dx / len;
+  const hw = width / 2;
+
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.shadowColor = color;
+  ctx.shadowBlur = glowSize;
+
+  const grad = ctx.createLinearGradient(fromX, fromY, toX, toY);
+  grad.addColorStop(0, color.replace(/[\d.]+\)$/, (alpha * 0.3).toFixed(3) + ')'));
+  grad.addColorStop(0.3, color.replace(/[\d.]+\)$/, (alpha * 0.8).toFixed(3) + ')'));
+  grad.addColorStop(0.7, color.replace(/[\d.]+\)$/, alpha.toFixed(3) + ')'));
+  grad.addColorStop(1, color.replace(/[\d.]+\)$/, (alpha * 0.6).toFixed(3) + ')'));
+
+  ctx.beginPath();
+  ctx.moveTo(fromX + nx * hw, fromY + ny * hw);
+  ctx.lineTo(toX + nx * hw * 1.2, toY + ny * hw * 1.2);
+  ctx.lineTo(toX - nx * hw * 1.2, toY - ny * hw * 1.2);
+  ctx.lineTo(fromX - nx * hw, fromY - ny * hw);
+  ctx.closePath();
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  ctx.shadowBlur = 0;
+  ctx.globalAlpha = alpha * 0.6;
+  ctx.lineWidth = 1.5;
+  const coreGrad = ctx.createLinearGradient(fromX, fromY, toX, toY);
+  const coreColor = color.replace(/[\d.]+\)$/, '1)');
+  coreGrad.addColorStop(0, 'rgba(255,255,255,0)');
+  coreGrad.addColorStop(0.3, coreColor.replace('rgb', 'rgba').replace(')', ',0.5)'));
+  coreGrad.addColorStop(0.7, coreColor.replace('rgb', 'rgba').replace(')', ',0.7)'));
+  coreGrad.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.strokeStyle = coreGrad;
+  ctx.beginPath();
+  ctx.moveTo(fromX, fromY);
+  ctx.lineTo(toX, toY);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+function drawSpectrumFan(entryPt, exitPts) {
+  if (exitPts.length < 2) return;
+  const midI = Math.floor(exitPts.length / 2);
+  const midPt = exitPts[midI];
+
+  for (let i = 0; i < exitPts.length; i++) {
+    const sp = SPECTRUM[i];
+    const rgb = `rgb(${sp.r},${sp.g},${sp.b})`;
+    const dist = Math.sqrt(W * W + H * H) * 0.8;
+    const dx = exitPts[i].x - entryPt.x;
+    const dy = exitPts[i].y - entryPt.y;
+    const dlen = Math.sqrt(dx * dx + dy * dy);
+    if (dlen < 1) continue;
+    const dirX = dx / dlen, dirY = dy / dlen;
+    const endX = exitPts[i].x + dirX * dist;
+    const endY = exitPts[i].y + dirY * dist;
+    const spread = Math.abs(i - midI) / midI;
+    const beamW = 3 + spread * 5;
+    const beamAlpha = 0.7 - spread * 0.15;
+    drawBeam(exitPts[i].x, exitPts[i].y, endX, endY, rgb, beamW, beamAlpha, 15 + spread * 5);
+  }
+
+  const topPt = exitPts[0], botPt = exitPts[exitPts.length - 1];
+  const fanDx = botPt.x - topPt.x, fanDy = botPt.y - topPt.y;
+  const fanLen = Math.sqrt(fanDx * fanDx + fanDy * fanDy);
+  if (fanLen > 2) {
+    const grad = ctx.createLinearGradient(topPt.x, topPt.y, botPt.x, botPt.y);
+    for (let i = 0; i < SPECTRUM.length; i++) {
+      const t = i / (SPECTRUM.length - 1);
+      const sp = SPECTRUM[i];
+      grad.addColorStop(t, `rgba(${sp.r},${sp.g},${sp.b},0.35)`);
+    }
+    ctx.save();
+    ctx.globalAlpha = 0.25;
+    ctx.shadowColor = 'rgba(255,255,255,0.3)';
+    ctx.shadowBlur = 20;
+    ctx.beginPath();
+    ctx.moveTo(topPt.x, topPt.y);
+    for (let i = 1; i < exitPts.length; i++) {
+      ctx.lineTo(exitPts[i].x, exitPts[i].y);
+    }
+    const spreadW = 12;
+    const perpX = -fanDy / fanLen * spreadW;
+    const perpY = fanDx / fanLen * spreadW;
+    ctx.lineTo(botPt.x + perpX, botPt.y + perpY);
+    ctx.lineTo(topPt.x + perpX, topPt.y + perpY);
+    ctx.closePath();
+    ctx.fillStyle = grad;
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
+function drawSourceGlow(x, y) {
+  const grad = ctx.createRadialGradient(x, y, 0, x, y, 60);
+  grad.addColorStop(0, 'rgba(255,255,255,0.9)');
+  grad.addColorStop(0.15, 'rgba(255,255,240,0.5)');
+  grad.addColorStop(0.4, 'rgba(255,255,220,0.15)');
+  grad.addColorStop(1, 'rgba(255,255,200,0)');
+  ctx.save();
+  ctx.globalAlpha = 0.8;
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.arc(x, y, 60, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawScreenGlow(exitPts) {
+  if (exitPts.length < 2) return;
+  const cx = (exitPts[0].x + exitPts[exitPts.length - 1].x) / 2;
+  const cy = (exitPts[0].y + exitPts[exitPts.length - 1].y) / 2;
+  const spread = Math.sqrt(
+    Math.pow(exitPts[exitPts.length - 1].x - exitPts[0].x, 2) +
+    Math.pow(exitPts[exitPts.length - 1].y - exitPts[0].y, 2)
+  );
+  const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, spread * 2.5);
+  grad.addColorStop(0, 'rgba(255,255,255,0.04)');
+  grad.addColorStop(0.3, 'rgba(200,180,255,0.02)');
+  grad.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.save();
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, H);
+  ctx.restore();
+}
+
+function drawLightSource(x, y) {
+  ctx.save();
+  ctx.shadowColor = 'rgba(255,255,200,0.8)';
+  ctx.shadowBlur = 25;
+  ctx.fillStyle = '#fffbe6';
+  ctx.beginPath();
+  ctx.arc(x, y, 6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = 'rgba(255,255,200,0.4)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.arc(x, y, 10, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawDustParticles(time) {
+  ctx.save();
+  const count = 40;
+  for (let i = 0; i < count; i++) {
+    const seed = i * 137.508;
+    const px = ((seed * 7.31 + time * 0.003 * (1 + (i % 3) * 0.5)) % W);
+    const py = ((seed * 3.17 + Math.sin(time * 0.001 + i) * 30) % H);
+    const alpha = 0.08 + Math.sin(time * 0.002 + seed) * 0.04;
+    const r = 0.5 + Math.sin(seed * 2.1) * 0.3;
+    ctx.globalAlpha = Math.max(0, alpha);
+    ctx.fillStyle = '#c8d0ff';
+    ctx.beginPath();
+    ctx.arc(px, py, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+function computeRefraction(v, sourceX, sourceY, targetX, targetY) {
+  const beamDir = {
+    x: targetX - sourceX,
+    y: targetY - sourceY
+  };
+  const beamLen = Math.sqrt(beamDir.x * beamDir.x + beamDir.y * beamDir.y);
+  if (beamLen < 1) return null;
+  beamDir.x /= beamLen;
+  beamDir.y /= beamLen;
+
+  const edges = [
+    { a: v[0], b: v[1], normal: normalEdge(v[0], v[1]) },
+    { a: v[1], b: v[2], normal: normalEdge(v[1], v[2]) },
+    { a: v[2], b: v[0], normal: normalEdge(v[2], v[0]) }
+  ];
+
+  let entry = null, entryEdge = null, entryNormal = null;
+  let minT = Infinity;
+
+  for (const edge of edges) {
+    const hit = lineIntersect(sourceX < v[0].x ? { x: -500, y: sourceY } : { x: sourceX, y: sourceY },
+      { x: sourceX + beamDir.x * 5000, y: sourceY + beamDir.y * 5000 },
+      edge.a, edge.b);
+    if (hit && hit.t > 0.01 && hit.t < minT) {
+      const dot = beamDir.x * edge.normal.x + beamDir.y * edge.normal.y;
+      if (dot < 0) {
+        minT = hit.t;
+        entry = hit;
+        entryEdge = edge;
+        entryNormal = edge.normal;
+      }
+    }
+  }
+
+  if (!entry) return null;
+
+  const entryResult = refract(beamDir.x, beamDir.y, entryNormal.x, entryNormal.y, 1.0, PRISM_N);
+  if (!entryResult) return null;
+
+  const exitHits = [];
+  const numRays = SPECTRUM.length;
+
+  for (let i = 0; i < numRays; i++) {
+    const n = wavelengthToN(SPECTRUM[i].wl);
+    const rayDir = refract(beamDir.x, beamDir.y, entryNormal.x, entryNormal.y, 1.0, n);
+    if (!rayDir) continue;
+
+    let exit = null, exitEdge = null, exitNormal = null;
+    let exitMinT = Infinity;
+
+    for (const edge of edges) {
+      if (edge === entryEdge) continue;
+      const hit = lineIntersect(entry, { x: entry.x + rayDir.x * 5000, y: entry.y + rayDir.y * 5000 }, edge.a, edge.b);
+      if (hit && hit.t > 0.01 && hit.t < exitMinT) {
+        exitMinT = hit.t;
+        exit = hit;
+        exitEdge = edge;
+        exitNormal = edge.normal;
+      }
+    }
+
+    if (exit) {
+      const outwardN = { x: -exitNormal.x, y: -exitNormal.y };
+      const exitDir = refract(rayDir.x, rayDir.y, outwardN.x, outwardN.y, n, 1.0);
+      if (exitDir) {
+        exitHits.push({
+          pt: exit,
+          dir: exitDir,
+          color: SPECTRUM[i]
+        });
+      }
+    }
+  }
+
+  return { entry, entryResult, exitHits, entryNormal, beamDir };
+}
+
+let lastTime = 0;
+function render(time) {
+  const dt = time - lastTime;
+  lastTime = time;
+
+  ctx.clearRect(0, 0, W, H);
+
+  const bgGrad = ctx.createRadialGradient(W * 0.5, H * 0.5, 0, W * 0.5, H * 0.5, Math.max(W, H) * 0.7);
+  bgGrad.addColorStop(0, '#0e0e1a');
+  bgGrad.addColorStop(1, '#06060c');
+  ctx.fillStyle = bgGrad;
+  ctx.fillRect(0, 0, W, H);
+
+  drawDustParticles(time);
+
+  const v = prismVertices();
+  drawPrismGlass(v);
+
+  const sourceX = Math.max(30, W * 0.08);
+  const sourceY = H * 0.5;
+  const targetX = mouse.x;
+  const targetY = mouse.y;
+
+  const result = computeRefraction(v, sourceX, sourceY, targetX, targetY);
+
+  if (result) {
+    drawScreenGlow(result.exitHits.map(h => h.pt));
+
+    drawBeam(sourceX, sourceY, result.entry.x, result.entry.y, 'rgb(255,255,255)', 4, 0.9, 12);
+
+    const internalLen = Math.min(W, H) * 0.18;
+    const intEndX = result.entry.x + result.entryResult.x * internalLen;
+    const intEndY = result.entry.y + result.entryResult.y * internalLen;
+    drawBeam(result.entry.x, result.entry.y, intEndX, intEndY, 'rgb(220,230,255)', 2, 0.25, 6);
+
+    const exitPts = result.exitHits.map(h => h.pt);
+    drawSpectrumFan(result.entry, exitPts);
+
+    for (const hit of result.exitHits) {
+      const grad = ctx.createRadialGradient(hit.pt.x, hit.pt.y, 0, hit.pt.x, hit.pt.y, 25);
+      grad.addColorStop(0, `rgba(${hit.color.r},${hit.color.g},${hit.color.b},0.6)`);
+      grad.addColorStop(1, `rgba(${hit.color.r},${hit.color.g},${hit.color.b},0)`);
+      ctx.save();
+      ctx.globalAlpha = 0.5;
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(hit.pt.x, hit.pt.y, 25, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  drawSourceGlow(sourceX, sourceY);
+  drawLightSource(sourceX, sourceY);
+
+  ctx.save();
+  ctx.globalAlpha = 0.03;
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 0.5;
+  const gridStep = 60;
+  for (let x = 0; x < W; x += gridStep) {
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, H);
+    ctx.stroke();
+  }
+  for (let y = 0; y < H; y += gridStep) {
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(W, y);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  requestAnimationFrame(render);
+}
+
+requestAnimationFrame(render);
+</script>
+</body>
+</html>

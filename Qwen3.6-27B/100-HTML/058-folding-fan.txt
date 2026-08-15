@@ -1,0 +1,23 @@
+# Folding Fan
+
+## Creative Prompt
+Create an animated hand fan (sensu) that opens and closes. A traditional Japanese folding fan is rendered with a semi-circular shape, decorative pattern on the face, and visible fold ribs. The fan animates between open and closed positions with smooth easing. The fan face has an intricate pattern (cherry blossoms, waves, or geometric design). The background is a subtle washi paper texture. The overall aesthetic is traditional, elegant, and Japanese-inspired.
+
+## Techniques Used
+- Canvas fan rendering with semi-circular arc clipping
+- Fold rib lines with radial gradient coloring and perspective
+- Cherry blossom flower rendering with bezier-curve petals and stamen details
+- Seigaiho-inspired wave pattern overlay
+- Scatter petal particles with bezier petal shapes
+- Open/close animation with cubic ease-in-out easing
+- Handle (tsuka) rendering with gradient and decorative gold ring
+- Pivot pin with radial gradient
+- Washi paper texture generation (fiber noise + specks + vignette)
+- Hanko seal stamp with stylized character
+- Floating petal particle system with drift and rotation
+- Subtle fan sway oscillation
+- Traditional Japanese color palette (indigo, gold, sakura pink, washi cream)
+- Responsive canvas with DPR scaling
+
+## Interaction Model
+Passive animation — the fan opens over ~2 seconds, holds open for ~3 seconds, then closes over ~2 seconds, with a brief pause before repeating. The entire cycle runs continuously with smooth cubic easing. Floating cherry blossom petals drift across the screen as ambient decoration.

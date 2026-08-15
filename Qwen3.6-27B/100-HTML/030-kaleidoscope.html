@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kaleidoscope</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
+canvas { display: block; width: 100%; height: 100%; cursor: pointer; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+let W, H, cx, cy, radius;
+let segments = 8;
+let wedgeAngle = (Math.PI * 2) / segments;
+let hueOffset = 0;
+let points = [];
+let time = 0;
+
+function resize() {
+    const dpr = window.devicePixelRatio || 1;
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    cx = W / 2;
+    cy = H / 2;
+    radius = Math.min(W, H) * 0.45;
+}
+
+class Point {
+    constructor() {
+        this.reset();
+    }
+    reset() {
+        this.r = radius * (0.15 + Math.random() * 0.75);
+        this.angle = Math.random() * wedgeAngle;
+        this.size = 1.5 + Math.random() * 3.5;
+        this.hue = Math.random() * 360;
+        this.saturation = 60 + Math.random() * 40;
+        this.lightness = 45 + Math.random() * 25;
+        this.alpha = 0.6 + Math.random() * 0.4;
+        this.speed = 0.002 + Math.random() * 0.008;
+        this.drift = (Math.random() - 0.5) * 0.3;
+        this.phase = Math.random() * Math.PI * 2;
+        this.rPhase = Math.random() * Math.PI * 2;
+        this.rSpeed = 0.003 + Math.random() * 0.006;
+        this.rAmp = 10 + Math.random() * 30;
+    }
+    update(t) {
+        this.angle += this.speed;
+        this.angle += Math.sin(t * 0.7 + this.phase) * this.drift * 0.002;
+        if (this.angle < 0) this.angle += wedgeAngle;
+        if (this.angle > wedgeAngle) this.angle -= wedgeAngle;
+        this.r += Math.sin(t * this.rSpeed * 60 + this.rPhase) * this.rAmp * 0.003;
+        this.r = Math.max(radius * 0.1, Math.min(radius * 0.88, this.r));
+        this.hue = (this.hue + 0.15) % 360;
+    }
+    getPos() {
+        return {
+            x: cx + this.r * Math.cos(this.angle),
+            y: cy + this.r * Math.sin(this.angle)
+        };
+    }
+}
+
+function initPoints() {
+    const count = Math.max(40, Math.floor(Math.min(W, H) * 0.06));
+    points = [];
+    for (let i = 0; i < count; i++) {
+        points.push(new Point());
+    }
+}
+
+function drawCenterGlow() {
+    const gradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius * 0.25);
+    const h = (hueOffset + time * 10) % 360;
+    gradient.addColorStop(0, `hsla(${h}, 80%, 70%, 0.12)`);
+    gradient.addColorStop(0.4, `hsla(${(h + 40) % 360}, 70%, 50%, 0.04)`);
+    gradient.addColorStop(1, 'transparent');
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius * 0.25, 0, Math.PI * 2);
+    ctx.fill();
+}
+
+function drawRadialGuides() {
+    ctx.save();
+    ctx.strokeStyle = `hsla(${(hueOffset + time * 8) % 360}, 30%, 50%, 0.06)`;
+    ctx.lineWidth = 0.5;
+    for (let i = 0; i < segments; i++) {
+        const a = i * wedgeAngle;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(cx + radius * Math.cos(a), cy + radius * Math.sin(a));
+        ctx.stroke();
+    }
+    ctx.restore();
+}
+
+function drawPoint(x, y, p, segHue) {
+    const h = (p.hue + hueOffset + segHue) % 360;
+    ctx.beginPath();
+    ctx.arc(x, y, p.size, 0, Math.PI * 2);
+    ctx.fillStyle = `hsla(${h}, ${p.saturation}%, ${p.lightness}%, ${p.alpha})`;
+    ctx.fill();
+}
+
+function drawConnection(x1, y1, x2, y2, h, alpha) {
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.strokeStyle = `hsla(${h}, 60%, 60%, ${alpha})`;
+    ctx.lineWidth = 0.4;
+    ctx.stroke();
+}
+
+function render() {
+    // Trail fade
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.08)';
+    ctx.fillRect(0, 0, W, H);
+
+    drawRadialGuides();
+    drawCenterGlow();
+
+    // Collect all mirrored positions per segment
+    const mirrored = [];
+    for (let s = 0; s < segments; s++) {
+        const segHue = s * (360 / segments);
+        const mirror = s % 2 === 1;
+        const segPoints = [];
+        for (const p of points) {
+            let a = p.angle;
+            if (mirror) a = wedgeAngle - a;
+            const finalAngle = a + s * wedgeAngle;
+            const px = cx + p.r * Math.cos(finalAngle);
+            const py = cy + p.r * Math.sin(finalAngle);
+            segPoints.push({ x: px, y: py, p, h: (p.hue + hueOffset + segHue) % 360 });
+        }
+        mirrored.push(segPoints);
+    }
+
+    // Draw connection lines within each segment between adjacent points
+    for (let s = 0; s < segments; s++) {
+        const seg = mirrored[s];
+        const segHue = s * (360 / segments);
+        for (let i = 0; i < seg.length; i++) {
+            for (let j = i + 1; j < seg.length; j++) {
+                const dx = seg[i].x - seg[j].x;
+                const dy = seg[i].y - seg[j].y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                const maxDist = radius * 0.22;
+                if (dist < maxDist) {
+                    const alpha = (1 - dist / maxDist) * 0.15;
+                    const h = (seg[i].h + seg[j].h) / 2;
+                    drawConnection(seg[i].x, seg[i].y, seg[j].x, seg[j].y, h, alpha);
+                }
+            }
+        }
+    }
+
+    // Draw cross-segment connections at boundaries
+    for (let s = 0; s < segments; s++) {
+        const next = (s + 1) % segments;
+        const seg = mirrored[s];
+        const nextSeg = mirrored[next];
+        for (let i = 0; i < seg.length; i++) {
+            for (let j = 0; j < nextSeg.length; j++) {
+                const dx = seg[i].x - nextSeg[j].x;
+                const dy = seg[i].y - nextSeg[j].y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                const maxDist = radius * 0.12;
+                if (dist < maxDist) {
+                    const alpha = (1 - dist / maxDist) * 0.1;
+                    const h = (seg[i].h + nextSeg[j].h) / 2;
+                    drawConnection(seg[i].x, seg[i].y, nextSeg[j].x, nextSeg[j].y, h, alpha);
+                }
+            }
+        }
+    }
+
+    // Draw dots
+    for (let s = 0; s < segments; s++) {
+        for (const sp of mirrored[s]) {
+            drawPoint(sp.x, sp.y, sp.p, s * (360 / segments));
+        }
+    }
+
+    // Inner ring decorations
+    ctx.save();
+    ctx.strokeStyle = `hsla(${(hueOffset + 120 + time * 12) % 360}, 50%, 60%, 0.08)`;
+    ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius * 0.12, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius * 0.35, 0, Math.PI * 2);
+    ctx.strokeStyle = `hsla(${(hueOffset + 240 + time * 6) % 360}, 40%, 55%, 0.05)`;
+    ctx.stroke();
+    ctx.restore();
+}
+
+function animate() {
+    time += 0.016;
+    for (const p of points) {
+        p.update(time);
+    }
+    render();
+    requestAnimationFrame(animate);
+}
+
+// Click to shift hue and regenerate
+canvas.addEventListener('click', () => {
+    hueOffset = (hueOffset + 60 + Math.random() * 30) % 360;
+    initPoints();
+    // Clear canvas for fresh start
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, W, H);
+});
+
+window.addEventListener('resize', () => {
+    resize();
+    initPoints();
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, W, H);
+});
+
+resize();
+initPoints();
+ctx.fillStyle = '#000';
+ctx.fillRect(0, 0, W, H);
+animate();
+</script>
+</body>
+</html>

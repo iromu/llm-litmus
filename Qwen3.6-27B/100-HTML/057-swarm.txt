@@ -1,0 +1,20 @@
+# Swarm
+
+## Creative Prompt
+Create a boids flocking simulation. Hundreds of triangular agents move across the screen following three simple rules: separation (avoid crowding), alignment (steer toward average heading of neighbors), and cohesion (move toward the center of nearby flockmates). The result is emergent flocking behavior that looks like a school of fish or flock of birds. The boids have a subtle glow and trail effect. The background is dark. The overall aesthetic is organic, mesmerizing, and computational — like watching emergent behavior.
+
+## Techniques Used
+- HTML5 Canvas boids simulation with separation/alignment/cohesion rules
+- Spatial grid optimization for O(n) neighbor search
+- Velocity steering behaviors with speed clamping
+- Triangular boid rendering with heading-based rotation
+- Glow effects via canvas shadow blur
+- Trail rendering with alpha-fade background overlay
+- Mouse interaction with attract/repel modes
+- HSL color variation across agents for organic feel
+- Edge wrapping for seamless boundaries
+- Touch support for mobile devices
+- Responsive canvas filling the viewport
+
+## Interaction Model
+Boids flock continuously using emergent behavior rules. Mouse movement influences boid behavior — boids either flee from or move toward the cursor. Click to toggle between repel (default) and attract modes. A mode indicator in the top-right corner shows the current interaction mode.

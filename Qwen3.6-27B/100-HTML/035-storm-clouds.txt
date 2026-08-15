@@ -1,0 +1,18 @@
+# Storm Clouds
+
+## Creative Prompt
+Create a thunderstorm scene with dark clouds and lightning bolts. The sky is a dark gradient with heavy cloud formations rendered as layered shapes. Lightning bolts branch randomly across the sky with bright white-blue flashes that illuminate the scene. Rain falls as diagonal streaks. Thunder flashes briefly light up the entire scene. The overall aesthetic is dramatic, powerful, and atmospheric — like watching a storm from a window.
+
+## Techniques Used
+- Canvas cloud rendering with layered bezier curves and radial gradients
+- Recursive branching lightning bolt generation algorithm
+- Full-screen flash illumination overlay on lightning strikes
+- Diagonal rain particle system with 600 streaks
+- Multi-layer cloud drift animation at parallax speeds
+- Random lightning timing with intensity variation and dual-bolt strikes
+- Distant ground silhouette with tree shapes
+- Atmospheric vignette overlay
+- Dark gradient sky with horizon glow
+
+## Interaction Model
+Passive animation — clouds drift slowly across the sky, rain falls continuously as diagonal streaks, and lightning strikes at random intervals (1.5–6.5 seconds apart). Each strike triggers a scene-wide flash and may spawn a secondary bolt. The scene is continuously animated with no user interaction required.

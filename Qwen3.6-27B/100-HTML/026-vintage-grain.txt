@@ -1,0 +1,20 @@
+# Vintage Grain
+
+## Creative Prompt
+Create a vintage analog aesthetic page with heavy film grain texture, warm sepia/brown tones, and editorial layout. The container has a subtle noise overlay with grain animation, vignette shading, and flickering. Content includes a header with date, title, and italic subtitle, a photo placeholder, a two-column body text with drop cap, a vintage badge, and a footer. The typography is serif (Georgia) with warm cream/dark brown colors. Elements fade in sequentially with float-up animation. The overall aesthetic is aged, warm, nostalgic — like reading a mid-century literary journal.
+
+## Techniques Used
+- SVG feTurbulence noise texture as CSS background with steps() animation for film grain effect
+- CSS flicker keyframe for subtle vintage lamp effect
+- Radial-gradient vignette overlay via body::after pseudo-element
+- Multi-column text layout with column-rule divider
+- Drop cap via first-letter pseudo-element styling
+- Sequential fade-up animations with staggered animation-delay classes
+- Responsive single-column layout on mobile via media query
+- Double-border vintage badge with decorative ornaments
+- Warm sepia/brown color palette with CSS custom properties
+- Georgia serif typography throughout
+- Decorative rules with gradient lines and star ornaments
+
+## Interaction Model
+Purely passive — grain texture animates continuously via steps() keyframes, subtle flicker occurs on the container, and all elements fade in with float-up motion on page load using staggered delays. No direct user interaction required.

@@ -1,0 +1,20 @@
+# Butterfly Wings
+
+## Creative Prompt
+Create iridescent bezier-curve butterflies with morphing wings. Multiple butterflies rendered on canvas with smooth bezier wing shapes that flap and morph. Wings have iridescent color gradients that shift through the spectrum. Butterflies fly in gentle patterns with smooth steering behaviors. The background is dark with a subtle glow. The overall aesthetic is graceful, colorful, and organic — like watching butterflies in a dark garden.
+
+## Techniques Used
+- Canvas bezier curve rendering for organic wing shapes
+- Wing flapping via sine-based morphing with independent phase per butterfly
+- HSV color cycling for iridescent gradient fills across wing surfaces
+- Smooth steering behaviors (wander + target-seeking) for natural flight paths
+- Wing mirroring using canvas scale transform
+- Glow rendering with shadow blur per wing
+- Multiple butterfly instances with independent parameters (size, speed, hue, flap rate)
+- Wing vein overlay for organic detail
+- Depth sorting by scale for layering
+- Twinkling star field background with radial gradient
+- Responsive canvas filling the viewport
+
+## Interaction Model
+Passive animation — butterflies fly, flap, and morph continuously. Each butterfly has independent flight patterns, color cycles, and flapping rhythms. No user interaction required; the scene is a self-contained animated display.

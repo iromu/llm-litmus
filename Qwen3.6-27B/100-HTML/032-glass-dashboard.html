@@ -1,0 +1,860 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Glass Dashboard</title>
+<style>
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --cyan: #00e5ff;
+  --green: #00e676;
+  --blue: #448aff;
+  --yellow: #ffd740;
+  --pink: #ff4081;
+  --glass-bg: rgba(255, 255, 255, 0.06);
+  --glass-border: rgba(255, 255, 255, 0.12);
+  --glass-hover: rgba(255, 255, 255, 0.10);
+  --text-primary: #f0e6ff;
+  --text-secondary: rgba(240, 230, 255, 0.6);
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  background: linear-gradient(135deg, #1a0533 0%, #0d0221 30%, #1b0a3c 60%, #0f0628 100%);
+  min-height: 100vh;
+  color: var(--text-primary);
+  overflow-x: hidden;
+  position: relative;
+}
+
+/* ── Background orbs ── */
+.orbs {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.35;
+  animation: float 20s ease-in-out infinite;
+}
+
+.orb:nth-child(1) {
+  width: 500px; height: 500px;
+  background: radial-gradient(circle, #7c3aed, #4f46e5);
+  top: -10%; left: -5%;
+  animation-duration: 22s;
+}
+
+.orb:nth-child(2) {
+  width: 400px; height: 400px;
+  background: radial-gradient(circle, #06b6d4, #0891b2);
+  top: 20%; right: -8%;
+  animation-duration: 18s;
+  animation-delay: -4s;
+}
+
+.orb:nth-child(3) {
+  width: 350px; height: 350px;
+  background: radial-gradient(circle, #ec4899, #db2777);
+  bottom: -5%; left: 30%;
+  animation-duration: 25s;
+  animation-delay: -8s;
+}
+
+.orb:nth-child(4) {
+  width: 300px; height: 300px;
+  background: radial-gradient(circle, #8b5cf6, #6d28d9);
+  top: 50%; left: 10%;
+  animation-duration: 20s;
+  animation-delay: -12s;
+}
+
+.orb:nth-child(5) {
+  width: 250px; height: 250px;
+  background: radial-gradient(circle, #10b981, #059669);
+  bottom: 20%; right: 15%;
+  animation-duration: 16s;
+  animation-delay: -6s;
+}
+
+@keyframes float {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  25% { transform: translate(40px, -30px) scale(1.05); }
+  50% { transform: translate(-20px, 20px) scale(0.95); }
+  75% { transform: translate(30px, 40px) scale(1.02); }
+}
+
+/* ── Layout ── */
+.dashboard {
+  position: relative;
+  z-index: 1;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 32px 24px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 32px;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.header h1 {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  background: linear-gradient(135deg, #e0c3fc, #8ec5fc);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.header-meta {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.live-dot {
+  width: 8px; height: 8px;
+  background: var(--green);
+  border-radius: 50%;
+  display: inline-block;
+  animation: pulse 2s ease-in-out infinite;
+  margin-right: 6px;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(0, 230, 118, 0.4); }
+  50% { opacity: 0.7; box-shadow: 0 0 0 6px rgba(0, 230, 118, 0); }
+}
+
+/* ── Glass card base ── */
+.glass {
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  padding: 24px;
+  transition: transform 0.3s ease, background 0.3s ease, box-shadow 0.3s ease;
+}
+
+.glass:hover {
+  transform: translateY(-4px);
+  background: var(--glass-hover);
+  box-shadow: 0 12px 40px rgba(124, 58, 237, 0.15);
+}
+
+/* ── KPI row ── */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 20px;
+  margin-bottom: 24px;
+}
+
+.kpi-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.kpi-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.kpi-icon {
+  width: 40px; height: 40px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+}
+
+.kpi-icon.cyan { background: rgba(0, 229, 255, 0.15); color: var(--cyan); }
+.kpi-icon.green { background: rgba(0, 230, 118, 0.15); color: var(--green); }
+.kpi-icon.blue { background: rgba(68, 138, 255, 0.15); color: var(--blue); }
+.kpi-icon.yellow { background: rgba(255, 215, 64, 0.15); color: var(--yellow); }
+
+.kpi-trend {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 20px;
+}
+
+.kpi-trend.up {
+  color: var(--green);
+  background: rgba(0, 230, 118, 0.12);
+}
+
+.kpi-trend.down {
+  color: var(--pink);
+  background: rgba(255, 64, 129, 0.12);
+}
+
+.kpi-label {
+  font-size: 13px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+}
+
+.kpi-value {
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: -1px;
+  line-height: 1;
+}
+
+.kpi-sparkline {
+  height: 32px;
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  margin-top: 4px;
+}
+
+.spark-bar {
+  flex: 1;
+  border-radius: 3px;
+  min-height: 4px;
+  transition: height 0.6s ease;
+}
+
+/* ── Charts row ── */
+.charts-row {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 20px;
+  margin-bottom: 24px;
+}
+
+.chart-card { padding: 24px; }
+
+.chart-title {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.chart-title span {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-weight: 400;
+}
+
+/* Bar chart */
+.bar-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  height: 200px;
+  padding-top: 20px;
+}
+
+.bar-group {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  height: 100%;
+}
+
+.bar-track {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.bar {
+  width: 70%;
+  max-width: 40px;
+  border-radius: 6px 6px 2px 2px;
+  transition: height 0.8s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.2s;
+  position: relative;
+  cursor: pointer;
+  min-height: 4px;
+}
+
+.bar:hover { opacity: 0.8; }
+
+.bar-label {
+  font-size: 11px;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.bar-tooltip {
+  position: absolute;
+  top: -28px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.7);
+  color: #fff;
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s;
+}
+
+.bar:hover .bar-tooltip { opacity: 1; }
+
+/* Donut chart */
+.donut-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+}
+
+.donut-svg {
+  width: 200px;
+  height: 200px;
+  transform: rotate(-90deg);
+}
+
+.donut-ring {
+  fill: none;
+  stroke-width: 28;
+  transition: stroke-dasharray 1.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.donut-center-text {
+  position: absolute;
+  text-align: center;
+}
+
+.donut-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.donut-center {
+  position: absolute;
+  text-align: center;
+}
+
+.donut-center .value {
+  font-size: 28px;
+  font-weight: 700;
+  display: block;
+}
+
+.donut-center .label {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.donut-legend {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 20px;
+  width: 100%;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.legend-pct {
+  margin-left: auto;
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+/* ── Bottom row ── */
+.bottom-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+/* Activity feed */
+.activity-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.activity-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 14px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.activity-item:last-child { border-bottom: none; }
+
+.activity-indicator {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-top: 5px;
+  flex-shrink: 0;
+  position: relative;
+}
+
+.activity-indicator::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+  opacity: 0.3;
+}
+
+.activity-indicator.cyan { background: var(--cyan); color: var(--cyan); }
+.activity-indicator.green { background: var(--green); color: var(--green); }
+.activity-indicator.blue { background: var(--blue); color: var(--blue); }
+.activity-indicator.yellow { background: var(--yellow); color: var(--yellow); }
+.activity-indicator.pink { background: var(--pink); color: var(--pink); }
+
+.activity-content { flex: 1; }
+
+.activity-text {
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.activity-text strong {
+  color: #fff;
+  font-weight: 600;
+}
+
+.activity-time {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 3px;
+}
+
+/* Top pages table */
+.pages-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.pages-table th {
+  text-align: left;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--text-secondary);
+  padding: 0 0 12px 0;
+  font-weight: 600;
+}
+
+.pages-table td {
+  padding: 12px 0;
+  font-size: 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.pages-table tr:last-child td { border-bottom: none; }
+
+.pages-table .page-name {
+  font-weight: 500;
+}
+
+.pages-table .page-views {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+}
+
+.pages-table .page-change {
+  text-align: right;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.pages-table .page-change.up { color: var(--green); }
+.pages-table .page-change.down { color: var(--pink); }
+
+/* ── Responsive ── */
+@media (max-width: 1024px) {
+  .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+  .charts-row { grid-template-columns: 1fr; }
+  .bottom-row { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 640px) {
+  .dashboard { padding: 20px 16px; }
+  .kpi-grid { grid-template-columns: 1fr; }
+  .kpi-value { font-size: 26px; }
+  .header h1 { font-size: 22px; }
+  .bar-chart { height: 160px; gap: 6px; }
+  .donut-svg { width: 160px; height: 160px; }
+  .donut-legend { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<div class="orbs">
+  <div class="orb"></div>
+  <div class="orb"></div>
+  <div class="orb"></div>
+  <div class="orb"></div>
+  <div class="orb"></div>
+</div>
+
+<div class="dashboard">
+
+  <!-- Header -->
+  <div class="header">
+    <h1>✦ Analytics Dashboard</h1>
+    <div class="header-meta">
+      <span><span class="live-dot"></span>Live</span>
+      <span>Aug 14, 2026</span>
+    </div>
+  </div>
+
+  <!-- KPI Cards -->
+  <div class="kpi-grid">
+
+    <div class="glass kpi-card">
+      <div class="kpi-header">
+        <div class="kpi-icon cyan">◈</div>
+        <span class="kpi-trend up">↑ 12.5%</span>
+      </div>
+      <span class="kpi-label">Revenue</span>
+      <span class="kpi-value">$48,352</span>
+      <div class="kpi-sparkline" id="spark-revenue"></div>
+    </div>
+
+    <div class="glass kpi-card">
+      <div class="kpi-header">
+        <div class="kpi-icon green">◉</div>
+        <span class="kpi-trend up">↑ 8.2%</span>
+      </div>
+      <span class="kpi-label">Users</span>
+      <span class="kpi-value">14,891</span>
+      <div class="kpi-sparkline" id="spark-users"></div>
+    </div>
+
+    <div class="glass kpi-card">
+      <div class="kpi-header">
+        <div class="kpi-icon blue">◆</div>
+        <span class="kpi-trend up">↑ 3.1%</span>
+      </div>
+      <span class="kpi-label">Conversion</span>
+      <span class="kpi-value">4.6%</span>
+      <div class="kpi-sparkline" id="spark-conversion"></div>
+    </div>
+
+    <div class="glass kpi-card">
+      <div class="kpi-header">
+        <div class="kpi-icon yellow">◇</div>
+        <span class="kpi-trend down">↓ 2.4%</span>
+      </div>
+      <span class="kpi-label">Bounce Rate</span>
+      <span class="kpi-value">32.1%</span>
+      <div class="kpi-sparkline" id="spark-bounce"></div>
+    </div>
+
+  </div>
+
+  <!-- Charts Row -->
+  <div class="charts-row">
+
+    <!-- Bar Chart -->
+    <div class="glass chart-card">
+      <div class="chart-title">Weekly Revenue <span>(in thousands)</span></div>
+      <div class="bar-chart" id="bar-chart"></div>
+    </div>
+
+    <!-- Donut Chart -->
+    <div class="glass chart-card">
+      <div class="chart-title">Traffic Sources</div>
+      <div class="donut-container">
+        <div class="donut-wrapper">
+          <svg class="donut-svg" viewBox="0 0 200 200" id="donut-svg"></svg>
+          <div class="donut-center">
+            <span class="value">48.2K</span>
+            <span class="label">Total visits</span>
+          </div>
+        </div>
+        <div class="donut-legend" id="donut-legend"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Bottom Row -->
+  <div class="bottom-row">
+
+    <!-- Activity Feed -->
+    <div class="glass chart-card">
+      <div class="chart-title">Recent Activity</div>
+      <div class="activity-feed" id="activity-feed"></div>
+    </div>
+
+    <!-- Top Pages -->
+    <div class="glass chart-card">
+      <div class="chart-title">Top Pages</div>
+      <table class="pages-table">
+        <thead>
+          <tr>
+            <th>Page</th>
+            <th style="text-align:right">Views</th>
+            <th style="text-align:right">Change</th>
+          </tr>
+        </thead>
+        <tbody id="pages-tbody"></tbody>
+      </table>
+    </div>
+
+  </div>
+
+</div>
+
+<script>
+// ── Sparkline data ──
+const sparkData = {
+  revenue:    [30, 45, 35, 60, 50, 70, 55, 80, 65, 90, 75, 95],
+  users:      [40, 35, 50, 45, 55, 60, 50, 65, 70, 55, 75, 80],
+  conversion: [20, 30, 25, 40, 35, 45, 50, 40, 55, 50, 60, 55],
+  bounce:     [60, 55, 50, 45, 40, 35, 38, 30, 33, 28, 25, 22]
+};
+
+const sparkColors = {
+  revenue: '#00e5ff',
+  users: '#00e676',
+  conversion: '#448aff',
+  bounce: '#ffd740'
+};
+
+function renderSparkline(containerId, data, color) {
+  const container = document.getElementById(containerId);
+  const max = Math.max(...data);
+  data.forEach((val, i) => {
+    const bar = document.createElement('div');
+    bar.className = 'spark-bar';
+    bar.style.background = color;
+    bar.style.opacity = 0.3 + (0.7 * (i / data.length));
+    bar.style.height = '0px';
+    container.appendChild(bar);
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        bar.style.height = (val / max * 100) + '%';
+      }, i * 40);
+    });
+  });
+}
+
+renderSparkline('spark-revenue', sparkData.revenue, sparkColors.revenue);
+renderSparkline('spark-users', sparkData.users, sparkColors.users);
+renderSparkline('spark-conversion', sparkData.conversion, sparkColors.conversion);
+renderSparkline('spark-bounce', sparkData.bounce, sparkColors.bounce);
+
+// ── Bar Chart ──
+const barData = [
+  { label: 'Mon', value: 6.2, color: '#7c3aed' },
+  { label: 'Tue', value: 7.8, color: '#8b5cf6' },
+  { label: 'Wed', value: 5.4, color: '#a78bfa' },
+  { label: 'Thu', value: 8.9, color: '#7c3aed' },
+  { label: 'Fri', value: 9.5, color: '#6d28d9' },
+  { label: 'Sat', value: 4.1, color: '#8b5cf6' },
+  { label: 'Sun', value: 3.2, color: '#a78bfa' }
+];
+
+function renderBarChart() {
+  const container = document.getElementById('bar-chart');
+  const maxVal = Math.max(...barData.map(d => d.value));
+
+  barData.forEach((d, i) => {
+    const group = document.createElement('div');
+    group.className = 'bar-group';
+
+    const track = document.createElement('div');
+    track.className = 'bar-track';
+
+    const bar = document.createElement('div');
+    bar.className = 'bar';
+    bar.style.background = `linear-gradient(180deg, ${d.color}, ${d.color}88)`;
+    bar.style.height = '0px';
+
+    const tooltip = document.createElement('div');
+    tooltip.className = 'bar-tooltip';
+    tooltip.textContent = '$' + d.value + 'K';
+    bar.appendChild(tooltip);
+
+    const label = document.createElement('div');
+    label.className = 'bar-label';
+    label.textContent = d.label;
+
+    track.appendChild(bar);
+    group.appendChild(track);
+    group.appendChild(label);
+    container.appendChild(group);
+
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        bar.style.height = (d.value / maxVal * 100) + '%';
+      }, 100 + i * 80);
+    });
+  });
+}
+
+renderBarChart();
+
+// ── Donut Chart ──
+const donutData = [
+  { label: 'Organic', value: 42, color: '#00e5ff' },
+  { label: 'Direct', value: 26, color: '#7c3aed' },
+  { label: 'Social', value: 18, color: '#ff4081' },
+  { label: 'Referral', value: 14, color: '#ffd740' }
+];
+
+function renderDonut() {
+  const svg = document.getElementById('donut-svg');
+  const cx = 100, cy = 100, r = 72;
+  const circumference = 2 * Math.PI * r;
+  let offset = 0;
+
+  donutData.forEach((d, i) => {
+    const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    circle.setAttribute('cx', cx);
+    circle.setAttribute('cy', cy);
+    circle.setAttribute('r', r);
+    circle.setAttribute('class', 'donut-ring');
+    circle.setAttribute('stroke', d.color);
+
+    const dashLen = (d.value / 100) * circumference;
+    const gapLen = circumference - dashLen;
+
+    circle.setAttribute('stroke-dasharray', `0 ${circumference}`);
+    circle.setAttribute('stroke-dashoffset', -offset);
+
+    svg.appendChild(circle);
+
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        circle.setAttribute('stroke-dasharray', `${dashLen} ${gapLen}`);
+      }, 200 + i * 150);
+    });
+
+    offset += dashLen;
+  });
+
+  // Background ring
+  const bg = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+  bg.setAttribute('cx', cx);
+  bg.setAttribute('cy', cy);
+  bg.setAttribute('r', r);
+  bg.setAttribute('fill', 'none');
+  bg.setAttribute('stroke', 'rgba(255,255,255,0.04)');
+  bg.setAttribute('stroke-width', '28');
+  svg.insertBefore(bg, svg.firstChild);
+
+  // Legend
+  const legend = document.getElementById('donut-legend');
+  donutData.forEach(d => {
+    const item = document.createElement('div');
+    item.className = 'legend-item';
+    item.innerHTML = `<span class="legend-dot" style="background:${d.color}"></span>${d.label}<span class="legend-pct">${d.value}%</span>`;
+    legend.appendChild(item);
+  });
+}
+
+renderDonut();
+
+// ── Activity Feed ──
+const activities = [
+  { text: '<strong>Sarah Chen</strong> completed a $2,400 purchase', time: '2 min ago', color: 'cyan' },
+  { text: '<strong>Server load</strong> dropped below 40% threshold', time: '18 min ago', color: 'green' },
+  { text: '<strong>Marketing campaign</strong> "Summer Sale" launched', time: '45 min ago', color: 'blue' },
+  { text: '<strong>12 new users</strong> registered in the last hour', time: '1 hr ago', color: 'yellow' },
+  { text: '<strong>Payment gateway</strong> timeout resolved', time: '2 hr ago', color: 'pink' },
+  { text: '<strong>API response time</strong> improved to 120ms avg', time: '3 hr ago', color: 'green' }
+];
+
+function renderActivityFeed() {
+  const feed = document.getElementById('activity-feed');
+  activities.forEach(a => {
+    const item = document.createElement('div');
+    item.className = 'activity-item';
+    item.innerHTML = `
+      <div class="activity-indicator ${a.color}"></div>
+      <div class="activity-content">
+        <div class="activity-text">${a.text}</div>
+        <div class="activity-time">${a.time}</div>
+      </div>
+    `;
+    feed.appendChild(item);
+  });
+}
+
+renderActivityFeed();
+
+// ── Top Pages ──
+const pages = [
+  { name: '/dashboard', views: '12,482', change: '+14.2%', dir: 'up' },
+  { name: '/products', views: '8,931', change: '+7.8%', dir: 'up' },
+  { name: '/checkout', views: '6,204', change: '-3.1%', dir: 'down' },
+  { name: '/pricing', views: '5,117', change: '+22.4%', dir: 'up' },
+  { name: '/docs', views: '3,890', change: '+1.5%', dir: 'up' }
+];
+
+function renderPages() {
+  const tbody = document.getElementById('pages-tbody');
+  pages.forEach(p => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="page-name">${p.name}</td>
+      <td class="page-views">${p.views}</td>
+      <td class="page-change ${p.dir}">${p.change}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+renderPages();
+</script>
+</body>
+</html>

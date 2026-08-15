@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Holographic Shimmer</title>
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+
+@property --border-angle{
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+
+body{
+  min-height:100vh;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background:linear-gradient(135deg,#0d0221 0%,#1a0533 30%,#12082e 60%,#0a0520 100%);
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  overflow:hidden;
+  perspective:1200px;
+}
+
+.card-wrapper{
+  position:relative;
+  animation:float 6s ease-in-out infinite;
+}
+
+.card-wrapper:hover{
+  animation-play-state:paused;
+}
+
+@keyframes float{
+  0%,100%{transform:translateY(0)}
+  50%{transform:translateY(-12px)}
+}
+
+.card{
+  position:relative;
+  width:min(380px,88vw);
+  padding:3px;
+  border-radius:22px;
+  background:conic-gradient(
+    from var(--border-angle),
+    #ff006e,#8338ec,#3a86ff,#06d6a0,#ffbe0b,#ff006e
+  );
+  transition:transform 0.15s ease-out;
+  will-change:transform;
+}
+
+@keyframes border-spin{
+  to{--border-angle:360deg}
+}
+
+.card::before{
+  content:'';
+  position:absolute;
+  inset:-2px;
+  border-radius:24px;
+  background:conic-gradient(
+    from var(--border-angle),
+    #ff006e,#8338ec,#3a86ff,#06d6a0,#ffbe0b,#ff006e
+  );
+  z-index:-1;
+  filter:blur(12px);
+  opacity:0.6;
+  animation:border-spin 4s linear infinite;
+}
+
+.card-inner{
+  position:relative;
+  border-radius:19px;
+  overflow:hidden;
+  background:linear-gradient(
+    135deg,
+    rgba(255,255,255,0.06) 0%,
+    rgba(255,255,255,0.02) 50%,
+    rgba(255,255,255,0.06) 100%
+  );
+  backdrop-filter:blur(24px);
+  -webkit-backdrop-filter:blur(24px);
+}
+
+.shimmer{
+  position:absolute;
+  inset:0;
+  background:linear-gradient(
+    105deg,
+    transparent 30%,
+    rgba(255,0,110,0.08) 38%,
+    rgba(131,56,236,0.12) 42%,
+    rgba(58,134,255,0.15) 46%,
+    rgba(6,214,160,0.12) 50%,
+    rgba(255,190,11,0.1) 54%,
+    rgba(255,0,110,0.08) 58%,
+    transparent 66%
+  );
+  background-size:300% 100%;
+  animation:shimmer 3.5s ease-in-out infinite;
+  pointer-events:none;
+  z-index:2;
+}
+
+@keyframes shimmer{
+  0%{background-position:200% 0}
+  100%{background-position:-200% 0}
+}
+
+.light-overlay{
+  position:absolute;
+  inset:0;
+  background:radial-gradient(
+    circle at var(--light-x,50%) var(--light-y,50%),
+    rgba(255,255,255,0.12) 0%,
+    transparent 60%
+  );
+  pointer-events:none;
+  z-index:3;
+  transition:opacity 0.3s;
+  opacity:0;
+}
+
+.card-wrapper:hover .light-overlay{
+  opacity:1;
+}
+
+.grid-overlay{
+  position:absolute;
+  inset:0;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.015) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(255,255,255,0.015) 1px,transparent 1px);
+  background-size:24px 24px;
+  pointer-events:none;
+  z-index:1;
+}
+
+.card-content{
+  position:relative;
+  z-index:4;
+  padding:32px 28px 28px;
+  color:#fff;
+}
+
+.badge{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding:5px 14px;
+  border-radius:100px;
+  background:linear-gradient(135deg,rgba(131,56,236,0.3),rgba(58,134,255,0.3));
+  border:1px solid rgba(131,56,236,0.4);
+  font-size:11px;
+  font-weight:600;
+  letter-spacing:0.08em;
+  text-transform:uppercase;
+  color:rgba(255,255,255,0.9);
+  margin-bottom:20px;
+}
+
+.badge-dot{
+  width:6px;height:6px;
+  border-radius:50%;
+  background:#06d6a0;
+  box-shadow:0 0 8px #06d6a0;
+  animation:pulse-dot 2s ease-in-out infinite;
+}
+
+@keyframes pulse-dot{
+  0%,100%{opacity:1;transform:scale(1)}
+  50%{opacity:0.5;transform:scale(0.8)}
+}
+
+.title{
+  font-size:26px;
+  font-weight:700;
+  line-height:1.2;
+  margin-bottom:8px;
+  background:linear-gradient(135deg,#ff006e,#8338ec,#3a86ff,#06d6a0);
+  background-size:250% 250%;
+  -webkit-background-clip:text;
+  -webkit-text-fill-color:transparent;
+  background-clip:text;
+  animation:gradient-shift 5s ease infinite;
+}
+
+@keyframes gradient-shift{
+  0%{background-position:0% 50%}
+  50%{background-position:100% 50%}
+  100%{background-position:0% 50%}
+}
+
+.description{
+  font-size:14px;
+  line-height:1.6;
+  color:rgba(255,255,255,0.55);
+  margin-bottom:24px;
+}
+
+.pricing{
+  display:flex;
+  align-items:baseline;
+  gap:6px;
+  margin-bottom:20px;
+}
+
+.price{
+  font-size:38px;
+  font-weight:800;
+  background:linear-gradient(135deg,#fff,rgba(255,255,255,0.7));
+  -webkit-background-clip:text;
+  -webkit-text-fill-color:transparent;
+  background-clip:text;
+}
+
+.period{
+  font-size:14px;
+  color:rgba(255,255,255,0.4);
+}
+
+.features{
+  list-style:none;
+  margin-bottom:28px;
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+}
+
+.features li{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  font-size:14px;
+  color:rgba(255,255,255,0.75);
+}
+
+.check{
+  flex-shrink:0;
+  width:20px;height:20px;
+  border-radius:6px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background:linear-gradient(135deg,rgba(6,214,160,0.25),rgba(58,134,255,0.25));
+  border:1px solid rgba(6,214,160,0.3);
+}
+
+.check svg{
+  width:12px;height:12px;
+  stroke:#06d6a0;
+  stroke-width:2.5;
+  fill:none;
+}
+
+.cta{
+  display:block;
+  width:100%;
+  padding:14px;
+  border:none;
+  border-radius:14px;
+  font-size:15px;
+  font-weight:600;
+  letter-spacing:0.02em;
+  color:#fff;
+  cursor:pointer;
+  background:linear-gradient(135deg,#8338ec,#3a86ff);
+  background-size:200% 200%;
+  animation:gradient-shift 4s ease infinite;
+  transition:transform 0.25s,box-shadow 0.25s;
+  box-shadow:0 4px 20px rgba(131,56,236,0.35);
+}
+
+.cta:hover{
+  transform:scale(1.03);
+  box-shadow:0 8px 32px rgba(131,56,236,0.55);
+}
+
+.cta:active{
+  transform:scale(0.98);
+}
+
+.corner-accent{
+  position:absolute;
+  width:60px;height:60px;
+  border-radius:50%;
+  filter:blur(28px);
+  pointer-events:none;
+  z-index:0;
+}
+
+.corner-accent.top-left{
+  top:-20px;left:-20px;
+  background:#8338ec;
+  opacity:0.4;
+}
+
+.corner-accent.bottom-right{
+  bottom:-20px;right:-20px;
+  background:#3a86ff;
+  opacity:0.3;
+}
+</style>
+</head>
+<body>
+
+<div class="card-wrapper" id="cardWrapper">
+  <div class="corner-accent top-left"></div>
+  <div class="corner-accent bottom-right"></div>
+  <div class="card" id="card">
+    <div class="card-inner">
+      <div class="shimmer"></div>
+      <div class="grid-overlay"></div>
+      <div class="light-overlay" id="lightOverlay"></div>
+      <div class="card-content">
+        <div class="badge">
+          <span class="badge-dot"></span>
+          Limited Edition
+        </div>
+        <h1 class="title">Holographic Pro</h1>
+        <p class="description">
+          Unlock the full power of holographic design with premium features, iridescent components, and zero-latency rendering.
+        </p>
+        <div class="pricing">
+          <span class="price">$29</span>
+          <span class="period">/ month</span>
+        </div>
+        <ul class="features">
+          <li>
+            <span class="check"><svg viewBox="0 0 12 12"><polyline points="2 6 5 9 10 3"/></svg></span>
+            Unlimited holographic renders
+          </li>
+          <li>
+            <span class="check"><svg viewBox="0 0 12 12"><polyline points="2 6 5 9 10 3"/></svg></span>
+            4K iridescent export
+          </li>
+          <li>
+            <span class="check"><svg viewBox="0 0 12 12"><polyline points="2 6 5 9 10 3"/></svg></span>
+            Real-time 3D tilt engine
+          </li>
+          <li>
+            <span class="check"><svg viewBox="0 0 12 12"><polyline points="2 6 5 9 10 3"/></svg></span>
+            Priority shimmer support
+          </li>
+        </ul>
+        <button class="cta">Get Started</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const card=document.getElementById('card');
+const wrapper=document.getElementById('cardWrapper');
+const overlay=document.getElementById('lightOverlay');
+let animFrame=null;
+
+wrapper.addEventListener('mousemove',e=>{
+  const rect=wrapper.getBoundingClientRect();
+  const x=e.clientX-rect.left;
+  const y=e.clientY-rect.top;
+  const centerX=rect.width/2;
+  const centerY=rect.height/2;
+  const rotateY=((x-centerX)/centerX)*-12;
+  const rotateX=((y-centerY)/centerY)*12;
+  const lightX=(x/rect.width*100).toFixed(1);
+  const lightY=(y/rect.height*100).toFixed(1);
+  const borderAngle=Math.atan2(y-centerY,x-centerX)*180/Math.PI+180;
+
+  card.style.transform=`perspective(1200px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) translateZ(20px)`;
+  card.style.setProperty('--border-angle',borderAngle+'deg');
+  overlay.style.setProperty('--light-x',lightX+'%');
+  overlay.style.setProperty('--light-y',lightY+'%');
+});
+
+wrapper.addEventListener('mouseleave',()=>{
+  card.style.transform='perspective(1200px) rotateX(0) rotateY(0) translateZ(0)';
+  card.style.transition='transform 0.6s cubic-bezier(0.22,1,0.36,1)';
+  overlay.style.opacity='0';
+  setTimeout(()=>{
+    card.style.transition='transform 0.15s ease-out';
+  },600);
+});
+
+wrapper.addEventListener('mouseenter',()=>{
+  card.style.transition='transform 0.15s ease-out';
+});
+</script>
+</body>
+</html>

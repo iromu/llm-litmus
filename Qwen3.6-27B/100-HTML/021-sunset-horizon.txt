@@ -1,0 +1,18 @@
+# Sunset Horizon
+
+## Creative Prompt
+Create an animated sunset landscape with a glowing sun, gradient sky, drifting clouds, flying birds, and silhouetted ground with trees. The sky transitions through deep purple, magenta, orange, and gold gradients. The sun has multiple glow layers and a bright core. Clouds are composed of soft radial gradient segments that drift horizontally. Birds fly with flapping wings. The ground has a wavy silhouette with stylized evergreen tree shapes. The title "Sunset Horizon" appears at the bottom in large, faint text. The overall aesthetic is painterly, warm, and serene — like a digital oil painting of golden hour.
+
+## Techniques Used
+- Canvas gradient sky with multi-stop linear gradient (deep purple through magenta, orange, to gold)
+- Radial gradient sun with layered glow halos (7 concentric layers with decreasing opacity)
+- Cloud rendering with multiple overlapping radial gradient segments per cloud
+- Bezier bird wings with sine-wave flapping animation
+- Sinusoidal ground silhouette with compound wave functions
+- Layered triangular evergreen tree silhouettes
+- Parallax-like cloud movement at independent speeds and scales
+- Warm color shifting on clouds based on horizontal position
+- Responsive canvas filling the full viewport
+
+## Interaction Model
+Passive animation — sun remains centered, clouds drift horizontally at varying speeds, birds fly across with flapping wings, and the scene renders continuously. Resize reinitializes the scene layout.

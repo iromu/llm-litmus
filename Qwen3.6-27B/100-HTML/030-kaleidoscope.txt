@@ -1,0 +1,19 @@
+# Kaleidoscope
+
+## Creative Prompt
+Create a digital kaleidoscope with 8-fold radial symmetry. Colorful dots move within a wedge and are mirrored across all segments, creating intricate symmetrical patterns. Connection lines between mirrored points add geometric structure. Radial guide lines emanate from the center. The colors cycle through the spectrum and shift over time. Clicking changes the hue offset and regenerates points. A subtle center glow anchors the composition. The background trails for smooth motion. The overall aesthetic is psychedelic, symmetric, and mesmerizing.
+
+## Techniques Used
+- Canvas radial symmetry rendering with 8 segments
+- Point mirroring across angular wedges (with flip on odd segments)
+- Dot rendering with per-point hue cycling over time
+- Connection lines between adjacent mirrored points within and across segments
+- Radial guide lines emanating from the center
+- Center glow with radial gradient
+- Trailing background fade for smooth motion blur
+- Click-driven reinitialization with hue shift
+- Sine-based point animation for organic, non-repetitive movement
+- Decorative inner ring elements
+
+## Interaction Model
+Passive kaleidoscopic animation. Click anywhere to shift the color palette by 60–90 degrees and regenerate the point configuration with a fresh canvas. Points move, drift, and evolve continuously with organic sine-based motion.

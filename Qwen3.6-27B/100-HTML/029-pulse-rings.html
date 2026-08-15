@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pulse Rings</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
+canvas { display: block; cursor: crosshair; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+(() => {
+    const canvas = document.getElementById('c');
+    const ctx = canvas.getContext('2d');
+
+    let W, H;
+    const rings = [];
+    const MAX_RINGS = 300;
+    let mouseX = 0, mouseY = 0;
+    let lastSpawn = 0;
+    const SPAWN_INTERVAL = 40; // ms between mouse-move spawns
+    const AUTO_SPAWN_CHANCE = 0.08; // per frame
+
+    function resize() {
+        W = canvas.width = window.innerWidth;
+        H = canvas.height = window.innerHeight;
+    }
+    resize();
+    window.addEventListener('resize', resize);
+
+    class Ring {
+        constructor(x, y, hue, speed, maxRadius, glowWidth) {
+            this.x = x;
+            this.y = y;
+            this.hue = hue;
+            this.speed = speed;
+            this.maxRadius = maxRadius;
+            this.glowWidth = glowWidth;
+            this.radius = 2;
+            this.age = 0;
+            this.alive = true;
+        }
+
+        update() {
+            this.age++;
+            this.radius += this.speed;
+            if (this.radius > this.maxRadius) {
+                this.alive = false;
+            }
+        }
+
+        draw() {
+            const progress = this.radius / this.maxRadius;
+            const alpha = Math.pow(1 - progress, 1.5);
+            const strokeAlpha = alpha * 0.85;
+            const glowAlpha = alpha * 0.35;
+            const fillAlpha = Math.max(0, (1 - progress * 2.5)) * 0.06;
+
+            const hueShift = this.hue + this.age * 0.4;
+
+            // Inner fill glow for young rings
+            if (fillAlpha > 0.005) {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = `hsla(${hueShift}, 85%, 60%, ${fillAlpha})`;
+                ctx.fill();
+            }
+
+            // Glow stroke (wider, softer)
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+            ctx.strokeStyle = `hsla(${hueShift}, 80%, 65%, ${glowAlpha})`;
+            ctx.lineWidth = this.glowWidth * 2.5;
+            ctx.stroke();
+
+            // Main stroke
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+            ctx.strokeStyle = `hsla(${hueShift}, 90%, 70%, ${strokeAlpha})`;
+            ctx.lineWidth = this.glowWidth;
+            ctx.stroke();
+        }
+    }
+
+    function spawnRing(x, y) {
+        if (rings.length >= MAX_RINGS) {
+            // Remove oldest ring
+            for (let i = 0; i < rings.length; i++) {
+                if (rings[i].alive) {
+                    rings.splice(i, 1);
+                    break;
+                }
+            }
+            if (rings.length >= MAX_RINGS) {
+                rings.shift();
+            }
+        }
+        const hue = Math.random() * 360;
+        const speed = 0.8 + Math.random() * 2.5;
+        const maxRadius = 120 + Math.random() * 350;
+        const glowWidth = 1.2 + Math.random() * 2.8;
+        rings.push(new Ring(x, y, hue, speed, maxRadius, glowWidth));
+    }
+
+    function burstRings(x, y, count) {
+        for (let i = 0; i < count; i++) {
+            const hue = (i / count) * 360 + Math.random() * 30;
+            const speed = 1.2 + Math.random() * 3;
+            const maxRadius = 100 + Math.random() * 400;
+            const glowWidth = 1.5 + Math.random() * 3;
+            rings.push(new Ring(x, y, hue, speed, maxRadius, glowWidth));
+        }
+        // Trim excess
+        while (rings.length > MAX_RINGS) {
+            rings.shift();
+        }
+    }
+
+    // Mouse move — spawn along path
+    canvas.addEventListener('mousemove', (e) => {
+        mouseX = e.clientX;
+        mouseY = e.clientY;
+        const now = performance.now();
+        if (now - lastSpawn > SPAWN_INTERVAL) {
+            spawnRing(mouseX, mouseY);
+            lastSpawn = now;
+        }
+    });
+
+    // Click — burst
+    canvas.addEventListener('mousedown', (e) => {
+        burstRings(e.clientX, e.clientY, 5);
+    });
+
+    // Touch support
+    canvas.addEventListener('touchmove', (e) => {
+        e.preventDefault();
+        const touch = e.touches[0];
+        mouseX = touch.clientX;
+        mouseY = touch.clientY;
+        const now = performance.now();
+        if (now - lastSpawn > SPAWN_INTERVAL) {
+            spawnRing(mouseX, mouseY);
+            lastSpawn = now;
+        }
+    }, { passive: false });
+
+    canvas.addEventListener('touchstart', (e) => {
+        const touch = e.touches[0];
+        burstRings(touch.clientX, touch.clientY, 5);
+    });
+
+    // Initial seed
+    for (let i = 0; i < 8; i++) {
+        spawnRing(W * 0.2 + Math.random() * W * 0.6, H * 0.2 + Math.random() * H * 0.6);
+    }
+
+    function animate() {
+        // Exponential background fade — draws a semi-transparent black rect
+        // over the previous frame, creating smooth motion trails
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.035)';
+        ctx.fillRect(0, 0, W, H);
+
+        // Auto-spawn
+        if (Math.random() < AUTO_SPAWN_CHANCE) {
+            spawnRing(
+                W * 0.1 + Math.random() * W * 0.8,
+                H * 0.1 + Math.random() * H * 0.8
+            );
+        }
+
+        // Update and draw
+        for (let i = rings.length - 1; i >= 0; i--) {
+            rings[i].update();
+            if (!rings[i].alive) {
+                rings.splice(i, 1);
+            } else {
+                rings[i].draw();
+            }
+        }
+
+        requestAnimationFrame(animate);
+    }
+
+    // Dark initial fill
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, W, H);
+
+    animate();
+})();
+</script>
+</body>
+</html>

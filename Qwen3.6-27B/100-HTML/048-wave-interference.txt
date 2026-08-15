@@ -1,0 +1,20 @@
+# Wave Interference
+
+## Creative Prompt
+Create a physics ripple tank simulation showing wave interference patterns. Multiple wave sources emit circular waves that interfere with each other, creating complex patterns of constructive and destructive interference. The simulation shows the wave height as color (blue for troughs, red for peaks, dark for calm). The pattern evolves over time with waves propagating outward. Clicking adds new wave sources. The overall aesthetic is scientific, colorful, and mesmerizing — like a physics classroom demonstration.
+
+## Techniques Used
+- Canvas pixel-level wave simulation with ImageData
+- Multi-source circular wave generation
+- Wave superposition for interference patterns
+- Color mapping based on wave height (blue-red diverging palette)
+- Exponential damping for wave propagation
+- Click-driven source addition
+- Right-click to clear all sources
+- Pulsing source indicators with glow halos
+- requestAnimationFrame real-time rendering
+- Responsive canvas filling the viewport
+- Pixel-scale rendering for performance
+
+## Interaction Model
+Click anywhere to add a new wave source that continuously emits circular waves. Waves from all sources superimpose creating interference patterns. Right-click to clear all sources and start fresh. Three sources are pre-placed on load forming a triangle pattern.

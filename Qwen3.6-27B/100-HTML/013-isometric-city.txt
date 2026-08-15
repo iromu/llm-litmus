@@ -1,0 +1,16 @@
+# Isometric City
+
+## Creative Prompt
+Create a 3D isometric cityscape with procedurally generated buildings. Each building has front, side, and top faces with distinct colors and lit windows generated via JavaScript. The buildings are arranged in a loose grid with random variation in size, height, and color palette (blues, purples, teals, warm browns, magentas). A subtle grid ground plane anchors the scene. The entire city slowly rotates in 3D via CSS transforms. The title "Isometric City" is displayed at the bottom with minimal, elegant typography. The aesthetic is architectural, geometric, and slightly futuristic.
+
+## Techniques Used
+- CSS 3D transforms with preserve-3d
+- Isometric projection via rotateX(60deg) rotateZ(45deg)
+- JavaScript DOM-based building generation with front/side/top face construction
+- Randomized window placement with lighting variation
+- CSS animation on city container for slow rotation
+- Responsive scaling
+- Gradient-based building face colors
+
+## Interaction Model
+The city rotates continuously in a gentle seesaw motion. No direct user interaction beyond passive observation.

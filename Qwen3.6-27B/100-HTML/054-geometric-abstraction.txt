@@ -1,0 +1,18 @@
+# Geometric Abstraction
+
+## Creative Prompt
+Create a Mondrian-inspired composition generator. The canvas is divided into rectangular sections with thick black lines, filled with primary colors (red, blue, yellow) and white. The composition evolves over time — rectangles shift, resize, and change colors with smooth transitions. Clicking generates a new composition. The overall aesthetic is modernist, clean, and geometric — like a living Mondrian painting.
+
+## Techniques Used
+- Recursive canvas subdivision algorithm for rectangular grid generation
+- Mondrian primary color palette (red, blue, yellow, white, cream) with weighted distribution
+- Thick black dividing lines (7px) between rectangles
+- Greedy spatial matching algorithm for rectangle correspondence across compositions
+- Smooth cubic ease-out interpolation for position, size, and color transitions
+- Aspect-ratio-aware split direction selection for balanced compositions
+- Periodic passive color evolution with probabilistic triggers
+- Debounced responsive resize handling
+- Canvas fill with cream background (#f0ebe3)
+
+## Interaction Model
+Passive evolution — rectangles smoothly shift colors every ~4 seconds. Click anywhere on the canvas to generate a completely new composition with smooth 3-second cubic ease-out transitions for all rectangle positions, sizes, and colors.

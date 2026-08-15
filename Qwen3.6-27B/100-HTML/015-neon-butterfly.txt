@@ -1,0 +1,16 @@
+# Neon Butterfly
+
+## Creative Prompt
+Create an iridescent butterfly visualization with rainbow trails. Multiple butterflies flutter across a dark canvas, each with bezier-curve wings that flap with sine-wave animation. The wings use radial gradients that cycle through the full hue spectrum, creating an iridescent, holographic effect. Each butterfly leaves a fading trail of colored dots behind it. The butterflies drift organically with gentle sine-wave motion, bouncing off screen edges. The overall aesthetic is ethereal, colorful, and magical.
+
+## Techniques Used
+- Canvas bezier curve wing rendering with quadraticCurveTo
+- Sine-wave wing flapping animation
+- HSL color cycling for iridescent effect
+- Radial gradient wing fills with transparency
+- Trail particle system with fading alpha
+- Organic drift physics with boundary bouncing
+- requestAnimationFrame loop with trailing overlay
+
+## Interaction Model
+Passive observation — butterflies flutter and drift continuously, changing colors over time. The trails fade behind them creating a rainbow path effect.

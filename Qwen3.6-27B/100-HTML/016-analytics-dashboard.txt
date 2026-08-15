@@ -1,0 +1,16 @@
+# Analytics Dashboard
+
+## Creative Prompt
+Create a premium dark-mode data dashboard with a GitHub-inspired color scheme. The dashboard features four stat cards at the top showing key metrics with percentage changes. Below are two chart panels: a line chart showing revenue trends and a bar chart showing traffic sources. A data table at the bottom shows recent activity with status badges. The design uses subtle borders, rounded corners, and a muted color palette with accent colors for data visualization. The overall aesthetic is clean, professional, and data-dense.
+
+## Techniques Used
+- CSS Grid layout for dashboard panels
+- Dark mode color scheme (#0d1117 background, #161b22 cards)
+- Canvas-based chart rendering (line chart with gradient fill, bar chart)
+- Status badges with colored backgrounds
+- Monospace typography for data values
+- Responsive grid breakpoints
+- Dynamic date display with JavaScript
+
+## Interaction Model
+Static dashboard layout with live date display. Charts render on page load. Responsive layout adapts from desktop to mobile.

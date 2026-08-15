@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rose</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;overflow:hidden}
+body{background:linear-gradient(160deg,#1a0a10 0%,#2d1020 25%,#1e0e18 50%,#150810 100%)}
+canvas{display:block;width:100%;height:100%}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let W, H, cx, cy, scale;
+
+function resize() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    cx = W / 2;
+    cy = H * 0.32;
+    scale = Math.min(W, H) / 900;
+}
+window.addEventListener('resize', resize);
+resize();
+
+// Easing
+function easeInOutCubic(t) { return t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t+2,3)/2; }
+function easeOutCubic(t) { return 1 - Math.pow(1-t,3); }
+function easeInOutSine(t) { return -(Math.cos(Math.PI*t)-1)/2; }
+function lerp(a,b,t) { return a+(b-a)*t; }
+
+// Bloom cycle: 0=bud, 0.5=full bloom, 1=bud again
+// Phase: 0-0.25 bloom, 0.25-0.75 hold, 0.75-1.0 close
+const CYCLE = 18; // seconds for full cycle
+let time = 0;
+
+function bloomPhase(t) {
+    // t in [0,1] cycling
+    if (t < 0.25) return easeInOutSine(t / 0.25); // bloom 0→1
+    if (t < 0.75) return 1; // hold
+    return 1 - easeInOutSine((t - 0.75) / 0.25); // close 1→0
+}
+
+function stemPhase(t) {
+    // stem grows slightly ahead of bloom
+    if (t < 0.08) return easeOutCubic(t / 0.08);
+    if (t < 0.82) return 1;
+    return 1 - easeInOutCubic((t - 0.82) / 0.18);
+}
+
+// Petal definition
+function drawPetal(ctx, x, y, w, h, angle, bloom, layer, petalIndex) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(angle);
+
+    const openAngle = bloom * 0.6;
+    const spread = bloom * w * 0.5;
+    const petalH = h * (0.3 + bloom * 0.7);
+
+    // Color based on layer and index
+    const colorSets = [
+        // Inner petals - cream/white center
+        { base: [255, 230, 220], mid: [240, 160, 150], edge: [200, 80, 90] },
+        // Middle petals - pink
+        { base: [245, 180, 170], mid: [220, 100, 110], edge: [180, 50, 65] },
+        // Outer petals - deep red
+        { base: [220, 100, 100], mid: [180, 50, 60], edge: [120, 20, 35] },
+        // Sepals - green
+        { base: [80, 130, 60], mid: [50, 90, 40], edge: [30, 55, 25] },
+    ];
+
+    const cs = colorSets[Math.min(layer, colorSets.length - 1)];
+    const variation = (petalIndex % 3) * 15;
+
+    ctx.beginPath();
+
+    // Petal shape using bezier curves
+    const tipX = 0;
+    const tipY = -petalH;
+    const sideW = spread;
+    const baseY = 0;
+
+    // Bottom of petal (attached to center)
+    ctx.moveTo(-sideW * 0.15, baseY);
+
+    // Left curve up to tip
+    ctx.bezierCurveTo(
+        -sideW * 0.8, baseY - petalH * 0.1,
+        -sideW * 0.9, baseY - petalH * 0.5,
+        tipX * 0.3, tipY * 0.7
+    );
+
+    // Tip of petal
+    ctx.bezierCurveTo(
+        tipX * 0.5, tipY * 0.9,
+        sideW * 0.3, tipY * 0.7,
+        sideW * 0.9, baseY - petalH * 0.5
+    );
+
+    // Right curve down
+    ctx.bezierCurveTo(
+        sideW * 0.8, baseY - petalH * 0.1,
+        sideW * 0.15, baseY * 0.8,
+        sideW * 0.15, baseY
+    );
+
+    // Close at bottom
+    ctx.closePath();
+
+    // Gradient fill
+    const grad = ctx.createRadialGradient(0, -petalH * 0.3, 0, 0, -petalH * 0.3, petalH);
+    grad.addColorStop(0, `rgba(${cs.base[0]+variation}, ${cs.base[1]+variation}, ${cs.base[2]+variation}, ${0.85 + bloom * 0.15})`);
+    grad.addColorStop(0.5, `rgba(${cs.mid[0]}, ${cs.mid[1]}, ${cs.mid[2]}, 0.9)`);
+    grad.addColorStop(1, `rgba(${cs.edge[0]}, ${cs.edge[1]}, ${cs.edge[2]}, 0.95)`);
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    // Petal edge highlight
+    ctx.strokeStyle = `rgba(255, 200, 190, ${0.15 + bloom * 0.1})`;
+    ctx.lineWidth = 0.5 * scale;
+    ctx.stroke();
+
+    // Vein lines on petal
+    if (bloom > 0.3 && layer < 3) {
+        ctx.beginPath();
+        ctx.moveTo(0, -2 * scale);
+        ctx.bezierCurveTo(
+            -sideW * 0.1, -petalH * 0.3,
+            -sideW * 0.05, -petalH * 0.6,
+            0, -petalH * 0.85
+        );
+        ctx.strokeStyle = `rgba(${cs.edge[0]+30}, ${cs.edge[1]+30}, ${cs.edge[2]+20}, ${0.15 * bloom})`;
+        ctx.lineWidth = 0.8 * scale;
+        ctx.stroke();
+    }
+
+    ctx.restore();
+}
+
+// Sepal drawing
+function drawSepal(ctx, x, y, angle, bloom, index) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(angle);
+
+    const s = scale;
+    const sepalLen = 40 * s * (1.2 - bloom * 0.3);
+    const sepalW = 12 * s;
+
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.bezierCurveTo(-sepalW, -sepalLen * 0.4, -sepalW * 0.5, -sepalLen * 0.8, 0, -sepalLen);
+    ctx.bezierCurveTo(sepalW * 0.5, -sepalLen * 0.8, sepalW, -sepalLen * 0.4, 0, 0);
+
+    const grad = ctx.createLinearGradient(0, 0, 0, -sepalLen);
+    grad.addColorStop(0, `rgba(50, 90, 35, 0.9)`);
+    grad.addColorStop(0.6, `rgba(70, 120, 50, 0.85)`);
+    grad.addColorStop(1, `rgba(40, 75, 30, 0.9)`);
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    // Sepal vein
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(0, -sepalLen * 0.9);
+    ctx.strokeStyle = 'rgba(30, 55, 20, 0.4)';
+    ctx.lineWidth = 0.8 * s;
+    ctx.stroke();
+
+    ctx.restore();
+}
+
+// Stem with thorns
+function drawStem(ctx, startX, startY, endX, endY, stemGrowth, sway) {
+    if (stemGrowth <= 0) return;
+
+    const s = scale;
+    const midX = (startX + endX) / 2 + sway * 8 * s;
+    const midY = (startY + endY) / 2;
+
+    // Visible portion based on growth
+    const growX = lerp(startX, midX, Math.min(stemGrowth * 2, 1));
+    const growY = lerp(startY, midY, Math.min(stemGrowth * 2, 1));
+
+    ctx.beginPath();
+    ctx.moveTo(startX, startY);
+    ctx.bezierCurveTo(
+        lerp(startX, midX, Math.min(stemGrowth * 3, 1) * 0.5),
+        lerp(startY, midY, Math.min(stemGrowth * 3, 1) * 0.5),
+        lerp(midX, endX, Math.max(0, (stemGrowth * 2 - 1))),
+        lerp(midY, endY, Math.max(0, (stemGrowth * 2 - 1))),
+        lerp(startX, endX, Math.min(stemGrowth, 1)),
+        lerp(startY, endY, Math.min(stemGrowth, 1))
+    );
+
+    const stemGrad = ctx.createLinearGradient(startX, startY, endX, endY);
+    stemGrad.addColorStop(0, '#2d5a1e');
+    stemGrad.addColorStop(0.5, '#3a7a28');
+    stemGrad.addColorStop(1, '#2d6a20');
+    ctx.strokeStyle = stemGrad;
+    ctx.lineWidth = 6 * s;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+
+    // Stem highlight
+    ctx.beginPath();
+    ctx.moveTo(startX - 1.5 * s, startY);
+    ctx.bezierCurveTo(
+        lerp(startX, midX, Math.min(stemGrowth * 3, 1) * 0.5) - 1.5 * s,
+        lerp(startY, midY, Math.min(stemGrowth * 3, 1) * 0.5),
+        lerp(midX, endX, Math.max(0, (stemGrowth * 2 - 1))) - 1.5 * s,
+        lerp(midY, endY, Math.max(0, (stemGrowth * 2 - 1))),
+        lerp(startX, endX, Math.min(stemGrowth, 1)) - 1.5 * s,
+        lerp(startY, endY, Math.min(stemGrowth, 1))
+    );
+    ctx.strokeStyle = 'rgba(100, 180, 70, 0.3)';
+    ctx.lineWidth = 2 * s;
+    ctx.stroke();
+
+    // Thorns
+    if (stemGrowth > 0.4) {
+        const thornPositions = [0.3, 0.5, 0.7];
+        thornPositions.forEach((tp, i) => {
+            if (stemGrowth > tp) {
+                const tx = lerp(startX, lerp(startX, endX, tp), 1);
+                const ty = lerp(startY, lerp(startY, endY, tp), 1);
+                const side = i % 2 === 0 ? 1 : -1;
+
+                ctx.beginPath();
+                ctx.moveTo(tx, ty);
+                ctx.lineTo(tx + side * 8 * s, ty - 5 * s);
+                ctx.lineTo(tx + side * 3 * s, ty - 1 * s);
+                ctx.closePath();
+                ctx.fillStyle = '#2a5518';
+                ctx.fill();
+            }
+        });
+    }
+}
+
+// Leaf drawing
+function drawLeaf(ctx, x, y, angle, leafBloom, side) {
+    if (leafBloom <= 0) return;
+
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(angle);
+
+    const s = scale;
+    const leafW = 35 * s * leafBloom;
+    const leafH = 20 * s * leafBloom;
+
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.bezierCurveTo(
+        leafW * 0.3, -leafH * side,
+        leafW * 0.7, -leafH * 0.8 * side,
+        leafW, -leafH * 0.2 * side
+    );
+    ctx.bezierCurveTo(
+        leafW * 0.7, leafH * 0.1 * side,
+        leafW * 0.3, leafH * 0.15 * side,
+        0, 0
+    );
+
+    const leafGrad = ctx.createRadialGradient(leafW * 0.3, -leafH * 0.3 * side, 0, leafW * 0.5, -leafH * 0.3 * side, leafW);
+    leafGrad.addColorStop(0, `rgba(70, 140, 50, ${0.8 * leafBloom})`);
+    leafGrad.addColorStop(0.5, `rgba(45, 100, 30, ${0.85 * leafBloom})`);
+    leafGrad.addColorStop(1, `rgba(30, 65, 20, ${0.9 * leafBloom})`);
+    ctx.fillStyle = leafGrad;
+    ctx.fill();
+
+    // Leaf vein
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.bezierCurveTo(leafW * 0.4, -leafH * 0.3 * side, leafW * 0.7, -leafH * 0.2 * side, leafW * 0.95, -leafH * 0.15 * side);
+    ctx.strokeStyle = `rgba(25, 50, 15, ${0.4 * leafBloom})`;
+    ctx.lineWidth = 1 * s;
+    ctx.stroke();
+
+    // Side veins
+    for (let i = 1; i <= 3; i++) {
+        const vp = i / 4;
+        const vx = leafW * vp;
+        const vy = -leafH * 0.25 * side * vp;
+        ctx.beginPath();
+        ctx.moveTo(vx, vy);
+        ctx.lineTo(vx + leafW * 0.1, vy - leafH * 0.3 * side);
+        ctx.strokeStyle = `rgba(25, 50, 15, ${0.2 * leafBloom})`;
+        ctx.lineWidth = 0.6 * s;
+        ctx.stroke();
+    }
+
+    ctx.restore();
+}
+
+// Dew drop
+function drawDewDrop(ctx, x, y, r, bloom) {
+    if (bloom < 0.5) return;
+    const alpha = (bloom - 0.5) * 2 * 0.6;
+    const s = scale;
+
+    ctx.save();
+    ctx.translate(x, y);
+
+    // Drop body
+    ctx.beginPath();
+    ctx.arc(0, 0, r * s, 0, Math.PI * 2);
+    const dropGrad = ctx.createRadialGradient(-r * 0.3 * s, -r * 0.3 * s, 0, 0, 0, r * s);
+    dropGrad.addColorStop(0, `rgba(255, 255, 255, ${alpha * 0.9})`);
+    dropGrad.addColorStop(0.4, `rgba(200, 230, 255, ${alpha * 0.5})`);
+    dropGrad.addColorStop(1, `rgba(150, 200, 240, ${alpha * 0.2})`);
+    ctx.fillStyle = dropGrad;
+    ctx.fill();
+
+    // Highlight
+    ctx.beginPath();
+    ctx.arc(-r * 0.25 * s, -r * 0.25 * s, r * 0.25 * s, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(255, 255, 255, ${alpha * 0.8})`;
+    ctx.fill();
+
+    ctx.restore();
+}
+
+// Background particles (floating pollen/light)
+const particles = [];
+for (let i = 0; i < 40; i++) {
+    particles.push({
+        x: Math.random(),
+        y: Math.random(),
+        size: Math.random() * 2 + 0.5,
+        speed: Math.random() * 0.0003 + 0.0001,
+        drift: Math.random() * 0.0002 - 0.0001,
+        alpha: Math.random() * 0.3 + 0.1,
+        phase: Math.random() * Math.PI * 2
+    });
+}
+
+function drawBackground(t) {
+    // Soft gradient background
+    const bgGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(W, H) * 0.8);
+    bgGrad.addColorStop(0, '#2a1520');
+    bgGrad.addColorStop(0.4, '#1e0e18');
+    bgGrad.addColorStop(1, '#0d0508');
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(0, 0, W, H);
+
+    // Soft light glow behind rose
+    const glowGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, 250 * scale);
+    glowGrad.addColorStop(0, 'rgba(180, 80, 90, 0.08)');
+    glowGrad.addColorStop(0.5, 'rgba(120, 50, 60, 0.04)');
+    glowGrad.addColorStop(1, 'rgba(80, 30, 40, 0)');
+    ctx.fillStyle = glowGrad;
+    ctx.fillRect(0, 0, W, H);
+
+    // Floating particles
+    particles.forEach(p => {
+        p.y -= p.speed;
+        p.x += p.drift + Math.sin(t * 2 + p.phase) * 0.00005;
+        if (p.y < -0.02) { p.y = 1.02; p.x = Math.random(); }
+        if (p.x < -0.02) p.x = 1.02;
+        if (p.x > 1.02) p.x = -0.02;
+
+        const flicker = 0.5 + 0.5 * Math.sin(t * 3 + p.phase);
+        ctx.beginPath();
+        ctx.arc(p.x * W, p.y * H, p.size * scale, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(255, 200, 180, ${p.alpha * flicker})`;
+        ctx.fill();
+    });
+}
+
+// Rose center (receptacle)
+function drawCenter(ctx, x, y, bloom) {
+    const s = scale;
+    const r = 12 * s * (0.5 + bloom * 0.5);
+
+    // Dark center
+    const cGrad = ctx.createRadialGradient(x, y, 0, x, y, r);
+    cGrad.addColorStop(0, `rgba(60, 20, 25, 0.9)`);
+    cGrad.addColorStop(0.6, `rgba(80, 30, 35, 0.8)`);
+    cGrad.addColorStop(1, `rgba(100, 40, 45, 0.3)`);
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fillStyle = cGrad;
+    ctx.fill();
+
+    // Stamens
+    if (bloom > 0.3) {
+        const stamenAlpha = (bloom - 0.3) / 0.7;
+        const numStamens = 12;
+        for (let i = 0; i < numStamens; i++) {
+            const angle = (i / numStamens) * Math.PI * 2 + bloom * 0.3;
+            const len = r * (0.6 + bloom * 0.8);
+            const sx = x + Math.cos(angle) * len;
+            const sy = y + Math.sin(angle) * len;
+
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+            ctx.lineTo(sx, sy);
+            ctx.strokeStyle = `rgba(200, 160, 80, ${stamenAlpha * 0.5})`;
+            ctx.lineWidth = 0.8 * s;
+            ctx.stroke();
+
+            // Anther
+            ctx.beginPath();
+            ctx.arc(sx, sy, 1.5 * s, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(220, 180, 90, ${stamenAlpha * 0.7})`;
+            ctx.fill();
+        }
+    }
+}
+
+// Main render
+function render(timestamp) {
+    const t = timestamp / 1000;
+    time = t;
+
+    const cycleT = (t % CYCLE) / CYCLE;
+    const bloom = bloomPhase(cycleT);
+    const stemG = stemPhase(cycleT);
+    const leafG = Math.max(0, (stemG - 0.3) / 0.7); // leaves grow after stem
+
+    // Gentle sway
+    const sway = Math.sin(t * 0.8) * 0.03;
+    const sway2 = Math.sin(t * 0.6 + 1) * 0.02;
+
+    ctx.clearRect(0, 0, W, H);
+
+    // Background
+    drawBackground(t);
+
+    // Stem dimensions
+    const stemTopX = cx;
+    const stemTopY = cy;
+    const stemBotY = H * 0.92;
+    const stemBotX = cx + sway * 30 * scale;
+
+    // Draw stem
+    drawStem(ctx, stemBotX, stemBotY, stemTopX, stemTopY, stemG, sway);
+
+    // Leaves
+    const leaf1Y = lerp(stemBotY, stemTopY, 0.35);
+    const leaf1X = lerp(stemBotX, stemTopX, 0.35);
+    drawLeaf(ctx, leaf1X, leaf1Y, -0.8 + sway2, easeOutCubic(Math.min(leafG * 1.5, 1)), 1);
+
+    const leaf2Y = lerp(stemBotY, stemTopY, 0.55);
+    const leaf2X = lerp(stemBotX, stemTopX, 0.55);
+    drawLeaf(ctx, leaf2X, leaf2Y, 0.9 + sway2, easeOutCubic(Math.min((leafG - 0.2) * 1.5, 1)), -1);
+
+    const leaf3Y = lerp(stemBotY, stemTopY, 0.75);
+    const leaf3X = lerp(stemBotX, stemTopX, 0.75);
+    drawLeaf(ctx, leaf3X, leaf3Y, -0.6 + sway2, easeOutCubic(Math.min((leafG - 0.4) * 1.5, 1)), 1);
+
+    // Rose head - layer by layer (back to front)
+    const roseX = stemTopX;
+    const roseY = stemTopY;
+
+    // Sepals (behind everything)
+    const numSepals = 5;
+    for (let i = 0; i < numSepals; i++) {
+        const angle = (i / numSepals) * Math.PI * 2 - Math.PI / 2 + sway;
+        drawSepal(ctx, roseX, roseY, angle + Math.PI / 2, bloom, i);
+    }
+
+    // Outer petals (layer 2)
+    const outerCount = 8;
+    for (let i = 0; i < outerCount; i++) {
+        const baseAngle = (i / outerCount) * Math.PI * 2 + sway * 2;
+        const layerBloom = easeInOutCubic(Math.max(0, (bloom - 0.1) / 0.6));
+        const petalAngle = baseAngle + Math.cos(layerBloom * Math.PI * 0.5) * 0.3;
+        drawPetal(ctx, roseX, roseY, 55 * scale, 80 * scale,
+            petalAngle, layerBloom, 2, i);
+    }
+
+    // Middle petals (layer 1)
+    const midCount = 7;
+    for (let i = 0; i < midCount; i++) {
+        const baseAngle = (i / midCount) * Math.PI * 2 + 0.3 + sway * 1.5;
+        const layerBloom = easeInOutCubic(Math.max(0, (bloom - 0.2) / 0.5));
+        const petalAngle = baseAngle + Math.cos(layerBloom * Math.PI * 0.4) * 0.25;
+        drawPetal(ctx, roseX, roseY, 40 * scale, 65 * scale,
+            petalAngle, layerBloom, 1, i);
+    }
+
+    // Inner petals (layer 0)
+    const innerCount = 5;
+    for (let i = 0; i < innerCount; i++) {
+        const baseAngle = (i / innerCount) * Math.PI * 2 + 0.6 + sway;
+        const layerBloom = easeInOutCubic(Math.max(0, (bloom - 0.35) / 0.4));
+        const petalAngle = baseAngle + Math.cos(layerBloom * Math.PI * 0.3) * 0.2;
+        drawPetal(ctx, roseX, roseY, 28 * scale, 50 * scale,
+            petalAngle, layerBloom, 0, i);
+    }
+
+    // Center
+    drawCenter(ctx, roseX, roseY, bloom);
+
+    // Dew drops on petals
+    if (bloom > 0.4) {
+        const dewAlpha = (bloom - 0.4) / 0.6;
+        const dewPositions = [
+            { angle: 0.5, dist: 0.6, r: 3 },
+            { angle: 1.8, dist: 0.5, r: 2.5 },
+            { angle: 3.2, dist: 0.7, r: 3.5 },
+            { angle: 4.5, dist: 0.45, r: 2 },
+            { angle: 5.5, dist: 0.55, r: 3 },
+        ];
+        dewPositions.forEach(dp => {
+            const dx = roseX + Math.cos(dp.angle + sway) * dp.dist * 50 * scale;
+            const dy = roseY + Math.sin(dp.angle + sway) * dp.dist * 50 * scale - 20 * scale * bloom;
+            drawDewDrop(ctx, dx, dy, dp.r, dewAlpha);
+        });
+    }
+
+    // Ground shadow
+    if (stemG > 0) {
+        const shadowGrad = ctx.createRadialGradient(stemBotX, stemBotY, 0, stemBotX, stemBotY, 80 * scale);
+        shadowGrad.addColorStop(0, `rgba(0, 0, 0, ${0.2 * stemG})`);
+        shadowGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        ctx.fillStyle = shadowGrad;
+        ctx.beginPath();
+        ctx.ellipse(stemBotX, stemBotY + 10 * scale, 80 * scale, 20 * scale, 0, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    requestAnimationFrame(render);
+}
+
+requestAnimationFrame(render);
+</script>
+</body>
+</html>

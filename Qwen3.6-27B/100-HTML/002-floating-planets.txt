@@ -1,0 +1,15 @@
+# Floating Planets
+
+## Creative Prompt
+Create a cosmic visualization with orbiting planets around a central typography piece. Five planets of varying sizes and colors orbit at different speeds and radii, some reversing direction. Each planet has a realistic radial gradient sphere with shadow and glow. Two semi-transparent rings rotate slowly. A canvas starfield with twinkling stars forms the background. The title "Cosmos" is centered with wide letter-spacing and a soft purple glow. The overall feel is meditative, vast, and celestial.
+
+## Techniques Used
+- CSS orbit animation using transform rotate + translateX
+- CSS custom property-driven animation parameters
+- Radial gradient planet spheres with inset shadows for 3D effect
+- Canvas starfield with twinkling
+- 3D perspective scene with rotating rings
+- Responsive scaling
+
+## Interaction Model
+Passive observation — all elements animate continuously. The viewer watches the orbital dance. Resize adjusts starfield and planet positions proportionally.

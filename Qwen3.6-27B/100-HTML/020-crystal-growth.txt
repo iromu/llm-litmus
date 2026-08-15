@@ -1,0 +1,17 @@
+# Crystal Growth
+
+## Creative Prompt
+Create a generative crystal growth visualization where faceted crystal structures grow organically from nucleation points. Each crystal has multiple facets radiating from a center, rendered as quadrilateral shapes with varying hues (blue-purple spectrum), alpha levels, and edge strokes. Crystal tips have a glow effect. Crystals slowly grow additional facets over time. Clicking spawns new crystals at the cursor. Moving the mouse also generates new crystals in the vicinity. The background fades with a trailing effect. The overall aesthetic is frozen, geometric, and luminescent — like observing crystal formation under a microscope.
+
+## Techniques Used
+- Canvas quadrilateral rendering for crystal facets
+- Organic growth algorithm with generation limit
+- HSL color cycling per facet
+- Tip glow with radial gradients
+- Mouse-following crystal generation
+- Trailing background with semi-transparent fillRect
+- Click spawning
+- Limit-based population control (max 120 crystals)
+
+## Interaction Model
+Click to spawn crystal cluster. Move mouse to grow crystals along the path. Crystals grow additional facets over time. The scene evolves continuously with trailing fade.

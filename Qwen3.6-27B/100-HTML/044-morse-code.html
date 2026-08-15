@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Morse Code</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--amber:#f0a830;--amber-dim:#8a6418;--amber-glow:#ffd060;--green:#3a7a2a;--green-dim:#1a3a12;--bg:#0a0f08;--panel:#0d1510;--border:#1a2e18;--text:#c8d8b8;--text-dim:#5a6a52}
+body{min-height:100vh;background:var(--bg);color:var(--text);font-family:'Courier New',Courier,monospace;overflow:hidden;user-select:none}
+#flash-overlay{position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:100;opacity:0;background:radial-gradient(ellipse at 50% 40%,rgba(240,168,48,0.25) 0%,transparent 60%);transition:opacity 0.04s ease-out}
+#flash-overlay.active{opacity:1}
+.layout{display:grid;grid-template-rows:auto 1fr auto auto;grid-template-columns:1fr;height:100vh;gap:0}
+.header{display:flex;align-items:center;justify-content:space-between;padding:12px 20px;border-bottom:1px solid var(--border);background:var(--panel)}
+.header h1{font-size:clamp(0.8rem,2vw,1.1rem);font-weight:400;letter-spacing:0.25em;text-transform:uppercase;color:var(--amber)}
+.header .status{display:flex;align-items:center;gap:8px;font-size:0.7rem;color:var(--text-dim);letter-spacing:0.1em;text-transform:uppercase}
+.status-dot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:blink 2s ease-in-out infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0.2}}
+.main-area{display:grid;grid-template-rows:1fr 1fr;gap:0;overflow:hidden}
+.signal-section{display:grid;grid-template-columns:80px 1fr 80px;align-items:center;border-bottom:1px solid var(--border);position:relative}
+.signal-section::after{content:'';position:absolute;top:0;left:0;right:0;bottom:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.03) 2px,rgba(0,0,0,0.03) 4px);pointer-events:none;z-index:1}
+.meter{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:8px}
+.meter-label{font-size:0.55rem;color:var(--text-dim);letter-spacing:0.15em;text-transform:uppercase;writing-mode:vertical-rl;text-orientation:mixed;transform:rotate(180deg)}
+.meter-bars{display:flex;flex-direction:column;gap:2px;align-items:center}
+.meter-bar{width:8px;height:3px;background:var(--green-dim);border-radius:1px;transition:background 0.1s}
+.meter-bar.active{background:var(--amber);box-shadow:0 0 4px var(--amber-dim)}
+.meter-bar.strong{background:var(--amber-glow);box-shadow:0 0 6px var(--amber)}
+#signal-canvas{width:100%;height:100%;display:block}
+.waveform-section{display:flex;flex-direction:column;position:relative}
+.waveform-section::after{content:'';position:absolute;top:0;left:0;right:0;bottom:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.03) 2px,rgba(0,0,0,0.03) 4px);pointer-events:none;z-index:1}
+#waveform-canvas{flex:1;width:100%;display:block}
+.info-bar{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;padding:8px 20px;border-top:1px solid var(--border);background:var(--panel);gap:16px}
+.freq-display{font-size:0.7rem;color:var(--text-dim);letter-spacing:0.1em}
+.freq-display span{color:var(--amber);font-size:0.85rem}
+.message-display{font-size:clamp(0.7rem,1.5vw,0.9rem);color:var(--amber);letter-spacing:0.2em;text-transform:uppercase;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mode-display{text-align:right;font-size:0.7rem;color:var(--text-dim);letter-spacing:0.1em}
+.bottom-bar{display:grid;grid-template-columns:1fr 2fr 1fr;align-items:center;padding:8px 20px;border-top:1px solid var(--border);background:var(--panel);gap:16px}
+.char-display{text-align:center}
+.char-display .current-char{font-size:clamp(2rem,5vw,3.5rem);color:var(--amber-glow);text-shadow:0 0 20px var(--amber-dim);line-height:1}
+.char-display .char-label{font-size:0.55rem;color:var(--text-dim);letter-spacing:0.15em;text-transform:uppercase;margin-top:2px}
+.morse-display{text-align:center;display:flex;align-items:center;justify-content:center;gap:6px;min-height:40px}
+.morse-symbol{font-size:clamp(1.2rem,3vw,2rem);color:var(--text-dim);transition:color 0.08s,text-shadow 0.08s;line-height:1}
+.morse-symbol.dot{font-weight:400}
+.morse-symbol.dash{font-weight:700}
+.morse-symbol.active{color:var(--amber-glow);text-shadow:0 0 12px var(--amber)}
+.morse-symbol.done{color:var(--amber-dim)}
+.morse-separator{width:1px;height:24px;background:var(--border);margin:0 4px}
+.progress-display{text-align:center}
+.progress-display .progress-bar{width:100%;height:4px;background:var(--green-dim);border-radius:2px;overflow:hidden;margin-bottom:4px}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--green),var(--amber));border-radius:2px;transition:width 0.1s linear;width:0%}
+.progress-display .progress-label{font-size:0.55rem;color:var(--text-dim);letter-spacing:0.15em;text-transform:uppercase}
+.scanline{position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:99;background:repeating-linear-gradient(0deg,transparent,transparent 1px,rgba(0,0,0,0.04) 1px,rgba(0,0,0,0.04) 2px)}
+.vignette{position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:98;background:radial-gradient(ellipse at center,transparent 60%,rgba(0,0,0,0.5) 100%)}
+</style>
+</head>
+<body>
+<div id="flash-overlay"></div>
+<div class="scanline"></div>
+<div class="vignette"></div>
+<div class="layout">
+<div class="header">
+<h1>▸ Signal Transmission</h1>
+<div class="status">
+<div class="status-dot"></div>
+<span>TX ACTIVE</span>
+</div>
+</div>
+<div class="main-area">
+<div class="signal-section">
+<div class="meter">
+<div class="meter-bars" id="signal-meter"></div>
+<div class="meter-label">Signal</div>
+</div>
+<canvas id="signal-canvas"></canvas>
+<div class="meter">
+<div class="meter-bars" id="strength-meter"></div>
+<div class="meter-label">Strength</div>
+</div>
+</div>
+<div class="waveform-section">
+<canvas id="waveform-canvas"></canvas>
+</div>
+</div>
+<div class="info-bar">
+<div class="freq-display">FREQ <span id="freq-value">7.030</span> MHz</div>
+<div class="message-display" id="message-display"></div>
+<div class="mode-display">CW · A1A</div>
+</div>
+<div class="bottom-bar">
+<div class="char-display">
+<div class="current-char" id="current-char">-</div>
+<div class="char-label">Character</div>
+</div>
+<div class="morse-display" id="morse-display"></div>
+<div class="progress-display">
+<div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+<div class="progress-label" id="progress-label">0 / 0</div>
+</div>
+</div>
+</div>
+<script>
+const MORSE_TABLE = {
+'A':'.-','B':'-...','C':'-.-.','D':'-..','E':'.','F':'..-.','G':'--.','H':'....',
+'I':'..','J':'.---','K':'-.-','L':'.-..','M':'--','N':'-.','O':'---','P':'.--.',
+'Q':'--.-','R':'.-.','S':'...','T':'-','U':'..-','V':'...-','W':'.--','X':'-..-',
+'Y':'-.--','Z':'--..','0':'-----','1':'.----','2':'..---','3':'...--','4':'....-',
+'5':'.....','6':'-....','7':'--...','8':'---..','9':'----.','.':'.-.-.-',',':'--..--',
+'?':'..--..','!':'-.-.--',' ':'/',
+};
+
+const MESSAGES = [
+'HELLO WORLD',
+'THE QUICK BROWN FOX',
+'SOS DISTRESS SIGNAL',
+'RADIO TRANSMISSION',
+'KEEP IT SECRET',
+'END OF TRANSMISSION',
+'STAND BY FOR SIGNAL',
+'OVER AND OUT',
+'CLEAR THE CHANNEL',
+'REPEAT MESSAGE',
+];
+
+const DOT_DURATION = 80;
+const WORD_MESSAGES = 0;
+let messageIndex = 0;
+let currentMessage = '';
+let morseQueue = [];
+let morseIndex = 0;
+let signalState = 'idle';
+let signalTimer = 0;
+let lastSignalChange = 0;
+let signalActive = false;
+let totalSymbols = 0;
+let completedSymbols = 0;
+let messageProgress = 0;
+
+const flashOverlay = document.getElementById('flash-overlay');
+const signalCanvas = document.getElementById('signal-canvas');
+const waveformCanvas = document.getElementById('waveform-canvas');
+const sCtx = signalCanvas.getContext('2d');
+const wCtx = waveformCanvas.getContext('2d');
+const messageDisplay = document.getElementById('message-display');
+const currentCharEl = document.getElementById('current-char');
+const morseDisplay = document.getElementById('morse-display');
+const progressFill = document.getElementById('progress-fill');
+const progressLabel = document.getElementById('progress-label');
+const freqValue = document.getElementById('freq-value');
+const signalMeter = document.getElementById('signal-meter');
+const strengthMeter = document.getElementById('strength-meter');
+
+let sw, sh, ww, wh;
+let signalPulse = 0;
+let waveformData = new Array(200).fill(0);
+let waveformPos = 0;
+let carrierPhase = 0;
+let noiseLevel = 0.02;
+
+function resizeCanvases() {
+    const dpr = window.devicePixelRatio || 1;
+    const sRect = signalCanvas.getBoundingClientRect();
+    sw = sRect.width; sh = sRect.height;
+    signalCanvas.width = sw * dpr; signalCanvas.height = sh * dpr;
+    sCtx.scale(dpr, dpr);
+    const wRect = waveformCanvas.getBoundingClientRect();
+    ww = wRect.width; wh = wRect.height;
+    waveformCanvas.width = ww * dpr; waveformCanvas.height = wh * dpr;
+    wCtx.scale(dpr, dpr);
+}
+
+function buildMeters() {
+    for (const meter of [signalMeter, strengthMeter]) {
+        meter.innerHTML = '';
+        for (let i = 0; i < 12; i++) {
+            const bar = document.createElement('div');
+            bar.className = 'meter-bar';
+            meter.appendChild(bar);
+        }
+    }
+}
+
+function updateMeters(active, isDot) {
+    const signalBars = signalMeter.children;
+    const strengthBars = strengthMeter.children;
+    const level = active ? (isDot ? 8 : 10) : 2;
+    const strengthLevel = active ? (Math.random() * 4 + 6) | 0 : 1;
+    for (let i = 0; i < 12; i++) {
+        signalBars[i].className = 'meter-bar' + (i < level ? (i < level - 3 ? ' strong' : ' active') : '');
+        strengthBars[i].className = 'meter-bar' + (i < strengthLevel ? (i < strengthLevel - 2 ? ' strong' : ' active') : '');
+    }
+}
+
+function encodeMessage(msg) {
+    currentMessage = msg;
+    morseQueue = [];
+    messageDisplay.textContent = msg;
+    for (const ch of msg) {
+        const code = MORSE_TABLE[ch.toUpperCase()] || '';
+        morseQueue.push({ char: ch, code: code, symbols: code.split('') });
+    }
+    totalSymbols = morseQueue.reduce((sum, item) => sum + item.symbols.length, 0);
+    completedSymbols = 0;
+    morseIndex = 0;
+    messageProgress = 0;
+    buildMorseDisplay();
+}
+
+function buildMorseDisplay() {
+    morseDisplay.innerHTML = '';
+    let globalIdx = 0;
+    for (const item of morseQueue) {
+        for (const sym of item.symbols) {
+            const el = document.createElement('span');
+            el.className = 'morse-symbol ' + (sym === '.' ? 'dot' : 'dash');
+            el.textContent = sym === '.' ? '·' : '—';
+            el.dataset.idx = globalIdx;
+            morseDisplay.appendChild(el);
+            globalIdx++;
+        }
+        const sep = document.createElement('span');
+        sep.className = 'morse-separator';
+        morseDisplay.appendChild(sep);
+    }
+}
+
+function updateMorseDisplay(activeIdx) {
+    const symbols = morseDisplay.querySelectorAll('.morse-symbol');
+    symbols.forEach((el, i) => {
+        el.classList.remove('active', 'done');
+        if (i < activeIdx) el.classList.add('done');
+        else if (i === activeIdx) el.classList.add('active');
+    });
+}
+
+function setSignal(active, isDot) {
+    signalActive = active;
+    signalPulse = isDot ? 1.0 : 0.7;
+    updateMeters(active, isDot);
+    if (active) {
+        flashOverlay.classList.add('active');
+        setTimeout(() => flashOverlay.classList.remove('active'), isDot ? 60 : 120);
+    }
+}
+
+function processMorse() {
+    if (morseIndex >= morseQueue.length) {
+        signalState = 'message-done';
+        signalTimer = 2000;
+        setSignal(false, false);
+        return;
+    }
+
+    const item = morseQueue[morseIndex];
+    if (!item.symbols.length) {
+        morseIndex++;
+        processMorse();
+        return;
+    }
+
+    const sym = item.symbols.shift();
+    const isDot = sym === '.';
+    const duration = isDot ? DOT_DURATION : DOT_DURATION * 3;
+
+    if (signalState === 'idle') {
+        signalState = 'transmitting';
+    }
+
+    setSignal(true, isDot);
+    currentCharEl.textContent = item.char;
+    updateMorseDisplay(completedSymbols);
+    completedSymbols++;
+    messageProgress = completedSymbols / totalSymbols;
+    progressFill.style.width = (messageProgress * 100) + '%';
+    progressLabel.textContent = completedSymbols + ' / ' + totalSymbols;
+
+    waveformData[waveformPos % waveformData.length] = isDot ? 1.0 : 0.7;
+    waveformPos++;
+
+    signalTimer = duration;
+}
+
+function advanceState() {
+    switch (signalState) {
+        case 'idle':
+            signalTimer = 150;
+            signalState = 'char-gap';
+            break;
+        case 'char-gap':
+            processMorse();
+            break;
+        case 'transmitting':
+            signalTimer = DOT_DURATION;
+            signalState = 'symbol-gap';
+            setSignal(false, false);
+            break;
+        case 'symbol-gap':
+            const item = morseQueue[morseIndex];
+            if (item && item.symbols.length > 0) {
+                signalTimer = DOT_DURATION;
+                signalState = 'char-gap';
+            } else {
+                morseIndex++;
+                if (morseIndex >= morseQueue.length) {
+                    signalState = 'message-done';
+                    signalTimer = 2500;
+                    setSignal(false, false);
+                } else {
+                    signalTimer = DOT_DURATION * 3;
+                    signalState = 'word-gap';
+                }
+            }
+            break;
+        case 'word-gap':
+            signalTimer = DOT_DURATION;
+            signalState = 'char-gap';
+            break;
+        case 'message-done':
+            messageIndex = (messageIndex + 1) % MESSAGES.length;
+            encodeMessage(MESSAGES[messageIndex]);
+            signalTimer = 1500;
+            signalState = 'idle';
+            currentCharEl.textContent = '-';
+            break;
+    }
+}
+
+function drawSignal() {
+    sCtx.clearRect(0, 0, sw, sh);
+    const cx = sw / 2;
+    const cy = sh / 2;
+    const maxR = Math.min(sw, sh) * 0.35;
+
+    sCtx.strokeStyle = 'rgba(26,46,24,0.5)';
+    sCtx.lineWidth = 1;
+    for (let r = 30; r <= maxR; r += 30) {
+        sCtx.beginPath();
+        sCtx.arc(cx, cy, r, 0, Math.PI * 2);
+        sCtx.stroke();
+    }
+
+    sCtx.strokeStyle = 'rgba(26,46,24,0.3)';
+    sCtx.beginPath();
+    sCtx.moveTo(cx - maxR, cy);
+    sCtx.lineTo(cx + maxR, cy);
+    sCtx.moveTo(cx, cy - maxR);
+    sCtx.lineTo(cx, cy + maxR);
+    sCtx.stroke();
+
+    if (signalActive) {
+        const pulseR = maxR * (0.3 + signalPulse * 0.7);
+        const grad = sCtx.createRadialGradient(cx, cy, 0, cx, cy, pulseR);
+        grad.addColorStop(0, 'rgba(240,168,48,0.4)');
+        grad.addColorStop(0.5, 'rgba(240,168,48,0.15)');
+        grad.addColorStop(1, 'rgba(240,168,48,0)');
+        sCtx.fillStyle = grad;
+        sCtx.beginPath();
+        sCtx.arc(cx, cy, pulseR, 0, Math.PI * 2);
+        sCtx.fill();
+
+        const ringR = maxR * 0.15;
+        sCtx.strokeStyle = 'rgba(255,208,96,0.8)';
+        sCtx.lineWidth = 2;
+        sCtx.beginPath();
+        sCtx.arc(cx, cy, ringR, 0, Math.PI * 2);
+        sCtx.stroke();
+
+        sCtx.fillStyle = 'rgba(255,208,96,0.9)';
+        sCtx.beginPath();
+        sCtx.arc(cx, cy, 4, 0, Math.PI * 2);
+        sCtx.fill();
+    } else {
+        const grad = sCtx.createRadialGradient(cx, cy, 0, cx, cy, maxR * 0.2);
+        grad.addColorStop(0, 'rgba(58,122,42,0.2)');
+        grad.addColorStop(1, 'rgba(58,122,42,0)');
+        sCtx.fillStyle = grad;
+        sCtx.beginPath();
+        sCtx.arc(cx, cy, maxR * 0.2, 0, Math.PI * 2);
+        sCtx.fill();
+    }
+
+    const time = performance.now() / 1000;
+    const sweepAngle = (time * 0.5) % (Math.PI * 2);
+    const sweepLen = maxR;
+    const grad2 = sCtx.createLinearGradient(
+        cx, cy,
+        cx + Math.cos(sweepAngle) * sweepLen,
+        cy + Math.sin(sweepAngle) * sweepLen
+    );
+    grad2.addColorStop(0, 'rgba(58,122,42,0)');
+    grad2.addColorStop(1, signalActive ? 'rgba(240,168,48,0.3)' : 'rgba(58,122,42,0.4)');
+    sCtx.strokeStyle = grad2;
+    sCtx.lineWidth = signalActive ? 2 : 1.5;
+    sCtx.beginPath();
+    sCtx.moveTo(cx, cy);
+    sCtx.lineTo(cx + Math.cos(sweepAngle) * sweepLen, cy + Math.sin(sweepAngle) * sweepLen);
+    sCtx.stroke();
+
+    for (let i = 0; i < 8; i++) {
+        const a = (Math.PI * 2 / 8) * i + time * 0.1;
+        const tickR = maxR * 0.85;
+        const tx = cx + Math.cos(a) * tickR;
+        const ty = cy + Math.sin(a) * tickR;
+        sCtx.fillStyle = signalActive ? 'rgba(240,168,48,0.5)' : 'rgba(58,122,42,0.4)';
+        sCtx.beginPath();
+        sCtx.arc(tx, ty, 2, 0, Math.PI * 2);
+        sCtx.fill();
+    }
+}
+
+function drawWaveform() {
+    wCtx.clearRect(0, 0, ww, wh);
+    const cy = wh / 2;
+    const time = performance.now() / 1000;
+
+    wCtx.strokeStyle = 'rgba(26,46,24,0.4)';
+    wCtx.lineWidth = 1;
+    wCtx.setLineDash([2, 4]);
+    wCtx.beginPath();
+    wCtx.moveTo(0, cy);
+    wCtx.lineTo(ww, cy);
+    wCtx.stroke();
+    wCtx.setLineDash([]);
+
+    const amplitude = signalActive ? 0.6 : 0.05;
+    const carrierFreq = signalActive ? 8 : 2;
+    const modFreq = 1.5;
+
+    wCtx.beginPath();
+    wCtx.strokeStyle = signalActive ? 'rgba(240,168,48,0.8)' : 'rgba(58,122,42,0.4)';
+    wCtx.lineWidth = signalActive ? 1.5 : 1;
+
+    for (let x = 0; x < ww; x++) {
+        const t = x / ww;
+        const idx = Math.floor(t * waveformData.length);
+        const dataVal = waveformData[idx % waveformData.length] || 0;
+        const decay = Math.exp(-t * 3);
+        const envelope = amplitude * (0.3 + 0.7 * dataVal) * decay + noiseLevel * (1 - decay);
+        const carrier = Math.sin(t * carrierFreq * Math.PI * 20 + time * 12);
+        const mod = 0.5 + 0.5 * Math.sin(t * modFreq * Math.PI * 4 + time * 3);
+        const y = cy - carrier * envelope * wh * 0.4 * mod;
+        if (x === 0) wCtx.moveTo(x, y);
+        else wCtx.lineTo(x, y);
+    }
+    wCtx.stroke();
+
+    const noise = noiseLevel * (signalActive ? 0.3 : 1);
+    wCtx.strokeStyle = `rgba(90,106,82,${noise * 2})`;
+    wCtx.lineWidth = 0.5;
+    wCtx.beginPath();
+    for (let x = 0; x < ww; x += 2) {
+        const t = x / ww;
+        const y = cy + (Math.random() - 0.5) * noise * wh * 0.3;
+        if (x === 0) wCtx.moveTo(x, y);
+        else wCtx.lineTo(x, y);
+    }
+    wCtx.stroke();
+
+    const positions = [0.2, 0.4, 0.6, 0.8];
+    wCtx.fillStyle = 'rgba(26,46,24,0.3)';
+    wCtx.font = '9px monospace';
+    positions.forEach(p => {
+        const x = p * ww;
+        wCtx.fillText((p * 100).toFixed(0) + '%', x + 2, 12);
+        wCtx.strokeStyle = 'rgba(26,46,24,0.2)';
+        wCtx.lineWidth = 0.5;
+        wCtx.beginPath();
+        wCtx.moveTo(x, 0);
+        wCtx.lineTo(x, wh);
+        wCtx.stroke();
+    });
+}
+
+let lastTime = performance.now();
+function animate(now) {
+    const dt = now - lastTime;
+    lastTime = now;
+
+    if (signalState !== 'idle' && signalState !== 'message-done') {
+        signalTimer -= dt;
+        if (signalTimer <= 0) {
+            advanceState();
+        }
+    } else if (signalState === 'message-done' || signalState === 'idle') {
+        signalTimer -= dt;
+        if (signalTimer <= 0) {
+            advanceState();
+        }
+    }
+
+    if (!signalActive) {
+        signalPulse *= 0.92;
+    }
+
+    const time = performance.now() / 1000;
+    const freqDrift = Math.sin(time * 0.3) * 0.005;
+    freqValue.textContent = (7.030 + freqDrift).toFixed(3);
+
+    drawSignal();
+    drawWaveform();
+    requestAnimationFrame(animate);
+}
+
+window.addEventListener('resize', resizeCanvases);
+buildMeters();
+resizeCanvases();
+encodeMessage(MESSAGES[messageIndex]);
+signalState = 'idle';
+signalTimer = 800;
+requestAnimationFrame(animate);
+</script>
+</body>
+</html>

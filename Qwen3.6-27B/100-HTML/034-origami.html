@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Origami</title>
+<style>
+*, *::before, *::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  background: linear-gradient(160deg, #fdf6ec 0%, #f5e6d0 30%, #eddcc8 60%, #f0e4d2 100%);
+  font-family: sans-serif;
+}
+
+.scene {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  perspective: 1200px;
+  perspective-origin: 50% 50%;
+  transform-style: preserve-3d;
+}
+
+.scene-inner {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+  transition: transform 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+/* ── Crane base ── */
+.crane {
+  position: absolute;
+  transform-style: preserve-3d;
+  animation: float var(--float-dur, 6s) ease-in-out infinite;
+  animation-delay: var(--float-delay, 0s);
+  filter: drop-shadow(0 12px 24px rgba(80, 50, 20, 0.12));
+}
+
+.crane-body {
+  position: relative;
+  width: var(--size, 100px);
+  height: calc(var(--size, 100px) * 0.6);
+  transform-style: preserve-3d;
+}
+
+/* ── Crane parts (faces) ── */
+.crane-part {
+  position: absolute;
+  transform-style: preserve-3d;
+  backface-visibility: hidden;
+}
+
+/* Top body face — diamond */
+.part-body-top {
+  width: 100%;
+  height: 100%;
+  clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+  background: var(--paper-top);
+  transform: translateZ(8px);
+}
+
+/* Bottom body face */
+.part-body-bottom {
+  width: 100%;
+  height: 100%;
+  clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+  background: var(--paper-bottom);
+  transform: translateZ(-8px) rotateX(180deg);
+}
+
+/* Left wing */
+.part-wing-left {
+  width: 55%;
+  height: 110%;
+  top: -5%;
+  left: 0%;
+  clip-path: polygon(100% 15%, 85% 0%, 0% 30%, 0% 70%, 85% 100%, 100% 85%);
+  background: var(--wing-left);
+  transform-origin: right center;
+  transform: rotateY(-50deg) translateZ(2px);
+}
+
+/* Right wing */
+.part-wing-right {
+  width: 55%;
+  height: 110%;
+  top: -5%;
+  right: 0%;
+  clip-path: polygon(0% 15%, 15% 0%, 100% 30%, 100% 70%, 15% 100%, 0% 85%);
+  background: var(--wing-right);
+  transform-origin: left center;
+  transform: rotateY(50deg) translateZ(2px);
+}
+
+/* Head/neck — extends from right side */
+.part-head {
+  width: 30%;
+  height: 25%;
+  top: 35%;
+  right: -22%;
+  clip-path: polygon(0% 50%, 30% 0%, 100% 20%, 100% 80%, 30% 100%);
+  background: var(--paper-top);
+  transform: translateZ(6px) rotateZ(-8deg);
+}
+
+/* Beak */
+.part-beak {
+  width: 14%;
+  height: 12%;
+  top: 40%;
+  right: -36%;
+  clip-path: polygon(0% 50%, 100% 0%, 100% 100%);
+  background: linear-gradient(135deg, var(--beak-color, #d4a574) 0%, #c4956a 100%);
+  transform: translateZ(7px) rotateZ(-5deg);
+}
+
+/* Tail — extends from left side */
+.part-tail {
+  width: 22%;
+  height: 20%;
+  top: 40%;
+  left: -18%;
+  clip-path: polygon(100% 30%, 40% 0%, 0% 50%, 40% 100%);
+  background: var(--paper-bottom);
+  transform: translateZ(5px) rotateZ(12deg);
+}
+
+/* Fold shadow overlays */
+.crane-part::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--fold-shadow, linear-gradient(135deg, transparent 40%, rgba(0,0,0,0.06) 42%, rgba(0,0,0,0.06) 44%, transparent 46%, transparent 60%, rgba(0,0,0,0.04) 62%, rgba(0,0,0,0.04) 64%, transparent 66%));
+  pointer-events: none;
+  clip-path: inherit;
+}
+
+/* Wing flap animation */
+.crane-body {
+  animation: wing-flap var(--flap-dur, 4s) ease-in-out infinite;
+  animation-delay: var(--flap-delay, 0s);
+}
+
+/* ── Color themes ── */
+.crane--white {
+  --paper-top: linear-gradient(145deg, #ffffff 0%, #f8f4ef 40%, #efe8dd 100%);
+  --paper-bottom: linear-gradient(145deg, #f5efe6 0%, #e8dfd3 100%);
+  --wing-left: linear-gradient(160deg, #fefcf9 0%, #f2ece4 50%, #e8dfd3 100%);
+  --wing-right: linear-gradient(200deg, #fefcf9 0%, #ede6dc 50%, #e2d9cc 100%);
+  --beak-color: #d4a574;
+}
+
+.crane--sakura {
+  --paper-top: linear-gradient(145deg, #ffeef5 0%, #ffd6e6 40%, #ffb8d0 100%);
+  --paper-bottom: linear-gradient(145deg, #ffd0e0 0%, #f0b0c8 100%);
+  --wing-left: linear-gradient(160deg, #fff0f6 0%, #ffdce8 50%, #ffc8d8 100%);
+  --wing-right: linear-gradient(200deg, #fff0f6 0%, #ffcdd9 50%, #f0b0c8 100%);
+  --beak-color: #e8a090;
+}
+
+.crane--indigo {
+  --paper-top: linear-gradient(145deg, #d6e2f5 0%, #b0c4e8 40%, #8aa8dc 100%);
+  --paper-bottom: linear-gradient(145deg, #a8bde0 0%, #889dd0 100%);
+  --wing-left: linear-gradient(160deg, #dde6f7 0%, #b8cce6 50%, #96aed6 100%);
+  --wing-right: linear-gradient(200deg, #dde6f7 0%, #a8bde0 50%, #889dd0 100%);
+  --beak-color: #c4a882;
+}
+
+.crane--gold {
+  --paper-top: linear-gradient(145deg, #fff8e8 0%, #f0e0b8 40%, #e8d090 100%);
+  --paper-bottom: linear-gradient(145deg, #ecdca8 0%, #dcc888 100%);
+  --wing-left: linear-gradient(160deg, #fffbe8 0%, #f2e4bc 50%, #e8d6a0 100%);
+  --wing-right: linear-gradient(200deg, #fffbe8 0%, #ecd0a0 50%, #dcc888 100%);
+  --beak-color: #c89860;
+}
+
+.crane--mint {
+  --paper-top: linear-gradient(145deg, #e0f5ea 0%, #b8e4cc 40%, #90d4b4 100%);
+  --paper-bottom: linear-gradient(145deg, #a0d8c0 0%, #88c8ac 100%);
+  --wing-left: linear-gradient(160deg, #e8f7ee 0%, #c0e4d0 50%, #a4d6bc 100%);
+  --wing-right: linear-gradient(200deg, #e8f7ee 0%, #a8d8c4 50%, #88c8ac 100%);
+  --beak-color: #c4a878;
+}
+
+.crane--lavender {
+  --paper-top: linear-gradient(145deg, #f0e8f8 0%, #dcc8ee 40%, #c8a8e0 100%);
+  --paper-bottom: linear-gradient(145deg, #c8a8de 0%, #b890d0 100%);
+  --wing-left: linear-gradient(160deg, #f2ecfa 0%, #dccfe8 50%, #c8b0dc 100%);
+  --wing-right: linear-gradient(200deg, #f2ecfa 0%, #d0b8e4 50%, #b890d0 100%);
+  --beak-color: #d0a888;
+}
+
+.crane--terracotta {
+  --paper-top: linear-gradient(145deg, #f5ddd0 0%, #e8b898 40%, #d89870 100%);
+  --paper-bottom: linear-gradient(145deg, #d8a080 0%, #c88860 100%);
+  --wing-left: linear-gradient(160deg, #f7e4d8 0%, #e8c0a4 50%, #d8a888 100%);
+  --wing-right: linear-gradient(200deg, #f7e4d8 0%, #d8a888 50%, #c88860 100%);
+  --beak-color: #b87848;
+}
+
+.crane--sky {
+  --paper-top: linear-gradient(145deg, #e4f0fa 0%, #b0d4f0 40%, #80b8e4 100%);
+  --paper-bottom: linear-gradient(145deg, #98c0dc 0%, #78a8d0 100%);
+  --wing-left: linear-gradient(160deg, #ecf4fc 0%, #c0d8ec 50%, #a0c4dc 100%);
+  --wing-right: linear-gradient(200deg, #ecf4fc 0%, #a8c4dc 50%, #78a8d0 100%);
+  --beak-color: #c8a070;
+}
+
+/* ── Floating animation ── */
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px) translateX(0px);
+  }
+  25% {
+    transform: translateY(-18px) translateX(6px);
+  }
+  50% {
+    transform: translateY(-8px) translateX(-4px);
+  }
+  75% {
+    transform: translateY(-22px) translateX(8px);
+  }
+}
+
+/* ── Wing flap animation ── */
+@keyframes wing-flap {
+  0%, 100% {
+    transform: rotateX(0deg) rotateZ(0deg);
+  }
+  30% {
+    transform: rotateX(-4deg) rotateZ(1deg);
+  }
+  60% {
+    transform: rotateX(3deg) rotateZ(-1deg);
+  }
+}
+
+/* ── Ambient particles ── */
+.particle {
+  position: absolute;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255,255,255,0.8) 0%, rgba(255,255,255,0) 70%);
+  pointer-events: none;
+  animation: drift var(--drift-dur, 12s) ease-in-out infinite;
+  animation-delay: var(--drift-delay, 0s);
+}
+
+@keyframes drift {
+  0%, 100% {
+    transform: translate(0, 0) scale(1);
+    opacity: 0.3;
+  }
+  25% {
+    transform: translate(30px, -40px) scale(1.2);
+    opacity: 0.6;
+  }
+  50% {
+    transform: translate(-20px, -80px) scale(0.8);
+    opacity: 0.2;
+  }
+  75% {
+    transform: translate(40px, -50px) scale(1.1);
+    opacity: 0.5;
+  }
+}
+
+/* ── Soft light overlay ── */
+.scene::before {
+  content: '';
+  position: absolute;
+  top: -20%;
+  right: -10%;
+  width: 60%;
+  height: 60%;
+  background: radial-gradient(ellipse, rgba(255,248,220,0.35) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 100;
+}
+
+.scene::after {
+  content: '';
+  position: absolute;
+  bottom: -10%;
+  left: -10%;
+  width: 50%;
+  height: 40%;
+  background: radial-gradient(ellipse, rgba(255,240,210,0.2) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 100;
+}
+
+/* ── Responsive ── */
+@media (max-width: 600px) {
+  .scene {
+    perspective: 800px;
+  }
+}
+</style>
+</head>
+<body>
+
+<div class="scene" id="scene">
+  <div class="scene-inner" id="sceneInner"></div>
+</div>
+
+<script>
+(function() {
+  'use strict';
+
+  const cranes = [
+    { theme: 'white',     x: 15, y: 20, size: 130, z: 0,    floatDur: 6,  floatDelay: 0,    flapDur: 4,  flapDelay: 0,    rotY: -15, rotX: 5 },
+    { theme: 'sakura',    x: 65, y: 15, size: 110, z: 60,   floatDur: 7,  floatDelay: -1.5, flapDur: 5,  flapDelay: -1,   rotY: 20,  rotX: -3 },
+    { theme: 'indigo',    x: 40, y: 45, size: 150, z: -40,  floatDur: 5,  floatDelay: -3,   flapDur: 3.5,flapDelay: -2,   rotY: 5,   rotX: 8 },
+    { theme: 'gold',      x: 78, y: 60, size: 90,  z: 100,  floatDur: 8,  floatDelay: -0.5, flapDur: 4.5,flapDelay: -0.5,  rotY: -25, rotX: -6 },
+    { theme: 'mint',      x: 25, y: 70, size: 100, z: 30,   floatDur: 6.5,floatDelay: -2,   flapDur: 3.8,flapDelay: -1.5,  rotY: 10,  rotX: 4 },
+    { theme: 'lavender',  x: 50, y: 30, size: 120, z: 80,   floatDur: 7.5,floatDelay: -4,   flapDur: 4.2,flapDelay: -3,    rotY: -8,  rotX: -2 },
+    { theme: 'terracotta',x: 80, y: 35, size: 85,  z: -80,  floatDur: 5.5,floatDelay: -1,   flapDur: 3.2,flapDelay: -0.8,  rotY: 30,  rotX: 6 },
+    { theme: 'sky',       x: 10, y: 45, size: 95,  z: 50,   floatDur: 6.8,floatDelay: -3.5, flapDur: 4.8,flapDelay: -2.5,  rotY: -20, rotX: -4 },
+    { theme: 'sakura',    x: 55, y: 75, size: 75,  z: -20,  floatDur: 7.2,floatDelay: -2.5, flapDur: 3.6,flapDelay: -1.2,  rotY: 15,  rotX: 3 },
+    { theme: 'white',     x: 35, y: 10, size: 105, z: 120,  floatDur: 5.8,floatDelay: -0.8, flapDur: 4.1,flapDelay: -0.3,  rotY: -10, rotX: 7 },
+    { theme: 'indigo',    x: 88, y: 80, size: 70,  z: 40,   floatDur: 6.2,floatDelay: -4.5, flapDur: 3.9,flapDelay: -2.8,  rotY: 25,  rotX: -5 },
+    { theme: 'gold',      x: 20, y: 55, size: 80,  z: -60,  floatDur: 7.8,floatDelay: -1.8, flapDur: 4.6,flapDelay: -1.8,  rotY: -5,  rotX: 2 },
+  ];
+
+  const sceneInner = document.getElementById('sceneInner');
+  const scene = document.getElementById('scene');
+
+  // Build crane HTML
+  function createCrane(cfg) {
+    const crane = document.createElement('div');
+    crane.className = `crane crane--${cfg.theme}`;
+    crane.style.cssText = `
+      left: ${cfg.x}%;
+      top: ${cfg.y}%;
+      --size: ${cfg.size}px;
+      --float-dur: ${cfg.floatDur}s;
+      --float-delay: ${cfg.floatDelay}s;
+      --flap-dur: ${cfg.flapDur}s;
+      --flap-delay: ${cfg.flapDelay}s;
+      transform: translateZ(${cfg.z}px) rotateY(${cfg.rotY}deg) rotateX(${cfg.rotX}deg);
+      z-index: ${Math.round(1000 + cfg.z)};
+    `;
+
+    crane.innerHTML = `
+      <div class="crane-body">
+        <div class="crane-part part-body-top"></div>
+        <div class="crane-part part-body-bottom"></div>
+        <div class="crane-part part-wing-left"></div>
+        <div class="crane-part part-wing-right"></div>
+        <div class="crane-part part-head"></div>
+        <div class="crane-part part-beak"></div>
+        <div class="crane-part part-tail"></div>
+      </div>
+    `;
+
+    return crane;
+  }
+
+  // Build particles
+  function createParticles() {
+    for (let i = 0; i < 25; i++) {
+      const p = document.createElement('div');
+      p.className = 'particle';
+      const size = 2 + Math.random() * 6;
+      p.style.cssText = `
+        left: ${Math.random() * 100}%;
+        top: ${Math.random() * 100}%;
+        width: ${size}px;
+        height: ${size}px;
+        --drift-dur: ${10 + Math.random() * 10}s;
+        --drift-delay: ${-Math.random() * 12}s;
+      `;
+      sceneInner.appendChild(p);
+    }
+  }
+
+  // Initialize scene
+  createParticles();
+
+  cranes.forEach(cfg => {
+    sceneInner.appendChild(createCrane(cfg));
+  });
+
+  // Mouse parallax
+  let targetRotX = 0;
+  let targetRotY = 0;
+  let currentRotX = 0;
+  let currentRotY = 0;
+
+  document.addEventListener('mousemove', (e) => {
+    const cx = window.innerWidth / 2;
+    const cy = window.innerHeight / 2;
+    targetRotY = ((e.clientX - cx) / cx) * 15;
+    targetRotX = -((e.clientY - cy) / cy) * 10;
+  });
+
+  // Touch support
+  document.addEventListener('touchmove', (e) => {
+    if (e.touches.length === 1) {
+      const cx = window.innerWidth / 2;
+      const cy = window.innerHeight / 2;
+      targetRotY = ((e.touches[0].clientX - cx) / cx) * 15;
+      targetRotX = -((e.touches[0].clientY - cy) / cy) * 10;
+    }
+  }, { passive: true });
+
+  // Smooth interpolation
+  function animate() {
+    currentRotX += (targetRotX - currentRotX) * 0.04;
+    currentRotY += (targetRotY - currentRotY) * 0.04;
+
+    sceneInner.style.transform = `rotateX(${currentRotX}deg) rotateY(${currentRotY}deg)`;
+    requestAnimationFrame(animate);
+  }
+
+  animate();
+
+  // Responsive perspective
+  function handleResize() {
+    const w = window.innerWidth;
+    if (w < 600) {
+      scene.style.perspective = '800px';
+    } else if (w < 1000) {
+      scene.style.perspective = '1000px';
+    } else {
+      scene.style.perspective = '1200px';
+    }
+  }
+
+  window.addEventListener('resize', handleResize);
+  handleResize();
+
+})();
+</script>
+</body>
+</html>

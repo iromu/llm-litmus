@@ -1,0 +1,18 @@
+# Typography Poster
+
+## Creative Prompt
+Create a typographic poster in a dark theme with floating words in various styles (filled, outline, tiny, small) with different colors (pink, cyan, yellow, purple) and staggered floating animations. A giant gradient letter "A" dominates the center with hue rotation and a subtle offset shadow. The layout includes top/bottom bars with metadata, a horizontal rule, a tagline, and a row of tag badges. A subtle film grain effect overlays everything. The overall aesthetic is experimental, bold, and typography-centric — like a design school poster.
+
+## Techniques Used
+- CSS floating keyframe animation with per-element delay via custom property
+- Gradient text with hue-rotation animation on the giant letter
+- `-webkit-text-stroke` for outline-style text
+- Inline SVG noise with `feTurbulence` for film grain overlay
+- Flexbox layout for poster structure
+- Responsive `clamp()` sizing throughout
+- Color-coded word categories (pink, cyan, yellow, purple)
+- Staggered animation delays via `--delay` custom property
+- `drop-shadow` offset shadow with color cycling
+
+## Interaction Model
+Purely passive — all elements animate continuously with floating motion, color cycling via hue rotation, and a static grain overlay. No direct user interaction required.

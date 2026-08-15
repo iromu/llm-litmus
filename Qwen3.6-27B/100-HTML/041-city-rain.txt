@@ -1,0 +1,20 @@
+# City Rain
+
+## Creative Prompt
+Create a rainy night cyberpunk cityscape. A city skyline with buildings of varying heights, neon signs, and lit windows forms the background. Rain falls as diagonal streaks with varying intensity. Street reflections shimmer with neon colors. The scene has a dark, moody atmosphere with neon pink and cyan accents. Occasional car lights streak across the scene. The overall aesthetic is cyberpunk, atmospheric, and cinematic — like a rainy night in a futuristic city.
+
+## Techniques Used
+- Canvas city skyline rendering with procedural building generation
+- Neon sign rendering with multi-layered glow (shadowBlur compositing)
+- Lit window generation with random warm/cool color patterns and subtle flicker
+- Rain particle system with diagonal streaks, wind drift, and varying opacity
+- Wet street reflection rendering with neon color bleed and shimmer animation
+- Car light streaks with headlight/tail light radial gradients and motion blur
+- Splash particle system for rain impact on street surface
+- Dark gradient sky with atmospheric fog layer
+- Neon color palette (pink, cyan, purple, yellow, green)
+- Vignette overlay for cinematic framing
+- Passive continuous animation loop
+
+## Interaction Model
+Passive animation — rain falls continuously, neon signs flicker at random intervals, car lights pass across the scene, and street reflections shimmer. The scene is continuously animated with no user interaction required.

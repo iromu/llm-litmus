@@ -1,0 +1,19 @@
+# Ripple Pond
+
+## Creative Prompt
+Create an interactive water ripple simulation on a dark blue pond surface. Clicking or touching creates ripples that propagate outward with realistic damping. The ripples cause pixel displacement (refraction-like distortion) and color shifting through blue tones, with brighter highlights at ripple peaks. Moving the mouse creates small ripples. The water surface has a deep radial gradient background. The title "Ripple Pond" is rendered in faint, widely-spaced text at the bottom. The overall aesthetic is tranquil, liquid, and meditative — like watching ripples spread across a still pond at night.
+
+## Techniques Used
+- Canvas pixel buffer ripple simulation with two-buffer wave equation
+- Pixel-level displacement mapping for refraction effect
+- Height-based color mapping with highlight and shadow layers
+- Radial gradient water surface background
+- Mouse and touch event handling for ripple generation
+- Grid-based simulation at half resolution for performance
+- requestAnimationFrame continuous render loop
+- Ambient periodic ripples for organic feel
+- Exponential falloff ripple kernel for smooth wave generation
+- Subtle noise overlay on background for water texture
+
+## Interaction Model
+Click or tap anywhere on the pond to create a strong ripple burst. Drag with mouse or touch to create continuous small ripples along the path. Ripples propagate outward, interact with each other, and gradually fade through damping. Ambient ripples appear periodically to keep the surface alive even without input.

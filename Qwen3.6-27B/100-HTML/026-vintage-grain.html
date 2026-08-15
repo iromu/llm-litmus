@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vintage Grain</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--cream:#f5f0e8;--warm:#ede4d3;--brown:#3d2b1f;--brown-light:#6b5344;--brown-muted:#8a7562;--accent:#a0522d;--accent-light:#c47a5a;--sepia-dark:#2a1f14;--sepia:#4a3728}
+@font-face{font-family:'SystemSerif';src:local('Georgia'),local('Times New Roman'),local('serif')}
+html{font-size:18px;scroll-behavior:smooth}
+body{min-height:100vh;font-family:Georgia,'Times New Roman',serif;background:var(--cream);color:var(--brown);overflow-x:hidden;position:relative}
+
+/* Film grain overlay — SVG noise texture animated via steps() */
+body::before{content:'';position:fixed;top:0;left:0;width:100%;height:100%;z-index:1000;pointer-events:none;opacity:0.35;mix-blend-mode:multiply;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");background-size:256px 256px;animation:grain 0.4s steps(4) infinite}
+
+/* Vignette overlay */
+body::after{content:'';position:fixed;top:0;left:0;width:100%;height:100%;z-index:999;pointer-events:none;background:radial-gradient(ellipse at center,transparent 40%,rgba(42,31,20,0.35) 100%)}
+
+@keyframes grain{0%{transform:translate(0,0)}25%{transform:translate(-5%,-5%)}50%{transform:translate(5%,5%)}75%{transform:translate(-2%,3%)}100%{transform:translate(3%,-2%)}}
+
+/* Subtle flicker */
+@keyframes flicker{0%,100%{opacity:1}3%{opacity:0.97}6%{opacity:1}7%{opacity:0.96}9%{opacity:1}40%{opacity:1}42%{opacity:0.98}44%{opacity:1}80%{opacity:1}82%{opacity:0.97}84%{opacity:1}}
+.container{position:relative;z-index:1;max-width:860px;margin:0 auto;padding:48px 24px;animation:flicker 8s ease-in-out infinite}
+
+/* Fade-up animation */
+@keyframes fadeUp{from{opacity:0;transform:translateY(30px)}to{opacity:1;transform:translateY(0)}}
+.fade-up{opacity:0;animation:fadeUp 1s cubic-bezier(0.25,0.46,0.45,0.94) forwards}
+.delay-1{animation-delay:0.15s}
+.delay-2{animation-delay:0.35s}
+.delay-3{animation-delay:0.55s}
+.delay-4{animation-delay:0.75s}
+.delay-5{animation-delay:0.95s}
+.delay-6{animation-delay:1.15s}
+.delay-7{animation-delay:1.35s}
+.delay-8{animation-delay:1.55s}
+
+/* Header */
+header{text-align:center;margin-bottom:48px;padding-bottom:32px;border-bottom:1px solid var(--brown-muted)}
+.date{font-size:0.75rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--brown-muted);margin-bottom:16px;font-variant:small-caps}
+h1{font-size:clamp(2.2rem,5.5vw,3.8rem);font-weight:400;letter-spacing:-0.02em;line-height:1.1;margin-bottom:12px;color:var(--sepia-dark)}
+.subtitle{font-size:1.15rem;font-style:italic;color:var(--brown-light);font-weight:400;line-height:1.5}
+
+/* Decorative rule */
+.rule{display:flex;align-items:center;justify-content:center;gap:16px;margin:36px 0;color:var(--brown-muted);font-size:0.8rem}
+.rule::before,.rule::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,transparent,var(--brown-muted),transparent)}
+
+/* Photo placeholder */
+.photo-frame{position:relative;margin:0 auto 40px;max-width:640px;border:1px solid var(--brown-muted);padding:8px;background:var(--warm)}
+.photo-frame::before{content:'';position:absolute;top:-4px;left:-4px;right:-4px;bottom:-4px;border:1px solid var(--brown-muted);z-index:-1}
+.photo{width:100%;aspect-ratio:4/3;background:linear-gradient(135deg,var(--warm) 0%,#d4c5a9 25%,#c9b896 50%,#bfae8c 75%,var(--warm) 100%);display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden}
+.photo::before{content:'';position:absolute;top:0;left:0;width:100%;height:100%;background:linear-gradient(180deg,rgba(74,55,40,0.08) 0%,transparent 40%,rgba(74,55,40,0.12) 100%)}
+.photo-text{font-style:italic;color:var(--brown-muted);font-size:0.9rem;z-index:1;text-align:center;padding:16px}
+.photo-caption{text-align:center;font-size:0.75rem;color:var(--brown-muted);margin-top:10px;font-style:italic;letter-spacing:0.02em}
+
+/* Two-column body text */
+.body-text{column-count:2;column-gap:32px;column-rule:1px solid var(--brown-muted);line-height:1.85;font-size:0.92rem;color:var(--brown);margin-bottom:40px;text-align:justify}
+.body-text p{margin-bottom:1.2em}
+.body-text p:first-of-type::first-letter{float:left;font-size:3.8em;line-height:0.8;margin-right:8px;margin-top:6px;color:var(--accent);font-weight:400;font-family:Georgia,serif}
+
+/* Vintage badge */
+.badge-wrap{text-align:center;margin:40px 0}
+.badge{display:inline-block;border:2px double var(--accent);padding:16px 32px;position:relative}
+.badge::before,.badge::after{content:'✦';position:absolute;top:50%;transform:translateY(-50%);color:var(--accent);font-size:0.7rem}
+.badge::before{left:-18px}
+.badge::after{right:-18px}
+.badge-text{font-size:0.8rem;letter-spacing:0.18em;text-transform:uppercase;color:var(--accent);font-variant:small-caps}
+
+/* Pull quote */
+.pull-quote{text-align:center;font-style:italic;font-size:1.15rem;line-height:1.7;color:var(--brown-light);margin:40px auto;max-width:520px;padding:0 24px;position:relative}
+.pull-quote::before{content:'"';display:block;font-size:3rem;color:var(--accent);line-height:1;margin-bottom:8px;opacity:0.5}
+
+/* Footer */
+footer{text-align:center;margin-top:48px;padding-top:32px;border-top:1px solid var(--brown-muted);color:var(--brown-muted);font-size:0.75rem;letter-spacing:0.1em}
+footer .footer-rule{display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:16px;font-size:0.65rem;color:var(--brown-muted)}
+footer .footer-rule::before,footer .footer-rule::after{content:'';width:40px;height:1px;background:var(--brown-muted)}
+
+/* Responsive */
+@media(max-width:700px){.body-text{column-count:1;column-gap:0;column-rule:none}.container{padding:32px 16px}.photo-frame{margin:0 -8px}}
+</style>
+</head>
+<body>
+<div class="container">
+
+<header class="fade-up delay-1">
+<p class="date">Autumn 1954 · Volume XII, Number 3</p>
+<h1>Vintage Grain</h1>
+<p class="subtitle">On the beauty of imperfection in an age of clarity</p>
+</header>
+
+<div class="rule fade-up delay-2">— ✦ —</div>
+
+<div class="photo-frame fade-up delay-3">
+<div class="photo">
+<span class="photo-text">[ A photograph fades into memory —<br>the edges soft, the light warm ]</span>
+</div>
+<p class="photo-caption">Fig. I — Where time settles upon the ordinary</p>
+</div>
+
+<div class="pull-quote fade-up delay-4">
+There is a particular tenderness in things that have been handled by time — not ruined, but softened, as though the world itself had grown fond of them.
+</div>
+
+<div class="body-text fade-up delay-5">
+<p>There exists a quiet dignity in the textures of an earlier age — the grain of paper that has yellowed with decades, the slight wavering of ink that seeped into fibre rather than sitting upon it, the way a photograph held the warmth of its moment long after the moment had passed. We live now in an era of perfect reproduction, where every pixel is accounted for and every surface gleams with an untroubled clarity that feels, perhaps, too certain of itself.</p>
+<p>Consider the old journals and literary magazines of the mid-century, those carefully composed pages that invited the reader into a world of considered thought. Their layouts were not merely functional; they were an expression of respect — respect for the words, for the reader, and for the craft of making something by hand. The margins were generous, the typefaces chosen with care, and the spaces between paragraphs carried the weight of silence.</p>
+<p>Even the imperfections contributed to the experience. A slight misalignment here, a shadow of the preceding page showing through there — these were not failures but evidence of a process, a reminder that human hands had guided the work from beginning to end. The grain upon the page was not noise; it was the texture of reality itself, the visible breath of the machine and the maker.</p>
+<p>We might do well to remember that clarity is not the same as truth, and that perfection can sometimes be the enemy of presence. There is something in the grain, the warmth, the slight uncertainty of an image that has been touched by time — something that speaks to us in a language that no amount of resolution can replicate. It is the language of memory, of longing, of the beautiful and necessary imperfections that make our world worth inhabiting.</p>
+</div>
+
+<div class="badge-wrap fade-up delay-6">
+<div class="badge">
+<span class="badge-text">Est. MMXXV · Handcrafted</span>
+</div>
+</div>
+
+<div class="rule fade-up delay-7">— ✦ —</div>
+
+<footer class="fade-up delay-8">
+<div class="footer-rule">✦</div>
+<p>Crafted with pure HTML, CSS &amp; JavaScript — no dependencies</p>
+</footer>
+
+</div>
+</body>
+</html>

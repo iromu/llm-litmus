@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Paper Texture</title>
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --paper: #f5f0e6;
+    --paper-dark: #e8e0cc;
+    --ink: #2c2416;
+    --ink-light: #5a4d3a;
+    --ink-faint: #8a7d6a;
+    --accent: #8b4513;
+  }
+
+  body {
+    background: #d4c9b5;
+    font-family: Georgia, 'Times New Roman', serif;
+    color: var(--ink);
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 40px 20px;
+  }
+
+  /* Grain overlay via SVG filter */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.08'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 1000;
+    animation: grain 0.5s steps(4) infinite;
+  }
+
+  @keyframes grain {
+    0%, 100% { transform: translate(0, 0); }
+    25% { transform: translate(-2px, 1px); }
+    50% { transform: translate(1px, -1px); }
+    75% { transform: translate(-1px, 2px); }
+  }
+
+  /* Vignette overlay */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(ellipse at center, transparent 50%, rgba(44, 36, 22, 0.25) 100%);
+    pointer-events: none;
+    z-index: 999;
+  }
+
+  .page {
+    position: relative;
+    max-width: 680px;
+    width: 100%;
+    background: var(--paper);
+    padding: 60px 56px;
+    margin: 20px 0;
+    box-shadow:
+      0 1px 2px rgba(44, 36, 22, 0.1),
+      0 4px 8px rgba(44, 36, 22, 0.08),
+      0 16px 40px rgba(44, 36, 22, 0.15),
+      inset 0 0 80px rgba(212, 201, 181, 0.4);
+    z-index: 1;
+  }
+
+  /* Subtle edge wear */
+  .page::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border: 1px solid rgba(44, 36, 22, 0.08);
+    pointer-events: none;
+  }
+
+  /* Header */
+  header {
+    text-align: center;
+    margin-bottom: 36px;
+    padding-bottom: 28px;
+    border-bottom: 1px solid var(--ink-faint);
+  }
+
+  .date {
+    font-size: 11px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin-bottom: 16px;
+  }
+
+  h1 {
+    font-size: clamp(28px, 5vw, 42px);
+    font-weight: 400;
+    font-style: italic;
+    line-height: 1.2;
+    color: var(--ink);
+    margin-bottom: 12px;
+    letter-spacing: -0.5px;
+  }
+
+  .subtitle {
+    font-size: 15px;
+    font-style: italic;
+    color: var(--ink-light);
+    line-height: 1.5;
+    max-width: 480px;
+    margin: 0 auto;
+  }
+
+  /* Divider */
+  .divider {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    margin: 32px 0;
+    color: var(--ink-faint);
+  }
+
+  .divider::before,
+  .divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--ink-faint);
+  }
+
+  .divider span {
+    font-size: 16px;
+    opacity: 0.5;
+  }
+
+  /* Article body */
+  article {
+    font-size: 16px;
+    line-height: 1.8;
+    color: var(--ink);
+  }
+
+  article p {
+    margin-bottom: 20px;
+    text-align: justify;
+    hyphens: auto;
+  }
+
+  /* Drop cap */
+  article p:first-of-type::first-letter {
+    float: left;
+    font-size: 72px;
+    line-height: 0.8;
+    padding-right: 10px;
+    padding-top: 8px;
+    color: var(--accent);
+    font-weight: 400;
+    font-style: normal;
+  }
+
+  /* Section heading */
+  article h2 {
+    font-size: 20px;
+    font-style: italic;
+    font-weight: 400;
+    text-align: center;
+    margin: 36px 0 20px;
+    color: var(--ink-light);
+  }
+
+  /* Pull quote */
+  blockquote {
+    margin: 32px 40px;
+    padding: 16px 0;
+    border-top: 1px solid var(--ink-faint);
+    border-bottom: 1px solid var(--ink-faint);
+    font-style: italic;
+    font-size: 18px;
+    line-height: 1.6;
+    text-align: center;
+    color: var(--ink-light);
+  }
+
+  blockquote cite {
+    display: block;
+    margin-top: 12px;
+    font-size: 13px;
+    font-style: normal;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+
+  /* Signature */
+  .signature {
+    margin-top: 40px;
+    text-align: right;
+    font-style: italic;
+    font-size: 18px;
+    color: var(--ink-light);
+  }
+
+  .signature::before {
+    content: '';
+    display: block;
+    width: 60px;
+    height: 1px;
+    background: var(--ink-faint);
+    margin: 0 auto 20px;
+    margin-left: auto;
+    margin-right: 0;
+  }
+
+  /* Footer */
+  footer {
+    margin-top: 40px;
+    padding-top: 20px;
+    border-top: 1px solid var(--ink-faint);
+    text-align: center;
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+
+  /* Responsive */
+  @media (max-width: 600px) {
+    .page {
+      padding: 36px 28px;
+    }
+    blockquote {
+      margin: 24px 16px;
+    }
+    article p:first-of-type::first-letter {
+      font-size: 56px;
+    }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <p class="date">Autumn, MMXXV</p>
+    <h1>On the Texture of Things</h1>
+    <p class="subtitle">A meditation on grain, paper, and the warmth of analog surfaces in a world of glass</p>
+  </header>
+
+  <div class="divider"><span>&mdash; &#9830; &mdash;</span></div>
+
+  <article>
+    <p>There is a particular kind of silence that belongs to paper — not the absence of sound, but the presence of texture. When you run your thumb across the surface of a well-made page, you feel the faint ridges of cotton fibers, the microscopic valleys where ink has settled into the tooth of the stock. This is a language older than words, a tactile grammar that reminds us the world is made of substance, not light.</p>
+
+    <p>We have forgotten this language. Our screens are smooth as frozen lakes, their surfaces engineered to nothingness. There is no resistance, no grain, no memory of the hand that made them. We scroll through thousands of pages a day and feel nothing but the cold glass beneath our fingertips. The information arrives, but the experience is hollow — a meal without flavor.</p>
+
+    <h2>I. The Weight of Grain</h2>
+
+    <p>Grain is the fingerprint of material. In wood, it tells the story of seasons — wide rings for wet years, narrow for drought. In paper, it speaks of the pulp's journey, the water's temperature, the press's pressure. Even the noise on this page, barely visible, is a kind of grain: a reminder that perfection is a flatline, and life is found in the deviation.</p>
+
+    <blockquote>
+      "The beauty of a thing is not in its perfection, but in the texture of its imperfections — the grain that proves it was made, not generated."
+      <cite>— Marguerite Stein, The Art of Making</cite>
+    </blockquote>
+
+    <p>Consider the old books in your grandmother's house. Their pages have yellowed, their edges have softened, and somewhere along the spine, the binding has given way. These are not flaws — they are records. Each crease is a moment of reading, each stain a cup of tea held too close, each foxing spot a summer spent too near the window. The paper has absorbed the life it witnessed.</p>
+
+    <h2>II. The Warmth of Imperfection</h2>
+
+    <p>Digital design chases the pixel-perfect. We align elements to the nearest fraction of a point, we choose colors by their hex codes, we smooth every edge until nothing remains but the idea of the shape. And yet something is missing. The eye knows the difference between a rendered curve and a hand-drawn one, even when they occupy the same space on screen.</p>
+
+    <p>The warmth we seek is not a color temperature. It is the evidence of process — the slight wobble of a letterpress impression, the bleed of ink through cheap newsprint, the way a fountain pen nib catches on rough paper and leaves a ridge of dried ink you can feel hours later. These are the textures of attention.</p>
+
+    <p>We do not need to abandon the digital world. But perhaps we can bring a little grain back into it — not as simulation, but as philosophy. Let our work bear the marks of its making. Let there be texture in the margins, imperfection in the edges, and the faintest whisper of the hand behind every screen.</p>
+  </article>
+
+  <p class="signature">Eleanor Voss</p>
+
+  <footer>
+    <p>The Grain Press &middot; Issue XLII &middot; Printed on cotton rag</p>
+  </footer>
+</div>
+</body>
+</html>

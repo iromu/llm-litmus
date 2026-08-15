@@ -1,0 +1,17 @@
+# Particle Network
+
+## Creative Prompt
+Create an interactive particle connection network visualization on a dark blue-black background. Particles drift slowly and connect with glowing lines when within a threshold distance. The mouse cursor acts as an attractor node, connecting to nearby particles with brighter lines. Clicking creates a burst of new particles at the cursor position. The overlay shows "Connected" title in light uppercase with wide letter-spacing. A counter in the bottom shows connection count and node count. The aesthetic is futuristic, data-driven, and meditative.
+
+## Techniques Used
+- HTML5 Canvas particle system
+- Distance-based connection rendering
+- Mouse interaction with connection glow
+- Click burst spawning
+- Particle self-bouncing boundaries
+- Radial gradient glow on cursor
+- Alpha pulsing on particles via sine function
+- requestAnimationFrame loop with trailing effect
+
+## Interaction Model
+Mouse move creates connections from cursor to nearby particles. Click spawns particle burst. Particles bounce off walls. The visualization updates continuously with connection count displayed.

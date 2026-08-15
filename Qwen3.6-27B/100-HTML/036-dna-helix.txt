@@ -1,0 +1,19 @@
+# DNA Helix
+
+## Creative Prompt
+Create a 3D double helix visualization with mouse twist interaction. The DNA strand is rendered on canvas with two intertwined helical strands and connecting base pairs. Each strand has colored nodes (red, green, blue, yellow representing A, T, G, C) connected by curved lines. The helix rotates slowly and responds to mouse drag with a twist effect. The background is dark with a subtle glow behind the helix. The overall aesthetic is scientific, elegant, and interactive — like a molecular visualization.
+
+## Techniques Used
+- Canvas 3D helix rendering with sine/cosine positioning
+- Perspective projection with depth sorting
+- Base pair connections with color coding (A-T, G-C)
+- Smooth rotation animation with inertia
+- Mouse drag twist interaction with momentum decay
+- Gradient coloring per base type (red/green/blue/yellow)
+- Glow rendering with shadow blur and radial gradients
+- Auto-rotation with velocity damping
+- Quadratic curve strand rendering
+- Responsive canvas filling the viewport
+
+## Interaction Model
+Mouse drag twists the helix rotation along its axis. Auto-rotation continues with momentum when not dragging. The helix slowly rotates on its own at a gentle pace. Touch events are supported for mobile devices.

@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ripple Pond</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;overflow:hidden;background:#000}
+canvas{display:block;width:100%;height:100%;cursor:crosshair}
+#title{position:fixed;bottom:28px;left:0;right:0;text-align:center;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:clamp(0.9rem,2.2vw,1.5rem);font-weight:200;letter-spacing:0.6em;color:rgba(140,180,220,0.25);text-transform:lowercase;pointer-events:none;user-select:none;z-index:2}
+</style>
+</head>
+<body>
+<canvas id="pond"></canvas>
+<div id="title">ripple pond</div>
+<script>
+(function(){
+"use strict";
+
+var canvas=document.getElementById("pond");
+var ctx=canvas.getContext("2d");
+var W,H,halfW,halfH;
+var simW,simH;
+var bufA,bufB;
+var imgData;
+var pixels;
+var mouseDown=false;
+var lastX=-1,lastY=-1;
+var damping=0.97;
+
+function resize(){
+W=canvas.width=window.innerWidth;
+H=canvas.height=window.innerHeight;
+halfW=W>>1;
+halfH=H>>1;
+simW=Math.ceil(W/2);
+simH=Math.ceil(H/2);
+bufA=new Float32Array(simW*simH);
+bufB=new Float32Array(simW*simH);
+imgData=ctx.createImageData(W,H);
+pixels=imgData.data;
+}
+
+function drop(cx,cy,strength){
+var si=Math.floor(cx/(W/simW));
+var sj=Math.floor(cy/(H/simH));
+var r=Math.ceil(Math.sqrt(strength)*3+4);
+for(var j=Math.max(0,sj-r);j<Math.min(simH,sj+r);j++){
+for(var i=Math.max(0,si-r);i<Math.min(simW,si+r);i++){
+var dx=i-si;
+var dy=j-sj;
+var dist=dx*dx+dy*dy;
+var rr=r*r;
+if(dist<rr){
+var factor=Math.exp(-dist/(rr*0.35));
+bufA[j*simW+i]+=strength*factor;
+}
+}
+}
+}
+
+function simulate(){
+var len=simW*simH;
+for(var j=1;j<simH-1;j++){
+for(var i=1;i<simW-1;i++){
+var idx=j*simW+i;
+bufB[idx]=((bufA[idx-1]+bufA[idx+1]+bufA[idx-simW]+bufA[idx+simW]+bufA[idx-1-simW]+bufA[idx+1-simW]+bufA[idx-1+simW]+bufA[idx+1+simW])*0.125-bufB[idx])*damping;
+}
+}
+var tmp=bufA;bufA=bufB;bufB=tmp;
+}
+
+function render(){
+var sx=W/simW;
+var sy=H/simH;
+var len2=W*H;
+for(var row=0;row<H;row++){
+for(var col=0;col<W;col++){
+var si=Math.min(simW-2,Math.max(0,Math.floor(col/sx)));
+var sj=Math.min(simH-2,Math.max(0,Math.floor(row/sy)));
+var idx=sj*simW+si;
+var h=bufA[idx];
+
+var refX=col-h*sx*1.8;
+var refY=row-h*sy*1.8;
+refX=Math.max(0,Math.min(W-1,refX));
+refY=Math.max(0,Math.min(H-1,refY));
+
+var ri=Math.floor(refY)*W+Math.floor(refX);
+if(ri<0)ri=0;
+if(ri>=len2)ri=len2-1;
+
+var pi=(row*W+col)*4;
+
+var baseR=pixels[ri];
+var baseG=pixels[ri+1];
+var baseB=pixels[ri+2];
+
+var highlight=Math.max(0,h*60);
+var shadow=Math.max(0,-h*40);
+
+var r=baseR+highlight+shadow;
+var g=baseG+highlight*1.2+shadow;
+var b=baseB+highlight*1.5+shadow*0.5;
+
+var hueShift=h*30;
+r+=hueShift*0.3;
+g+=hueShift*0.5;
+b+=hueShift*0.8;
+
+pixels[pi]=Math.max(0,Math.min(255,r|0));
+pixels[pi+1]=Math.max(0,Math.min(255,g|0));
+pixels[pi+2]=Math.max(0,Math.min(255,b|0));
+pixels[pi+3]=255;
+}
+}
+ctx.putImageData(imgData,0,0);
+}
+
+function drawBackground(){
+var grad=ctx.createRadialGradient(halfW,halfH,0,halfW,halfH,Math.max(W,H)*0.8);
+grad.addColorStop(0,"#0d2847");
+grad.addColorStop(0.4,"#091e38");
+grad.addColorStop(0.7,"#061528");
+grad.addColorStop(1,"#030a16");
+ctx.fillStyle=grad;
+ctx.fillRect(0,0,W,H);
+
+var img=ctx.getImageData(0,0,W,H);
+var p=img.data;
+for(var i=0;i<p.length;i+=4){
+var noise=(Math.random()-0.5)*3;
+p[i]=Math.max(0,Math.min(255,p[i]+noise));
+p[i+1]=Math.max(0,Math.min(255,p[i+1]+noise));
+p[i+2]=Math.max(0,Math.min(255,p[i+2]+noise));
+}
+ctx.putImageData(img,0,0);
+}
+
+var ambientTimer=0;
+function ambientRipples(){
+ambientTimer++;
+if(ambientTimer%180===0){
+var ax=Math.random()*W;
+var ay=Math.random()*H;
+drop(ax,ay,2+Math.random()*3);
+}
+}
+
+function loop(){
+ambientRipples();
+simulate();
+render();
+requestAnimationFrame(loop);
+}
+
+canvas.addEventListener("mousedown",function(e){
+mouseDown=true;
+drop(e.clientX,e.clientY,200);
+lastX=e.clientX;lastY=e.clientY;
+});
+canvas.addEventListener("mouseup",function(){mouseDown=false;});
+canvas.addEventListener("mouseleave",function(){mouseDown=false;});
+canvas.addEventListener("mousemove",function(e){
+if(mouseDown){
+var dx=e.clientX-lastX;
+var dy=e.clientY-lastY;
+var dist=Math.sqrt(dx*dx+dy*dy);
+if(dist>3){
+drop(e.clientX,e.clientY,40);
+lastX=e.clientX;lastY=e.clientY;
+}
+}
+});
+
+canvas.addEventListener("touchstart",function(e){
+e.preventDefault();
+var t=e.touches[0];
+drop(t.clientX,t.clientY,200);
+lastX=t.clientX;lastY=t.clientY;
+},{passive:false});
+canvas.addEventListener("touchmove",function(e){
+e.preventDefault();
+var t=e.touches[0];
+drop(t.clientX,t.clientY,40);
+lastX=t.clientX;lastY=t.clientY;
+},{passive:false});
+
+window.addEventListener("resize",function(){
+resize();
+drawBackground();
+});
+
+resize();
+drawBackground();
+loop();
+
+})();
+</script>
+</body>
+</html>

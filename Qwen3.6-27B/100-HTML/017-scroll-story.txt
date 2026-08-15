@@ -1,0 +1,16 @@
+# Scroll Story
+
+## Creative Prompt
+Create a vertical scroll-snap storytelling experience with five full-viewport chapters. Each section has a unique gradient background, a blurred circular shape, chapter number, large poetic headline, and italic description. A fixed navigation dot indicator on the right side highlights the active section. A bouncing scroll hint at the bottom invites interaction. The typography is elegant serif, the color palette shifts through deep purples, greens, oranges, and blues. The overall mood is cinematic, poetic, and immersive.
+
+## Techniques Used
+- CSS scroll-snap-type for full-page snapping
+- Full-viewport sections with gradient backgrounds
+- Blurred circular background shapes with filter blur
+- Intersection Observer for active section detection
+- Fixed navigation dots with click-to-scroll
+- Bouncing animation for scroll hint
+- Responsive typography with clamp()
+
+## Interaction Model
+Scroll to navigate between chapters with snap behavior. Click navigation dots to jump to sections. Active dot highlights based on viewport position.

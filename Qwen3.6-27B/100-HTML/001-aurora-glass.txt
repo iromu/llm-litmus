@@ -1,0 +1,17 @@
+# Aurora Glass
+
+## Creative Prompt
+Create a visually stunning glassmorphism landing page with an animated aurora borealis-inspired background. The page features a grid of glass cards with subtle backdrop blur, light border highlights, and a mouse-tracking shine effect. Stars twinkle in the background. The hero title uses a gradient text effect. Each glass card has an icon, title, description, and badge. The overall aesthetic is ethereal, luminous, and premium — like holding polished crystal.
+
+## Techniques Used
+- CSS glassmorphism (backdrop-filter blur)
+- Multi-layered radial gradient aurora animation
+- CSS custom property mouse tracking
+- Star particle generation via JavaScript
+- Gradient text clipping
+- Responsive grid layout
+- Hover transformations with cubic-bezier easing
+- Pseudo-element light streaks
+
+## Interaction Model
+Mouse hover on cards triggers lift, scale, glow, and a positional radial shine overlay that follows the cursor. Background aurora animates continuously.

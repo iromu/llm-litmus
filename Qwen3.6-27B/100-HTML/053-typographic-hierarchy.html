@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Typographic Hierarchy</title>
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{--accent:#c8553d;--paper:#faf9f7;--ink:#1a1a1a;--muted:#6b6b6b;--light:#b0b0b0;--rule:#e0ddd8}
+html{font-size:16px;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+body{background:var(--paper);color:var(--ink);font-family:Georgia,'Times New Roman',serif;min-height:100vh;padding:48px 24px}
+.container{max-width:960px;margin:0 auto}
+
+/* ── Header ── */
+header{text-align:center;margin-bottom:56px;padding-bottom:40px;border-bottom:1px solid var(--rule)}
+header h1{font-family:Georgia,serif;font-size:clamp(2.8rem,7vw,5.5rem);font-weight:400;letter-spacing:-0.03em;line-height:1;margin-bottom:12px}
+header h1 em{font-style:italic;color:var(--accent)}
+header .subtitle{font-family:'Helvetica Neue',Arial,sans-serif;font-size:0.7rem;text-transform:uppercase;letter-spacing:0.25em;color:var(--muted)}
+
+/* ── Section titles ── */
+.section{margin-bottom:56px}
+.section-label{font-family:'Helvetica Neue',Arial,sans-serif;font-size:0.6rem;text-transform:uppercase;letter-spacing:0.3em;color:var(--light);margin-bottom:20px;padding-left:12px;border-left:2px solid var(--accent)}
+
+/* ── Hero specimen ── */
+.hero-type{display:grid;grid-template-columns:1fr 1fr;gap:32px;margin-bottom:56px;padding:32px 0;border-bottom:1px solid var(--rule)}
+.hero-type .big{font-family:Georgia,serif;font-size:clamp(3.5rem,8vw,7rem);font-weight:400;line-height:0.95;letter-spacing:-0.04em}
+.hero-type .big em{font-style:italic;color:var(--accent)}
+.hero-type .small{display:flex;flex-direction:column;justify-content:flex-end;padding-left:16px;border-left:1px solid var(--rule)}
+.hero-type .small p{font-family:'Helvetica Neue',Arial,sans-serif;font-size:0.8rem;line-height:1.7;color:var(--muted)}
+.hero-type .small p strong{color:var(--ink);font-weight:600}
+
+/* ── Type scale ── */
+.scale{display:flex;flex-direction:column;gap:0}
+.scale-row{display:flex;align-items:baseline;gap:16px;padding:8px 0;border-bottom:1px solid rgba(0,0,0,0.04)}
+.scale-row:last-child{border-bottom:none}
+.scale-label{font-family:'Courier New',monospace;font-size:0.6rem;color:var(--light);min-width:42px;text-align:right;flex-shrink:0}
+.scale-text{font-family:Georgia,serif;line-height:1.2}
+.s6{font-size:3.5rem;letter-spacing:-0.04em}
+.s5{font-size:2.5rem;letter-spacing:-0.03em}
+.s4{font-size:1.75rem;letter-spacing:-0.02em}
+.s3{font-size:1.25rem;letter-spacing:-0.01em}
+.s2{font-size:1rem}
+.s1{font-size:0.875rem}
+.s0{font-size:0.75rem}
+.s-n1{font-size:0.625rem}
+.s-n2{font-size:0.5rem;text-transform:uppercase;letter-spacing:0.1em}
+
+/* ── Alphabet ── */
+.alphabet{display:grid;grid-template-columns:1fr 1fr;gap:16px 48px;margin-bottom:56px;padding:32px 0;border-bottom:1px solid var(--rule)}
+.alpha-row{display:flex;align-items:baseline;gap:12px}
+.alpha-label{font-family:'Courier New',monospace;font-size:0.6rem;color:var(--light);min-width:60px}
+.alpha-serif{font-family:Georgia,serif;font-size:1.5rem;font-weight:400}
+.alpha-sans{font-family:'Helvetica Neue',Arial,sans-serif;font-size:1.5rem;font-weight:400}
+.alpha-serif em{font-style:italic;color:var(--accent)}
+.alpha-sans strong{font-weight:700;color:var(--accent)}
+
+/* ── Weight gradation ── */
+.weights{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:2px;margin-bottom:56px}
+.weight-cell{padding:20px 16px;text-align:center;border:1px solid var(--rule);background:#fff}
+.weight-cell .w-label{font-family:'Courier New',monospace;font-size:0.55rem;color:var(--light);text-transform:uppercase;letter-spacing:0.15em;margin-bottom:8px}
+.weight-cell .w-sample{font-family:'Helvetica Neue',Arial,sans-serif;font-size:1.6rem;line-height:1.1}
+.w-100{font-weight:100}
+.w-200{font-weight:200}
+.w-300{font-weight:300}
+.w-400{font-weight:400}
+.w-500{font-weight:500}
+.w-600{font-weight:600}
+.w-700{font-weight:700}
+.w-800{font-weight:800}
+.w-900{font-weight:900}
+
+/* ── Specimen paragraphs ── */
+.specimen-grid{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-bottom:56px;padding:32px 0;border-bottom:1px solid var(--rule)}
+.specimen h3{font-family:'Helvetica Neue',Arial,sans-serif;font-size:0.65rem;text-transform:uppercase;letter-spacing:0.2em;color:var(--light);margin-bottom:12px}
+.specimen-serif{font-family:Georgia,serif;font-size:0.95rem;line-height:1.85}
+.specimen-serif::first-letter{font-size:3.2rem;float:left;line-height:0.8;margin-right:8px;margin-top:6px;color:var(--accent);font-weight:400}
+.specimen-sans{font-family:'Helvetica Neue',Arial,sans-serif;font-size:0.85rem;line-height:1.75;color:var(--muted)}
+.specimen-sans strong{color:var(--ink);font-weight:600}
+.specimen-mono{font-family:'Courier New',monospace;font-size:0.75rem;line-height:1.8;color:var(--muted)}
+.specimen-mono code{color:var(--accent);font-weight:700}
+.specimen-display{font-family:Georgia,serif;font-size:1.1rem;font-style:italic;line-height:1.7;color:var(--ink)}
+.specimen-display em{color:var(--accent);font-style:normal}
+
+/* ── Style comparison ── */
+.styles{display:grid;grid-template-columns:repeat(3,1fr);gap:2px;margin-bottom:56px}
+.style-cell{padding:24px 20px;background:#fff;border:1px solid var(--rule)}
+.style-cell h4{font-family:'Helvetica Neue',Arial,sans-serif;font-size:0.6rem;text-transform:uppercase;letter-spacing:0.2em;color:var(--light);margin-bottom:12px}
+.style-cell p{font-family:Georgia,serif;font-size:0.9rem;line-height:1.7}
+.style-cell .upcase{text-transform:uppercase;letter-spacing:0.08em;font-size:0.8rem}
+.style-cell .smallcap{font-variant:small-caps;font-size:1rem}
+.style-cell .strikethrough{text-decoration:line-through;text-decoration-color:var(--accent);text-decoration-thickness:2px}
+.style-cell .overline{text-decoration:overline;text-decoration-color:var(--accent)}
+.style-cell .underline{text-decoration:underline;text-decoration-color:var(--accent);text-decoration-thickness:1px;text-underline-offset:4px}
+
+/* ── Ornamental rules ── */
+.ornament{text-align:center;margin:48px 0;font-size:1.2rem;color:var(--light);letter-spacing:0.5em}
+.ornament::before,.ornament::after{content:'';display:inline-block;width:80px;height:1px;background:var(--rule);vertical-align:middle;margin:0 20px}
+
+/* ── Numerals ── */
+.numerals{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:56px;padding:32px 0;border-bottom:1px solid var(--rule)}
+.numeral-group h4{font-family:'Helvetica Neue',Arial,sans-serif;font-size:0.6rem;text-transform:uppercase;letter-spacing:0.2em;color:var(--light);margin-bottom:8px}
+.numeral-group p{font-family:Georgia,serif;font-size:1.8rem;line-height:1.3;letter-spacing:0.05em}
+.numeral-group .tabular{font-variant-numeric:tabular-nums}
+.numeral-group .oldstyle{font-variant-numeric:oldstyle-nums}
+
+/* ── Punctuation ── */
+.punctuation{display:flex;justify-content:center;gap:24px;margin-bottom:56px;flex-wrap:wrap}
+.punct-item{font-family:Georgia,serif;font-size:2.5rem;color:var(--ink);line-height:1}
+.punct-item.accent{color:var(--accent)}
+
+/* ── Quote ── */
+.quote-block{text-align:center;margin:48px 0;padding:40px 0;border-top:1px solid var(--rule);border-bottom:1px solid var(--rule)}
+.quote-block blockquote{font-family:Georgia,serif;font-size:clamp(1.2rem,3vw,1.8rem);font-style:italic;line-height:1.6;max-width:600px;margin:0 auto 16px}
+.quote-block blockquote em{color:var(--accent);font-style:normal}
+.quote-block cite{font-family:'Helvetica Neue',Arial,sans-serif;font-size:0.65rem;text-transform:uppercase;letter-spacing:0.2em;color:var(--light);font-style:normal}
+
+/* ── Footer ── */
+footer{text-align:center;margin-top:48px;padding-top:32px;border-top:1px solid var(--rule)}
+footer p{font-family:'Helvetica Neue',Arial,sans-serif;font-size:0.6rem;text-transform:uppercase;letter-spacing:0.25em;color:var(--light)}
+
+/* ── Responsive ── */
+@media(max-width:700px){
+  .hero-type{grid-template-columns:1fr}
+  .hero-type .small{padding-left:0;padding-top:16px;border-left:none;border-top:1px solid var(--rule)}
+  .alphabet{grid-template-columns:1fr}
+  .specimen-grid{grid-template-columns:1fr}
+  .styles{grid-template-columns:1fr}
+  .weights{grid-template-columns:repeat(3,1fr)}
+  .numerals{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<div class="container">
+
+<!-- Header -->
+<header>
+<h1><em>Type</em> Hierarchy</h1>
+<p class="subtitle">An Editorial Specimen — System Font Stacks</p>
+</header>
+
+<!-- Hero specimen -->
+<div class="hero-type">
+<div class="big">The <em>quick</em> brown fox</div>
+<div class="small">
+<p><strong>Typographic hierarchy</strong> is the arrangement of type in order of visual importance. Through scale, weight, color, and style, a designer guides the reader's eye through content with clarity and elegance.</p>
+</div>
+</div>
+
+<!-- Type scale -->
+<div class="section">
+<div class="section-label">Type Scale — Ratio 1.618</div>
+<div class="scale">
+<div class="scale-row"><span class="scale-label">6</span><span class="scale-text s6">Aa</span></div>
+<div class="scale-row"><span class="scale-label">5</span><span class="scale-text s5">Aa Bb Cc</span></div>
+<div class="scale-row"><span class="scale-label">4</span><span class="scale-text s4">Aa Bb Cc Dd</span></div>
+<div class="scale-row"><span class="scale-label">3</span><span class="scale-text s3">Aa Bb Cc Dd Ee</span></div>
+<div class="scale-row"><span class="scale-label">2</span><span class="scale-text s2">Aa Bb Cc Dd Ee Ff</span></div>
+<div class="scale-row"><span class="scale-label">1</span><span class="scale-text s1">Aa Bb Cc Dd Ee Ff Gg</span></div>
+<div class="scale-row"><span class="scale-label">0</span><span class="scale-text s0">Aa Bb Cc Dd Ee Ff Gg Hh</span></div>
+<div class="scale-row"><span class="scale-label">−1</span><span class="scale-text s-n1">Aa Bb Cc Dd Ee Ff Gg Hh Ii</span></div>
+<div class="scale-row"><span class="scale-label">−2</span><span class="scale-text s-n2">Aa Bb Cc Dd Ee Ff Gg Hh Ii Jj</span></div>
+</div>
+</div>
+
+<!-- Alphabet -->
+<div class="section">
+<div class="section-label">Alphabet Specimen</div>
+<div class="alphabet">
+<div class="alpha-row"><span class="alpha-label">Serif</span><span class="alpha-serif">A B C D E F G H I J <em>K</em> L M N O P Q R S T U V W X Y Z</span></div>
+<div class="alpha-row"><span class="alpha-label">Sans</span><span class="alpha-sans">A B C D E F G H I J <strong>K</strong> L M N O P Q R S T U V W X Y Z</span></div>
+<div class="alpha-row"><span class="alpha-label">Serif</span><span class="alpha-serif">a b c d e f g h i j <em>k</em> l m n o p q r s t u v w x y z</span></div>
+<div class="alpha-row"><span class="alpha-label">Sans</span><span class="alpha-sans">a b c d e f g h i j <strong>k</strong> l m n o p q r s t u v w x y z</span></div>
+<div class="alpha-row"><span class="alpha-label">Serif</span><span class="alpha-serif">0 1 2 3 4 5 6 7 8 9</span></div>
+<div class="alpha-row"><span class="alpha-label">Sans</span><span class="alpha-sans">0 1 2 3 4 5 6 7 8 9</span></div>
+</div>
+</div>
+
+<!-- Weight gradation -->
+<div class="section">
+<div class="section-label">Weight Gradation — Sans</div>
+<div class="weights">
+<div class="weight-cell"><div class="w-label">100</div><div class="w-sample w-100">Type</div></div>
+<div class="weight-cell"><div class="w-label">200</div><div class="w-sample w-200">Type</div></div>
+<div class="weight-cell"><div class="w-label">300</div><div class="w-sample w-300">Type</div></div>
+<div class="weight-cell"><div class="w-label">400</div><div class="w-sample w-400">Type</div></div>
+<div class="weight-cell"><div class="w-label">500</div><div class="w-sample w-500">Type</div></div>
+<div class="weight-cell"><div class="w-label">600</div><div class="w-sample w-600">Type</div></div>
+<div class="weight-cell"><div class="w-label">700</div><div class="w-sample w-700">Type</div></div>
+<div class="weight-cell"><div class="w-label">800</div><div class="w-sample w-800">Type</div></div>
+<div class="weight-cell"><div class="w-label">900</div><div class="w-sample w-900">Type</div></div>
+</div>
+</div>
+
+<!-- Ornamental divider -->
+<div class="ornament">✦</div>
+
+<!-- Specimen paragraphs -->
+<div class="section">
+<div class="section-label">Specimen Paragraphs</div>
+<div class="specimen-grid">
+<div class="specimen">
+<h3>Serif — Georgia</h3>
+<div class="specimen-serif">Typography is the art and technique of arranging type to make written language legible, readable, and appealing when displayed. The arrangement of type involves selecting typefaces, point sizes, line lengths, line spacing, and letter spacing. The term typography is also applied to the style, arrangement, and appearance of the letters, numbers, and symbols created by the process.</div>
+</div>
+<div class="specimen">
+<h3>Sans — Helvetica</h3>
+<div class="specimen-sans"><strong>Good design</strong> is as little design as possible. It makes a product useful, aesthetic, and meaningful. Good design is innovative, thorough down to the last detail, honest, long-lasting, and environmentally friendly. It leaves as little design as possible.</div>
+</div>
+<div class="specimen">
+<h3>Mono — Courier</h3>
+<div class="specimen-mono">The <code>font-family</code> property specifies a prioritized list of one or more font family names. User agents step through the list, using the first available font that has a face with the appropriate <code>weight</code> and <code>style</code>.</div>
+</div>
+<div class="specimen">
+<h3>Display — Italic</h3>
+<div class="specimen-display">There is no beauty in perfection. Beauty lives in the <em>imperfection</em> of the hand-crafted, the <em>irregular</em>, the human trace within every letterform. Type is not merely a vessel for words — it is the <em>voice</em> of the page.</div>
+</div>
+</div>
+</div>
+
+<!-- Style comparison -->
+<div class="section">
+<div class="section-label">Style Transformations</div>
+<div class="styles">
+<div class="style-cell">
+<h4>Uppercase</h4>
+<p class="upcase">The quick brown fox jumps over the lazy dog</p>
+</div>
+<div class="style-cell">
+<h4>Small Caps</h4>
+<p class="smallcap">The quick brown fox jumps over the lazy dog</p>
+</div>
+<div class="style-cell">
+<h4>Strikethrough</h4>
+<p class="strikethrough">The quick brown fox jumps over the lazy dog</p>
+</div>
+<div class="style-cell">
+<h4>Overline</h4>
+<p class="overline">The quick brown fox jumps over the lazy dog</p>
+</div>
+<div class="style-cell">
+<h4>Underline</h4>
+<p class="underline">The quick brown fox jumps over the lazy dog</p>
+</div>
+<div class="style-cell">
+<h4>Oblique</h4>
+<p style="font-style:italic">The quick brown fox jumps over the lazy dog</p>
+</div>
+</div>
+</div>
+
+<!-- Numerals -->
+<div class="section">
+<div class="section-label">Numeral Styles</div>
+<div class="numerals">
+<div class="numeral-group">
+<h4>Linotonic (Default)</h4>
+<p>1234567890</p>
+</div>
+<div class="numeral-group">
+<h4>Tabular</h4>
+<p class="tabular">1234567890</p>
+</div>
+<div class="numeral-group">
+<h4>Old Style</h4>
+<p class="oldstyle">1234567890</p>
+</div>
+<div class="numeral-group">
+<h4>Tabular + Old Style</h4>
+<p class="tabular oldstyle">1234567890</p>
+</div>
+</div>
+</div>
+
+<!-- Punctuation -->
+<div class="section">
+<div class="section-label">Punctuation &amp; Symbols</div>
+<div class="punctuation">
+<span class="punct-item">"</span>
+<span class="punct-item">"</span>
+<span class="punct-item">"</span>
+<span class="punct-item">"</span>
+<span class="punct-item">—</span>
+<span class="punct-item accent">§</span>
+<span class="punct-item">¶</span>
+<span class="punct-item accent">†</span>
+<span class="punct-item">‡</span>
+<span class="punct-item">…</span>
+<span class="punct-item accent">※</span>
+<span class="punct-item">°</span>
+</div>
+</div>
+
+<!-- Quote -->
+<div class="quote-block">
+<blockquote>The details are not the details. They <em>make</em> the design.</blockquote>
+<cite>— Charles Eames, 1970</cite>
+</div>
+
+<!-- Footer -->
+<footer>
+<p>Typographic Hierarchy — System Font Stacks — No External Dependencies</p>
+</footer>
+
+</div>
+</body>
+</html>

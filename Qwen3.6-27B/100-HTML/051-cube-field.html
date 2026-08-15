@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cube Field</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#06060f;overflow:hidden;cursor:grab}
+body:active{cursor:grabbing}
+canvas{display:block;width:100%;height:100%}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let W, H, cx, cy;
+
+function resize() {
+    W = canvas.width = window.innerWidth * devicePixelRatio;
+    H = canvas.height = window.innerHeight * devicePixelRatio;
+    canvas.style.width = window.innerWidth + 'px';
+    canvas.style.height = window.innerHeight + 'px';
+    cx = W / 2;
+    cy = H / 2;
+}
+window.addEventListener('resize', resize);
+resize();
+
+const FOV = 800 * devicePixelRatio;
+const GRID_SIZE = 20;
+const GRID_SPACING = 60 * devicePixelRatio;
+const FLOOR_Y = 180 * devicePixelRatio;
+
+let camYaw = 0.4, camPitch = -0.35;
+let targetYaw = camYaw, targetPitch = camPitch;
+let mouseX = 0, mouseY = 0;
+
+document.addEventListener('mousemove', e => {
+    targetYaw = 0.4 + (e.clientX / window.innerWidth - 0.5) * Math.PI * 1.2;
+    targetPitch = -0.35 + (e.clientY / window.innerHeight - 0.5) * Math.PI * 0.5;
+});
+
+document.addEventListener('touchmove', e => {
+    const t = e.touches[0];
+    targetYaw = 0.4 + (t.clientX / window.innerWidth - 0.5) * Math.PI * 1.2;
+    targetPitch = -0.35 + (t.clientY / window.innerHeight - 0.5) * Math.PI * 0.5;
+}, { passive: true });
+
+// Cube class
+class Cube {
+    constructor(sx, sy, sz, ox, oy, oz, hue, rotSpeed) {
+        this.sx = sx; this.sy = sy; this.sz = sz;
+        this.ox = ox; this.oy = oy; this.oz = oz;
+        this.rx = 0; this.ry = 0; this.rz = 0;
+        this.rsx = rotSpeed.x; this.rsy = rotSpeed.y; this.rsz = rotSpeed.z;
+        this.hue = hue;
+        this.floatPhase = Math.random() * Math.PI * 2;
+        this.floatAmp = 15 * devicePixelRatio + Math.random() * 25 * devicePixelRatio;
+        this.floatSpeed = 0.3 + Math.random() * 0.4;
+    }
+
+    getVertices(t) {
+        const hw = this.sx / 2, hh = this.sy / 2, hd = this.sz / 2;
+        const base = [
+            [-hw, -hh, -hd], [hw, -hh, -hd], [hw, hh, -hd], [-hw, hh, -hd],
+            [-hw, -hh, hd],  [hw, -hh, hd],  [hw, hh, hd],  [-hw, hh, hd]
+        ];
+        const float = Math.sin(t * this.floatSpeed + this.floatPhase) * this.floatAmp;
+        return base.map(([x, y, z]) => {
+            let [px, py, pz] = [x + this.ox, y + this.oy + float, z + this.oz];
+            // Rotate around own center
+            const [lx, ly, lz] = [px - this.ox, py - this.oy - float, pz - this.oz];
+            // Y rotation
+            let [x1, y1, z1] = [lx, ly, lz];
+            const cy1 = Math.cos(this.ry), sy1 = Math.sin(this.ry);
+            [x1, z1] = [x1 * cy1 + z1 * sy1, -x1 * sy1 + z1 * cy1];
+            // X rotation
+            let [x2, y2, z2] = [x1, y1, z1];
+            const cx2 = Math.cos(this.rx), sx2 = Math.sin(this.rx);
+            [y2, z2] = [y2 * cx2 - z2 * sx2, y2 * sx2 + z2 * cx2];
+            // Z rotation
+            let [x3, y3, z3] = [x2, y2, z2];
+            const cz3 = Math.cos(this.rz), sz3 = Math.sin(this.rz);
+            [x3, y3] = [x3 * cz3 - y3 * sz3, x3 * sz3 + y3 * cz3];
+            return [this.ox + x3, this.oy + float + y3, this.oz + z3];
+        });
+    }
+
+    update(dt) {
+        this.rx += this.rsx * dt;
+        this.ry += this.rsy * dt;
+        this.rz += this.rsz * dt;
+    }
+}
+
+// Create cubes
+const cubes = [];
+const dpr = devicePixelRatio;
+
+// Central large cube
+cubes.push(new Cube(140 * dpr, 140 * dpr, 140 * dpr, 0, -40 * dpr, 0, 200, { x: 0.15, y: 0.25, z: 0.08 }));
+
+// Surrounding medium cubes
+const positions = [
+    [-220, -80, -180], [220, -60, -160], [-200, -30, 160], [240, -90, 180],
+    [-160, -100, 0], [180, -20, -200], [-260, -50, 100], [260, -70, -80],
+    [0, -120, 220], [0, -10, -240], [-300, -40, -60], [300, -80, 60],
+    [-120, -60, -260], [140, -50, 260], [-280, -20, 200], [280, -100, -200],
+];
+
+const hues = [180, 220, 260, 160, 240, 200, 280, 170, 210, 250, 190, 230, 270, 150, 290, 185];
+
+positions.forEach(([x, y, z], i) => {
+    const s = (50 + Math.random() * 60) * dpr;
+    cubes.push(new Cube(s, s, s, x * dpr, y * dpr, z * dpr, hues[i], {
+        x: (Math.random() - 0.5) * 0.5,
+        y: (Math.random() - 0.5) * 0.5,
+        z: (Math.random() - 0.5) * 0.3
+    }));
+});
+
+// Small accent cubes
+for (let i = 0; i < 12; i++) {
+    const angle = (i / 12) * Math.PI * 2;
+    const radius = 350 + Math.random() * 100;
+    const s = (20 + Math.random() * 30) * dpr;
+    cubes.push(new Cube(s, s, s,
+        Math.cos(angle) * radius * dpr,
+        (-30 - Math.random() * 80) * dpr,
+        Math.sin(angle) * radius * dpr,
+        140 + Math.random() * 160,
+        {
+            x: (Math.random() - 0.5) * 0.8,
+            y: (Math.random() - 0.5) * 0.8,
+            z: (Math.random() - 0.5) * 0.5
+        }
+    ));
+}
+
+// 3D math helpers
+function rotateY(x, y, z, a) {
+    const c = Math.cos(a), s = Math.sin(a);
+    return [x * c + z * s, y, -x * s + z * c];
+}
+
+function rotateX(x, y, z, a) {
+    const c = Math.cos(a), s = Math.sin(a);
+    return [x, y * c - z * s, y * s + z * c];
+}
+
+function project(x, y, z) {
+    const scale = FOV / (FOV + z);
+    return [cx + x * scale, cy + y * scale, scale, z];
+}
+
+// Cube edges (vertex index pairs)
+const edges = [
+    [0,1],[1,2],[2,3],[3,0], // back face
+    [4,5],[5,6],[6,7],[7,4], // front face
+    [0,4],[1,5],[2,6],[3,7]  // connecting edges
+];
+
+// Draw grid floor
+function drawGrid() {
+    const half = GRID_SIZE / 2;
+    const gridLines = [];
+
+    for (let i = -half; i <= half; i++) {
+        const pos = i * GRID_SPACING;
+        // Lines along X
+        gridLines.push([
+            [-half * GRID_SPACING, FLOOR_Y, pos],
+            [half * GRID_SPACING, FLOOR_Y, pos]
+        ]);
+        // Lines along Z
+        gridLines.push([
+            [pos, FLOOR_Y, -half * GRID_SPACING],
+            [pos, FLOOR_Y, half * GRID_SPACING]
+        ]);
+    }
+
+    // Transform and project grid lines
+    gridLines.forEach(([a, b]) => {
+        let [ax, ay, az] = rotateX(...a, camPitch);
+        [ax, ay, az] = rotateY(ax, ay, az, camYaw);
+        let [bx, by, bz] = rotateX(...b, camPitch);
+        [bx, by, bz] = rotateY(bx, by, bz, camYaw);
+
+        const [sx1, sy1, , z1] = project(ax, ay, az);
+        const [sx2, sy2, , z2] = project(bx, by, bz);
+
+        if (z1 > -FOV && z2 > -FOV) {
+            const avgZ = (z1 + z2) / 2;
+            const alpha = Math.max(0, Math.min(0.25, 1 - avgZ / (FOV * 2.5)));
+            ctx.beginPath();
+            ctx.moveTo(sx1, sy1);
+            ctx.lineTo(sx2, sy2);
+            ctx.strokeStyle = `rgba(80,140,255,${alpha})`;
+            ctx.lineWidth = Math.max(0.5, 1.2 * devicePixelRatio * Math.min(1, FOV / (FOV + avgZ)));
+            ctx.stroke();
+        }
+    });
+}
+
+// Draw a single cube
+function drawCube(cube, t) {
+    const verts = cube.getVertices(t);
+    const transformed = verts.map(([x, y, z]) => {
+        let [tx, ty, tz] = rotateX(x, y, z, camPitch);
+        [tx, ty, tz] = rotateY(tx, ty, tz, camYaw);
+        return project(tx, ty, tz);
+    });
+
+    // Check if cube is behind camera
+    const avgZ = transformed.reduce((s, [, , , z]) => s + z, 0) / transformed.length;
+    if (avgZ < -FOV * 0.8) return -FOV * 2;
+
+    const depth = avgZ;
+    const glowAlpha = Math.max(0.15, Math.min(0.7, 1 - depth / (FOV * 2)));
+    const edgeAlpha = Math.max(0.2, Math.min(0.85, 1 - depth / (FOV * 1.8)));
+    const hue = cube.hue;
+
+    // Draw edges with glow
+    ctx.save();
+    ctx.shadowColor = `hsla(${hue}, 90%, 65%, ${glowAlpha * 0.8})`;
+    ctx.shadowBlur = 12 * devicePixelRatio * Math.max(0.3, 1 - depth / (FOV * 2));
+
+    edges.forEach(([a, b]) => {
+        const [sx1, sy1] = transformed[a];
+        const [sx2, sy2] = transformed[b];
+        const scale = transformed[a][2];
+
+        ctx.beginPath();
+        ctx.moveTo(sx1, sy1);
+        ctx.lineTo(sx2, sy2);
+        ctx.strokeStyle = `hsla(${hue}, 85%, 68%, ${edgeAlpha})`;
+        ctx.lineWidth = Math.max(0.8, 2.2 * devicePixelRatio * scale);
+        ctx.stroke();
+    });
+    ctx.restore();
+
+    // Draw vertices as glowing dots
+    transformed.forEach(([sx, sy, scale]) => {
+        const r = Math.max(1.5, 4 * devicePixelRatio * scale);
+        const grad = ctx.createRadialGradient(sx, sy, 0, sx, sy, r * 3);
+        grad.addColorStop(0, `hsla(${hue}, 100%, 85%, ${edgeAlpha * 0.9})`);
+        grad.addColorStop(0.3, `hsla(${hue}, 90%, 65%, ${edgeAlpha * 0.5})`);
+        grad.addColorStop(1, `hsla(${hue}, 80%, 50%, 0)`);
+        ctx.beginPath();
+        ctx.arc(sx, sy, r * 3, 0, Math.PI * 2);
+        ctx.fillStyle = grad;
+        ctx.fill();
+
+        // Core dot
+        ctx.beginPath();
+        ctx.arc(sx, sy, r * 0.5, 0, Math.PI * 2);
+        ctx.fillStyle = `hsla(${hue}, 100%, 92%, ${edgeAlpha})`;
+        ctx.fill();
+    });
+
+    return depth;
+}
+
+// Draw connecting lines between nearby cube centers
+function drawConnections(t) {
+    const centers = cubes.map(c => {
+        const verts = c.getVertices(t);
+        const center = verts[0]; // approximate
+        let [tx, ty, tz] = rotateX(c.ox, c.oy, c.oz, camPitch);
+        [tx, ty, tz] = rotateY(tx, ty, tz, camYaw);
+        const [sx, sy, scale, z] = project(tx, ty, tz);
+        return { sx, sy, scale, z, hue: c.hue };
+    });
+
+    const maxDist = 300 * devicePixelRatio;
+    ctx.save();
+    for (let i = 0; i < centers.length; i++) {
+        for (let j = i + 1; j < centers.length; j++) {
+            const dx = centers[i].sx - centers[j].sx;
+            const dy = centers[i].sy - centers[j].sy;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < maxDist) {
+                const alpha = (1 - dist / maxDist) * 0.12;
+                ctx.beginPath();
+                ctx.moveTo(centers[i].sx, centers[i].sy);
+                ctx.lineTo(centers[j].sx, centers[j].sy);
+                const midHue = (centers[i].hue + centers[j].hue) / 2;
+                ctx.strokeStyle = `hsla(${midHue}, 70%, 60%, ${alpha})`;
+                ctx.lineWidth = 0.8 * devicePixelRatio;
+                ctx.stroke();
+            }
+        }
+    }
+    ctx.restore();
+}
+
+// Ambient particles
+const particles = [];
+for (let i = 0; i < 60; i++) {
+    particles.push({
+        x: (Math.random() - 0.5) * 1200 * dpr,
+        y: (Math.random() - 0.5) * 600 * dpr,
+        z: (Math.random() - 0.5) * 1200 * dpr,
+        speed: 0.2 + Math.random() * 0.5,
+        phase: Math.random() * Math.PI * 2,
+        hue: 180 + Math.random() * 120,
+        size: (1 + Math.random() * 2) * dpr
+    });
+}
+
+function drawParticles(t) {
+    particles.forEach(p => {
+        const py = p.y + Math.sin(t * p.speed + p.phase) * 30 * dpr;
+        let [tx, ty, tz] = rotateX(p.x, py, p.z, camPitch);
+        [tx, ty, tz] = rotateY(tx, ty, tz, camYaw);
+        const [sx, sy, scale, z] = project(tx, ty, tz);
+        if (z > -FOV && z < FOV) {
+            const alpha = Math.max(0, 0.4 * scale);
+            const r = p.size * scale;
+            ctx.beginPath();
+            ctx.arc(sx, sy, r, 0, Math.PI * 2);
+            ctx.fillStyle = `hsla(${p.hue}, 80%, 75%, ${alpha})`;
+            ctx.fill();
+        }
+    });
+}
+
+// Main loop
+let lastTime = 0;
+
+function frame(time) {
+    const t = time / 1000;
+    const dt = Math.min(0.05, (time - lastTime) / 1000);
+    lastTime = time;
+
+    // Smooth camera
+    camYaw += (targetYaw - camYaw) * 0.04;
+    camPitch += (targetPitch - camPitch) * 0.04;
+
+    // Auto-drift camera when not interacting
+    targetYaw += 0.001;
+
+    // Clear
+    ctx.fillStyle = '#06060f';
+    ctx.fillRect(0, 0, W, H);
+
+    // Subtle vignette
+    const vignette = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(W, H) * 0.7);
+    vignette.addColorStop(0, 'rgba(6,6,15,0)');
+    vignette.addColorStop(1, 'rgba(6,6,15,0.6)');
+    ctx.fillStyle = vignette;
+    ctx.fillRect(0, 0, W, H);
+
+    // Update cubes
+    cubes.forEach(c => c.update(dt));
+
+    // Draw grid
+    drawGrid();
+
+    // Draw particles
+    drawParticles(t);
+
+    // Sort cubes by depth for proper rendering
+    const depthSorted = cubes.map(c => {
+        const verts = c.getVertices(t);
+        const centerZ = verts.reduce((s, v) => s + v[2], 0) / verts.length;
+        let [, , tz] = rotateX(c.ox, c.oy, centerZ, camPitch);
+        [, , tz] = rotateY(0, 0, tz, camYaw);
+        return { cube: c, depth: tz };
+    });
+    depthSorted.sort((a, b) => b.depth - a.depth);
+
+    // Draw connections
+    drawConnections(t);
+
+    // Draw cubes back to front
+    depthSorted.forEach(({ cube }) => drawCube(cube, t));
+
+    requestAnimationFrame(frame);
+}
+
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

@@ -1,0 +1,7 @@
+Title: Aurora Borealis
+
+Prompt: Create an aurora borealis (northern lights) visualization with colorful bands of light rippling across a dark night sky. Multiple aurora bands in green, teal, and purple hues undulate with dual-sine wave motion. Each band has multiple layers with slightly offset positions for depth. Stars twinkle above. A dark ground silhouette with gentle hills anchors the scene. The overall aesthetic is atmospheric, natural, and breathtaking — like viewing the northern lights in the Arctic.
+
+Techniques: Canvas multi-band aurora rendering with sine/sine-wave combination, filled aurora shapes with linear gradient transparency, layered bands for volumetric depth, star field with twinkling, ground silhouette with sinusoidal hills, click regeneration, trailing background fade, HSL color cycling.
+
+Interaction: Aurora bands ripple and flow continuously. Click to regenerate the aurora configuration with new colors and positions.

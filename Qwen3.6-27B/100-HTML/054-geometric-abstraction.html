@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Geometric Abstraction</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;overflow:hidden;background:#f0ebe3}
+canvas{display:block;cursor:pointer}
+.fade-in{animation:fi 1.2s ease-out}
+@keyframes fi{from{opacity:0}to{opacity:1}}
+</style>
+</head>
+<body>
+<canvas id="c" class="fade-in"></canvas>
+<script>
+const canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
+const LINE_W=7,DUR=3000,TICK_MS=4000,MIN_S=70;
+
+const PALETTE=[
+  [255,255,255],[242,235,222],[228,40,30],[28,65,152],[245,205,30]
+];
+const WEIGHTS=[.30,.35,.12,.12,.12];
+
+function pickColor(){
+  const r=Math.random(),cum=0;
+  for(let i=0;i<WEIGHTS.length;i++){cum+=WEIGHTS[i];if(r<cum)return PALETTE[i]}
+  return PALETTE[0];
+}
+
+function subdivide(x,y,w,h){
+  const rects=[];
+  function split(x,y,w,h,d){
+    if(d>=4||w<MIN_S*2||h<MIN_S*2){rects.push({x,y,w,h});return}
+    const ar=w/h;
+    let hv;
+    if(ar>1.5)hv=false;else if(ar<0.66)hv=true;
+    else hv=Math.random()<0.5;
+    if(hv){
+      const minH=Math.max(MIN_S,h*0.25),maxH=h-minH;
+      if(minH>maxH){rects.push({x,y,w,h});return}
+      const sh=minH+Math.random()*(maxH-minH);
+      split(x,y,w,sh,d+1);split(x,y+sh,w,h-sh,d+1);
+    }else{
+      const minW=Math.max(MIN_S,w*0.25),maxW=w-minW;
+      if(minW>maxW){rects.push({x,y,w,h});return}
+      const sw=minW+Math.random()*(maxW-minW);
+      split(x,y,sw,h,d+1);split(x+sw,y,w-sw,h,d+1);
+    }
+  }
+  split(x,y,w,h,0);
+  return rects;
+}
+
+class Rect{
+  constructor(x,y,w,h,color){
+    this.tx=x;this.ty=y;this.tw=w;this.th=h;
+    this.tc=color.slice();
+    this.x=x;this.y=y;this.w=w;this.h=h;
+    this.c=color.slice();this.t0=performance.now();
+  }
+  update(now){
+    const t=Math.min((now-this.t0)/DUR,1);
+    const e=1-Math.pow(1-t,3);
+    this.x+=(this.tx-this.x)*e;
+    this.y+=(this.ty-this.y)*e;
+    this.w+=(this.tw-this.w)*e;
+    this.h+=(this.th-this.h)*e;
+    for(let i=0;i<3;i++)this.c[i]+=(this.tc[i]-this.c[i])*e;
+  }
+}
+
+let rects=[];
+
+function match(ol,ne){
+  const used=new Set,m=[];
+  for(const n of ne){
+    let best=null,bd=Infinity;
+    for(let i=0;i<ol.length;i++){
+      if(used.has(i))continue;
+      const d=Math.hypot(ol[i].x+ol[i].w/2-n.x-n.w/2,ol[i].y+ol[i].h/2-n.y-n.h/2);
+      if(d<bd){bd=d;best=i}
+    }
+    if(best!==null){m.push({o:ol[best],n});used.add(best)}
+    else m.push({o:null,n});
+  }
+  for(let i=0;i<ol.length;i++)if(!used.has(i))m.push({o:ol[i],n:null});
+  return m;
+}
+
+function transition(){
+  const raw=subdivide(0,0,canvas.width,canvas.height);
+  const nr=raw.map(r=>({x:r.x,y:r.y,w:r.w,h:r.h,color:pickColor()}));
+  const m=match(rects,nr);
+  const now=performance.now();
+  const next=[];
+  for(const{o,n}of m){
+    if(o&&n){o.tx=n.x;o.ty=n.y;o.tw=n.w;o.th=n.h;o.tc=n.color.slice();o.t0=now;next.push(o)}
+    else if(n)next.push(new Rect(n.x,n.y,n.w,n.h,n.color));
+  }
+  rects=next;
+}
+
+function evolve(){
+  for(const r of rects)
+    if(Math.random()<0.15){r.tc=pickColor();r.t0=performance.now()}
+}
+
+function resize(){
+  canvas.width=window.innerWidth;canvas.height=window.innerHeight;
+  transition();
+}
+
+let rto;
+window.addEventListener('resize',()=>{clearTimeout(rto);rto=setTimeout(resize,200)});
+canvas.addEventListener('click',()=>transition());
+setInterval(evolve,TICK_MS);
+
+function render(){
+  ctx.fillStyle='#f0ebe3';ctx.fillRect(0,0,canvas.width,canvas.height);
+  for(const r of rects){
+    r.update(performance.now());
+    ctx.fillStyle=`rgb(${r.c[0]|0},${r.c[1]|0},${r.c[2]|0})`;
+    ctx.fillRect(r.x,r.y,r.w,r.h);
+    ctx.strokeStyle='#1a1a1a';ctx.lineWidth=LINE_W;
+    ctx.strokeRect(r.x,r.y,r.w,r.h);
+  }
+  requestAnimationFrame(render);
+}
+
+resize();render();
+</script>
+</body>
+</html>

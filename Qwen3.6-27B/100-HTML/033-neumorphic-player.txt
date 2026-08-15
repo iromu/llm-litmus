@@ -1,0 +1,20 @@
+# Neumorphic Player
+
+## Creative Prompt
+Create a soft UI music player with neumorphic design. The player features a central album art area with a rotating vinyl disc, animated sound wave bars, track info, progress bar with scrubbing, playback controls (previous, play/pause, next), volume slider, and a playlist. The neumorphic style uses soft shadows (inset and outset) to create a raised/sunken appearance. The color palette is warm gray/beige with accent colors for active elements. Controls have press animations. The overall aesthetic is soft, tactile, and premium — like a physical music player.
+
+## Techniques Used
+- CSS neumorphic design with dual box-shadows (light + dark)
+- Rotating vinyl disc animation with CSS conic-gradient grooves
+- Animated sound wave bars with randomized heights
+- Custom styled range inputs for progress and volume
+- SVG icon buttons with press/active state animations
+- Progress bar with CSS gradient fill tracking
+- Playlist with hover states and active track indicators
+- Play/pause toggle with icon crossfade
+- Responsive layout with mobile breakpoints
+- CSS custom properties for theming
+- Tabular-nums for time display alignment
+
+## Interaction Model
+Play/pause button toggles vinyl disc rotation and sound wave bar animation. Progress bar is draggable for scrubbing through the current track. Volume slider adjusts visual level with gradient fill. Playlist items are clickable to switch tracks. Previous/next buttons cycle through the track list. Auto-advances to the next track when the current one finishes.

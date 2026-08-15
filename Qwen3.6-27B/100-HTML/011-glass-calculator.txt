@@ -1,0 +1,15 @@
+# Glass Calculator
+
+## Creative Prompt
+Create a fully functional calculator with a premium glassmorphism aesthetic. The calculator floats above a dark purple gradient background with two large blurred orbs that drift slowly. The calculator body is translucent with backdrop blur and subtle border glow. Buttons are categorized: number buttons (semi-transparent white), operator buttons (cyan tint), function buttons (more transparent), and a gradient equals button. The display shows the expression and result with elegantly sized typography. Button press has a scale animation. Each button has a mouse-tracking radial shine overlay. The design feels like a premium iOS/macOS accessory crafted from crystal.
+
+## Techniques Used
+- CSS glassmorphism (backdrop-filter blur, semi-transparent backgrounds, border highlights)
+- Multi-layered radial gradient background orbs with float animation
+- CSS Grid layout for calculator buttons
+- JavaScript calculator engine with expression display
+- Button press scale transform
+- Responsive sizing for small screens
+
+## Interaction Model
+Full calculator functionality (add, subtract, multiply, divide, clear, sign, percentage, decimal). Buttons respond to hover (shine) and click (scale press). Orbs drift in background continuously.

@@ -1,0 +1,20 @@
+# Data Flow
+
+## Creative Prompt
+Create a network data flow visualization with nodes connected by edges, and data packets traveling between nodes. Nodes are arranged in layered clusters with labels, glowing with cyan/blue light. Packets travel along connections as bright projectiles with trailing glow and hue variety. The background has a trailing fade effect for smooth motion. Mouse proximity makes nodes glow brighter. New packets spawn randomly. The scene feels like a dynamic network topology visualization — futuristic, data-driven, and alive.
+
+## Techniques Used
+- Canvas network graph rendering with layered node placement
+- Distance-based connection logic between nodes
+- Packet system with progress-based interpolation along edges
+- Projectile rendering with radial gradient glow and trail
+- Mouse proximity influence on node intensity
+- Background trailing fade for smooth motion
+- Packet spawn rate control with max limit
+- Connection alpha based on distance
+- HSL color variation across packets
+- Pulsing node radius via sine wave
+- Boosted connection glow near mouse cursor
+
+## Interaction Model
+Passive observation of data packets flowing through the network. Mouse movement near nodes intensifies their glow and brightens nearby connections. Packets spawn, travel along edges, and disappear continuously. A stats bar at the bottom shows live packet, node, and link counts.

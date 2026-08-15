@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mandala</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: #0a0a0f; }
+canvas { display: block; width: 100%; height: 100%; cursor: pointer; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+let W, H, cx, cy, mandalaRadius;
+let rings = [];
+let seed = Date.now();
+let globalRotation = 0;
+let pulsePhase = 0;
+
+/* ---- Seeded PRNG (mulberry32) ---- */
+function mulberry32(s) {
+    return function () {
+        s |= 0; s = s + 0x6D2B79F5 | 0;
+        let t = Math.imul(s ^ s >>> 15, 1 | s);
+        t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+        return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+}
+
+/* ---- Resize ---- */
+function resize() {
+    const dpr = window.devicePixelRatio || 1;
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    cx = W / 2;
+    cy = H / 2;
+    mandalaRadius = Math.min(W, H) * 0.42;
+}
+
+/* ---- Color palette ---- */
+function goldenHue(rng) { return 35 + rng() * 30; }   // 35-65 gold/amber
+function tealHue(rng)  { return 160 + rng() * 40; }  // 160-200 teal
+function warmHue(rng)  { return 20 + rng() * 50; }   // 20-70 warm spectrum
+function coolHue(rng)  { return 220 + rng() * 40; }   // 220-260 deep blue/purple
+
+function pickHue(rng) {
+    const choice = rng();
+    if (choice < 0.35) return goldenHue(rng);
+    if (choice < 0.65) return tealHue(rng);
+    if (choice < 0.85) return warmHue(rng);
+    return coolHue(rng);
+}
+
+/* ---- Ring types ---- */
+const RING_TYPES = ['petals', 'dots', 'arcs', 'lines', 'diamonds', 'lotus', 'starburst', 'circlets'];
+
+class Ring {
+    constructor(index, total, rng) {
+        this.index = index;
+        this.radiusFrac = 0.12 + (index / total) * 0.78;
+        this.numElements = 6 + Math.floor(rng() * 18);
+        this.type = RING_TYPES[Math.floor(rng() * RING_TYPES.length)];
+        this.hue = pickHue(rng);
+        this.saturation = 50 + rng() * 40;
+        this.lightness = 45 + rng() * 25;
+        this.alpha = 0.5 + rng() * 0.45;
+        this.lineWidth = 0.8 + rng() * 2.2;
+        this.rotationSpeed = (rng() - 0.5) * 0.0008;
+        this.rotationOffset = rng() * Math.PI * 2;
+        this.pulseAmp = 0.02 + rng() * 0.04;
+        this.pulseSpeed = 0.5 + rng() * 1.5;
+        this.pulsePhase = rng() * Math.PI * 2;
+        this.elementSize = 0.5 + rng() * 1.2;
+        this.innerDetail = rng() > 0.5;
+        this.detailHue = pickHue(rng);
+        this.secondaryAlpha = 0.15 + rng() * 0.2;
+        this.direction = rng() > 0.5 ? 1 : -1;
+    }
+
+    getRadius() { return mandalaRadius * this.radiusFrac; }
+
+    draw(t) {
+        const r = this.getRadius();
+        const pulse = 1 + Math.sin(t * this.pulseSpeed + this.pulsePhase) * this.pulseAmp;
+        const rotation = this.rotationOffset + globalRotation * this.rotationSpeed * this.direction * 1000;
+        const n = this.numElements;
+        const angleStep = (Math.PI * 2) / n;
+
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(rotation);
+        ctx.scale(pulse, pulse);
+
+        const h = (this.hue + t * 3) % 360;
+        const baseColor = `hsla(${h}, ${this.saturation}%, ${this.lightness}%, ${this.alpha})`;
+        const thinColor = `hsla(${h}, ${this.saturation}%, ${this.lightness}%, ${this.secondaryAlpha})`;
+        const detailColor = `hsla(${(this.detailHue + t * 5) % 360}, ${this.saturation}%, ${this.lightness + 10}%, ${this.secondaryAlpha})`;
+
+        ctx.strokeStyle = baseColor;
+        ctx.fillStyle = baseColor;
+        ctx.lineWidth = this.lineWidth;
+        ctx.lineCap = 'round';
+
+        for (let i = 0; i < n; i++) {
+            const a = i * angleStep;
+            const cos = Math.cos(a);
+            const sin = Math.sin(a);
+
+            switch (this.type) {
+                case 'petals': this.drawPetal(cos, sin, r, angleStep, h); break;
+                case 'dots':   this.drawDot(cos, sin, r); break;
+                case 'arcs':   this.drawArc(cos, sin, r, angleStep, h); break;
+                case 'lines':  this.drawLine(cos, sin, r, angleStep); break;
+                case 'diamonds': this.drawDiamond(cos, sin, r, angleStep); break;
+                case 'lotus':  this.drawLotus(cos, sin, r, angleStep, h); break;
+                case 'starburst': this.drawStarburst(cos, sin, r, angleStep); break;
+                case 'circlets': this.drawCirclet(cos, sin, r, angleStep, h); break;
+            }
+        }
+
+        // Inner detail ring
+        if (this.innerDetail) {
+            ctx.strokeStyle = detailColor;
+            ctx.lineWidth = this.lineWidth * 0.4;
+            ctx.beginPath();
+            const innerR = r * (0.92 + this.pulseAmp * 2);
+            ctx.arc(0, 0, innerR, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+
+        ctx.restore();
+    }
+
+    drawPetal(cos, sin, r, step, h) {
+        const petalLen = mandalaRadius * 0.06 * this.elementSize;
+        const petalW = mandalaRadius * 0.02 * this.elementSize;
+        const x = cos * r;
+        const y = sin * r;
+        const tipX = cos * (r + petalLen);
+        const tipY = sin * (r + petalLen);
+
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        const cp1x = x + cos * petalLen * 0.5 + sin * petalW;
+        const cp1y = y + sin * petalLen * 0.5 - cos * petalW;
+        const cp2x = x + cos * petalLen * 0.5 - sin * petalW;
+        const cp2y = y + sin * petalLen * 0.5 + cos * petalW;
+        ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, tipX, tipY);
+        ctx.bezierCurveTo(cp2x, cp2y, cp1x, cp1y, x, y);
+        ctx.strokeStyle = `hsla(${(h + 20) % 360}, ${this.saturation}%, ${this.lightness}%, ${this.alpha * 0.7})`;
+        ctx.stroke();
+    }
+
+    drawDot(cos, sin, r) {
+        const dotR = mandalaRadius * 0.008 * this.elementSize;
+        ctx.beginPath();
+        ctx.arc(cos * r, sin * r, dotR, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    drawArc(cos, sin, r, step, h) {
+        const arcSpan = step * 0.6;
+        ctx.beginPath();
+        ctx.arc(0, 0, r, Math.atan2(sin, cos) - arcSpan, Math.atan2(sin, cos) + arcSpan);
+        ctx.strokeStyle = `hsla(${(h + 15) % 360}, ${this.saturation}%, ${this.lightness}%, ${this.alpha})`;
+        ctx.stroke();
+    }
+
+    drawLine(cos, sin, r, step) {
+        const innerR = r * 0.88;
+        const outerR = r * 1.12;
+        ctx.beginPath();
+        ctx.moveTo(cos * innerR, sin * innerR);
+        ctx.lineTo(cos * outerR, sin * outerR);
+        ctx.stroke();
+    }
+
+    drawDiamond(cos, sin, r, step) {
+        const s = mandalaRadius * 0.015 * this.elementSize;
+        const x = cos * r;
+        const y = sin * r;
+        const dx = cos * s;
+        const dy = sin * s;
+        const px = -sin * s * 0.5;
+        const py = cos * s * 0.5;
+
+        ctx.beginPath();
+        ctx.moveTo(x + dx, y + dy);
+        ctx.lineTo(x + px, y + py);
+        ctx.lineTo(x - dx, y - dy);
+        ctx.lineTo(x - px, y - py);
+        ctx.closePath();
+        ctx.stroke();
+    }
+
+    drawLotus(cos, sin, r, step, h) {
+        const len = mandalaRadius * 0.05 * this.elementSize;
+        const w = mandalaRadius * 0.025 * this.elementSize;
+        const x = cos * r;
+        const y = sin * r;
+
+        // Outer petal
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.quadraticCurveTo(x + cos * len * 0.6 + sin * w, y + sin * len * 0.6 - cos * w,
+                           x + cos * len, y + sin * len);
+        ctx.quadraticCurveTo(x + cos * len * 0.6 - sin * w, y + sin * len * 0.6 + cos * w,
+                           x, y);
+        ctx.strokeStyle = `hsla(${(h + 10) % 360}, ${this.saturation}%, ${this.lightness}%, ${this.alpha * 0.8})`;
+        ctx.stroke();
+
+        // Inner petal (smaller)
+        const innerLen = len * 0.55;
+        const innerW = w * 0.5;
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.quadraticCurveTo(x + cos * innerLen * 0.6 + sin * innerW, y + sin * innerLen * 0.6 - cos * innerW,
+                           x + cos * innerLen, y + sin * innerLen);
+        ctx.quadraticCurveTo(x + cos * innerLen * 0.6 - sin * innerW, y + sin * innerLen * 0.6 + cos * innerW,
+                           x, y);
+        ctx.strokeStyle = `hsla(${(h + 40) % 360}, ${this.saturation}%, ${this.lightness + 15}%, ${this.alpha * 0.5})`;
+        ctx.stroke();
+    }
+
+    drawStarburst(cos, sin, r, step) {
+        const innerR = r * 0.85;
+        const outerR = r * 1.15;
+        const midR = r * 1.05;
+        const halfStep = step * 0.35;
+        const a = Math.atan2(sin, cos);
+
+        ctx.beginPath();
+        ctx.moveTo(cos * innerR, sin * innerR);
+        ctx.lineTo(cos * midR, sin * midR);
+        // Branch left
+        const bl = a - halfStep;
+        ctx.lineTo(Math.cos(bl) * outerR, Math.sin(bl) * outerR);
+        // Back to mid
+        ctx.lineTo(cos * midR, sin * midR);
+        // Branch right
+        const br = a + halfStep;
+        ctx.lineTo(Math.cos(br) * outerR, Math.sin(br) * outerR);
+        ctx.stroke();
+    }
+
+    drawCirclet(cos, sin, r, step, h) {
+        const circletR = mandalaRadius * 0.018 * this.elementSize;
+        const x = cos * r;
+        const y = sin * r;
+
+        ctx.beginPath();
+        ctx.arc(x, y, circletR, 0, Math.PI * 2);
+        ctx.strokeStyle = `hsla(${(h + 25) % 360}, ${this.saturation}%, ${this.lightness}%, ${this.alpha})`;
+        ctx.lineWidth = this.lineWidth * 0.8;
+        ctx.stroke();
+
+        // Center dot
+        ctx.beginPath();
+        ctx.arc(x, y, circletR * 0.3, 0, Math.PI * 2);
+        ctx.fillStyle = `hsla(${(h + 25) % 360}, ${this.saturation}%, ${this.lightness + 20}%, ${this.alpha * 0.9})`;
+        ctx.fill();
+    }
+}
+
+/* ---- Generate mandala ---- */
+function generateMandala() {
+    const rng = mulberry32(seed);
+    const numRings = 8 + Math.floor(rng() * 6);
+    rings = [];
+    for (let i = 0; i < numRings; i++) {
+        rings.push(new Ring(i, numRings, rng));
+    }
+    // Sort by radius so inner rings draw first
+    rings.sort((a, b) => a.radiusFrac - b.radiusFrac);
+}
+
+/* ---- Center glow ---- */
+function drawCenterGlow(t) {
+    const glowR = mandalaRadius * 0.18;
+    const pulse = 1 + Math.sin(t * 0.8) * 0.08;
+    const gradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, glowR * pulse);
+    const h = (42 + Math.sin(t * 0.3) * 10) % 360;
+    gradient.addColorStop(0, `hsla(${h}, 80%, 75%, 0.25)`);
+    gradient.addColorStop(0.3, `hsla(${h}, 70%, 60%, 0.1)`);
+    gradient.addColorStop(0.6, `hsla(${(h + 30) % 360}, 60%, 50%, 0.04)`);
+    gradient.addColorStop(1, 'transparent');
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.arc(cx, cy, glowR * pulse, 0, Math.PI * 2);
+    ctx.fill();
+}
+
+/* ---- Outer glow ---- */
+function drawOuterGlow(t) {
+    const gradient = ctx.createRadialGradient(cx, cy, mandalaRadius * 0.8, cx, cy, mandalaRadius * 1.15);
+    const h = (42 + Math.sin(t * 0.2) * 15) % 360;
+    gradient.addColorStop(0, 'transparent');
+    gradient.addColorStop(0.5, `hsla(${h}, 50%, 40%, 0.03)`);
+    gradient.addColorStop(1, 'transparent');
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.arc(cx, cy, mandalaRadius * 1.15, 0, Math.PI * 2);
+    ctx.fill();
+}
+
+/* ---- Sacred geometry center ---- */
+function drawCenterGeometry(t) {
+    const r = mandalaRadius * 0.06;
+    const h = (45 + t * 8) % 360;
+
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(t * 0.1);
+
+    // Inner hexagon
+    ctx.strokeStyle = `hsla(${h}, 70%, 70%, 0.3)`;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * Math.PI * 2 - Math.PI / 2;
+        const x = Math.cos(a) * r;
+        const y = Math.sin(a) * r;
+        i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    ctx.stroke();
+
+    // Inner circle
+    ctx.strokeStyle = `hsla(${(h + 30) % 360}, 60%, 65%, 0.2)`;
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 0.6, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Center dot
+    ctx.fillStyle = `hsla(${h}, 80%, 80%, 0.6)`;
+    ctx.beginPath();
+    ctx.arc(0, 0, 2.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+}
+
+/* ---- Connecting web lines between adjacent rings ---- */
+function drawWebLines(t) {
+    if (rings.length < 2) return;
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(globalRotation * 0.0001);
+
+    for (let i = 0; i < rings.length - 1; i++) {
+        const r1 = rings[i];
+        const r2 = rings[i + 1];
+        const rad1 = r1.getRadius();
+        const rad2 = r2.getRadius();
+        const n = Math.min(r1.numElements, r2.numElements);
+
+        ctx.strokeStyle = `hsla(${(r1.hue + t * 2) % 360}, 30%, 55%, 0.04)`;
+        ctx.lineWidth = 0.5;
+
+        for (let j = 0; j < n; j++) {
+            const a1 = (j / r1.numElements) * Math.PI * 2;
+            const a2 = (j / r2.numElements) * Math.PI * 2;
+            ctx.beginPath();
+            ctx.moveTo(Math.cos(a1) * rad1, Math.sin(a1) * rad1);
+            ctx.lineTo(Math.cos(a2) * rad2, Math.sin(a2) * rad2);
+            ctx.stroke();
+        }
+    }
+    ctx.restore();
+}
+
+/* ---- Main render ---- */
+function render(t) {
+    // Background
+    ctx.fillStyle = '#0a0a0f';
+    ctx.fillRect(0, 0, W, H);
+
+    // Subtle background gradient
+    const bgGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(W, H) * 0.6);
+    bgGrad.addColorStop(0, 'rgba(30, 25, 15, 0.4)');
+    bgGrad.addColorStop(0.5, 'rgba(15, 18, 25, 0.2)');
+    bgGrad.addColorStop(1, 'transparent');
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(0, 0, W, H);
+
+    drawOuterGlow(t);
+    drawCenterGlow(t);
+    drawWebLines(t);
+
+    // Draw rings from outer to inner (so inner overlays outer)
+    for (let i = rings.length - 1; i >= 0; i--) {
+        rings[i].draw(t);
+    }
+
+    drawCenterGeometry(t);
+}
+
+/* ---- Animation loop ---- */
+let startTime = 0;
+function animate(ts) {
+    if (!startTime) startTime = ts;
+    const t = (ts - startTime) / 1000;
+    globalRotation = t;
+    render(t);
+    requestAnimationFrame(animate);
+}
+
+/* ---- Events ---- */
+canvas.addEventListener('click', () => {
+    seed = Date.now();
+    generateMandala();
+});
+
+window.addEventListener('resize', () => {
+    resize();
+    generateMandala();
+});
+
+/* ---- Init ---- */
+resize();
+generateMandala();
+requestAnimationFrame(animate);
+</script>
+</body>
+</html>

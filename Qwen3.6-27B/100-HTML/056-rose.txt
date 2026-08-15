@@ -1,0 +1,20 @@
+# Rose
+
+## Creative Prompt
+Create an animated blooming rose visualization. A rose flower blooms petal by petal, with each petal unfurling from a tight bud. The petals have gradient fills in shades of red, pink, and cream. The stem grows upward with leaves unfurling. The animation loops continuously — blooming, holding, and closing. The background is soft and romantic. The overall aesthetic is beautiful, organic, and elegant — like a time-lapse of a rose blooming.
+
+## Techniques Used
+- Canvas rose rendering with bezier petal shapes
+- Petal-by-petal bloom animation with staggered timing
+- Gradient fills with red/pink/cream palette
+- Stem and leaf rendering with bezier curves
+- Bloom and close cycle animation (18-second loop)
+- Gentle sway for organic movement
+- Dew drop rendering with radial gradients
+- Sepal, stamen, and petal vein details
+- Floating pollen particles in background
+- Soft radial glow behind the rose
+- Responsive canvas with DPR scaling
+
+## Interaction Model
+Passive animation — the rose blooms, holds, and closes in a continuous 18-second cycle. The stem grows first, followed by leaves unfurling, then petals opening layer by layer from outer to inner. After holding full bloom, the rose gently closes back to a bud and the cycle repeats.

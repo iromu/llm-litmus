@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Minimal Legacy Watch</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{min-height:100vh;background:#f5f0e8;font-family:Georgia,'Times New Roman',serif;display:flex;align-items:center;justify-content:center;padding:40px 24px}
+.container{display:grid;grid-template-columns:1fr 1fr;gap:80px;max-width:1100px;width:100%;align-items:center}
+.watch-scene{perspective:800px;display:flex;justify-content:center}
+.watch{position:relative;width:280px;height:360px;animation:float 6s ease-in-out infinite;transform-style:preserve-3d;transition:transform 0.5s ease}
+.watch:hover{transform:rotateY(-10deg) rotateX(5deg)}
+@keyframes float{0%,100%{transform:translateY(0) rotateY(5deg)}50%{transform:translateY(-15px) rotateY(-5deg)}}
+.strap-top,.strap-bottom{position:absolute;left:50%;transform:translateX(-50%);width:60px;height:80px;background:linear-gradient(180deg,#8b4513,#654321);border-radius:8px 8px 0 0}
+.strap-top{top:0;border-radius:8px 8px 0 0}
+.strap-bottom{bottom:0;border-radius:0 0 8px 8px}
+.strap-top::before,.strap-bottom::before{content:'';position:absolute;left:50%;transform:translateX(-50%);width:40px;height:100%;background:repeating-linear-gradient(0deg,transparent,transparent 8px,rgba(0,0,0,0.1) 8px,rgba(0,0,0,0.1) 9px)}
+.watch-body{position:absolute;top:60px;left:50%;transform:translateX(-50%);width:200px;height:200px;border-radius:50%;background:linear-gradient(135deg,#d4a574,#c4956a,#b8860b);box-shadow:0 8px 30px rgba(0,0,0,0.3),inset 0 2px 4px rgba(255,255,255,0.3);padding:12px}
+.watch-face{width:100%;height:100%;border-radius:50%;background:radial-gradient(circle,#faf6ed 0%,#f5f0e1 100%);position:relative;box-shadow:inset 0 2px 8px rgba(0,0,0,0.1)}
+.marker{position:absolute;top:50%;left:50%;width:2px;height:12px;background:#2c1810;transform-origin:center center}
+.marker.major{height:16px;width:3px}
+.marker.minor{height:8px;width:1px;background:#8b7355}
+.hand{position:absolute;bottom:50%;left:50%;transform-origin:bottom center;border-radius:2px}
+.hour{width:4px;height:55px;background:#2c1810;margin-left:-2px}
+.minute{width:3px;height:75px;background:#2c1810;margin-left:-1.5px}
+.second{width:1px;height:80px;background:#c0392b;margin-left:-0.5px}
+.center-dot{position:absolute;top:50%;left:50%;width:10px;height:10px;border-radius:50%;background:radial-gradient(circle,#d4a574,#8b6914);transform:translate(-50%,-50%);z-index:10;box-shadow:0 0 4px rgba(0,0,0,0.3)}
+.date-window{position:absolute;top:50%;right:25px;transform:translateY(-50%);width:28px;height:20px;background:#faf6ed;border:1px solid #d4c5a9;font-size:0.7rem;text-align:center;line-height:20px;color:#2c1810;font-family:monospace}
+.crown{position:absolute;right:-12px;top:50%;transform:translateY(-50%);width:14px;height:24px;background:linear-gradient(90deg,#d4a574,#b8860b);border-radius:0 4px 4px 0;box-shadow:2px 0 4px rgba(0,0,0,0.2)}
+.content{text-align:left}
+.tag{font-size:0.75rem;text-transform:uppercase;letter-spacing:0.2em;color:#8b7355;margin-bottom:16px}
+h1{font-size:clamp(2rem,4vw,3rem);font-weight:400;color:#2c1810;line-height:1.2;margin-bottom:20px}
+h1 em{font-style:italic;color:#8b4513}
+.description{font-size:1.1rem;font-style:italic;color:#6b5b4a;line-height:1.8;margin-bottom:32px}
+.specs{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:32px}
+.spec{padding:16px 0;border-top:1px solid rgba(139,115,85,0.2)}
+.spec-label{font-size:0.7rem;text-transform:uppercase;letter-spacing:0.15em;color:#8b7355;margin-bottom:4px}
+.spec-value{font-size:1rem;color:#2c1810}
+.btn{display:inline-block;padding:14px 36px;background:#2c1810;color:#f5f0e8;text-decoration:none;font-size:0.8rem;text-transform:uppercase;letter-spacing:0.15em;border:none;cursor:pointer;transition:all 0.3s ease;font-family:inherit}
+.btn:hover{background:#f5f0e8;color:#2c1810}
+@media(max-width:768px){.container{grid-template-columns:1fr;gap:40px}.watch-scene{margin-bottom:20px}}
+</style>
+</head>
+<body>
+<div class="container">
+<div class="watch-scene">
+<div class="watch">
+<div class="strap-top"></div>
+<div class="strap-bottom"></div>
+<div class="watch-body">
+<div class="watch-face" id="face">
+<div class="date-window" id="date"></div>
+<div class="crown"></div>
+<div class="hand hour" id="hour"></div>
+<div class="hand minute" id="minute"></div>
+<div class="hand second" id="second"></div>
+<div class="center-dot"></div>
+</div>
+</div>
+</div>
+</div>
+<div class="content">
+<div class="tag">Heritage Collection</div>
+<h1>The <em>Perpetual</em><br>Chronograph</h1>
+<p class="description">A masterwork of horological precision, the Perpetual Chronograph embodies decades of watchmaking tradition reimagined for the modern connoisseur.</p>
+<div class="specs">
+<div class="spec"><div class="spec-label">Movement</div><div class="spec-value">Automatic Cal. 3255</div></div>
+<div class="spec"><div class="spec-label">Power Reserve</div><div class="spec-value">72 Hours</div></div>
+<div class="spec"><div class="spec-label">Case</div><div class="spec-value">18K Rose Gold</div></div>
+<div class="spec"><div class="spec-label">Water Resistance</div><div class="spec-value">100 Meters</div></div>
+</div>
+<button class="btn">Explore Collection</button>
+</div>
+</div>
+<script>
+const face=document.getElementById('face');
+for(let i=0;i<12;i++){const m=document.createElement('div');m.className='marker'+(i%3===0?' major':'');const angle=i*30;const rad=(angle-90)*Math.PI/180;const r=88;m.style.transform=`translate(-50%,-50%) rotate(${angle}deg) translateY(-${r}px)`;face.appendChild(m)}
+for(let i=0;i<60;i++){if(i%5===0)continue;const m=document.createElement('div');m.className='marker minor';const angle=i*6;const rad=(angle-90)*Math.PI/180;const r=88;m.style.transform=`translate(-50%,-50%) rotate(${angle}deg) translateY(-${r}px)`;face.appendChild(m)}
+function update(){const now=new Date();const h=now.getHours()%12,m=now.getMinutes(),s=now.getSeconds();const hDeg=h*30+m*0.5;const mDeg=m*6+s*0.1;const sDeg=s*6;document.getElementById('hour').style.transform=`rotate(${hDeg}deg)`;document.getElementById('minute').style.transform=`rotate(${mDeg}deg)`;document.getElementById('second').style.transform=`rotate(${sDeg}deg)`;document.getElementById('date').textContent=now.getDate()}
+update();setInterval(update,1000);
+</script>
+</body>
+</html>

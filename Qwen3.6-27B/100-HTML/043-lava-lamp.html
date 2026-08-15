@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lava Lamp</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0d0808;overflow:hidden}
+canvas{display:block}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+let W, H, lampX, lampY, lampW, lampH, neckW, baseH, capH, glassTop, glassBot;
+
+function resize() {
+    W = canvas.width = window.innerWidth;
+    H = canvas.height = window.innerHeight;
+    lampW = Math.min(W * 0.35, 280);
+    lampH = H * 0.72;
+    lampX = W / 2;
+    lampY = H / 2 - lampH * 0.1;
+    neckW = lampW * 0.35;
+    baseH = lampH * 0.12;
+    capH = lampH * 0.08;
+    glassTop = lampY - lampH * 0.42;
+    glassBot = lampY + lampH * 0.42 - baseH;
+}
+resize();
+window.addEventListener('resize', resize);
+
+// Lamp glass path
+function lampPath() {
+    const topW = lampW * 0.42;
+    const botW = lampW * 0.48;
+    const bulgeW = lampW * 0.55;
+    const bulgeY = lampY - lampH * 0.05;
+    ctx.beginPath();
+    ctx.moveTo(lampX - topW, glassTop);
+    ctx.bezierCurveTo(
+        lampX - topW, glassTop + (bulgeY - glassTop) * 0.15,
+        lampX - bulgeW, bulgeY - (bulgeY - glassTop) * 0.2,
+        lampX - bulgeW, bulgeY
+    );
+    ctx.bezierCurveTo(
+        lampX - bulgeW, bulgeY + (glassBot - bulgeY) * 0.3,
+        lampX - botW, glassBot - (glassBot - bulgeY) * 0.15,
+        lampX - botW, glassBot
+    );
+    ctx.lineTo(lampX + botW, glassBot);
+    ctx.bezierCurveTo(
+        lampX + botW, glassBot - (glassBot - bulgeY) * 0.15,
+        lampX + bulgeW, bulgeY + (glassBot - bulgeY) * 0.3,
+        lampX + bulgeW, bulgeY
+    );
+    ctx.bezierCurveTo(
+        lampX + bulgeW, bulgeY - (bulgeY - glassTop) * 0.2,
+        lampX + topW, glassTop + (bulgeY - glassTop) * 0.15,
+        lampX + topW, glassTop
+    );
+    ctx.closePath();
+}
+
+// Clip to lamp interior
+function lampClip() {
+    const topW = lampW * 0.38;
+    const botW = lampW * 0.44;
+    const bulgeW = lampW * 0.51;
+    const bulgeY = lampY - lampH * 0.05;
+    ctx.beginPath();
+    ctx.moveTo(lampX - topW, glassTop + 8);
+    ctx.bezierCurveTo(
+        lampX - topW, glassTop + (bulgeY - glassTop) * 0.15,
+        lampX - bulgeW, bulgeY - (bulgeY - glassTop) * 0.2,
+        lampX - bulgeW, bulgeY
+    );
+    ctx.bezierCurveTo(
+        lampX - bulgeW, bulgeY + (glassBot - bulgeY) * 0.3,
+        lampX - botW, glassBot - (glassBot - bulgeY) * 0.15,
+        lampX - botW, glassBot - 8
+    );
+    ctx.lineTo(lampX + botW, glassBot - 8);
+    ctx.bezierCurveTo(
+        lampX + botW, glassBot - (glassBot - bulgeY) * 0.15,
+        lampX + bulgeW, bulgeY + (glassBot - bulgeY) * 0.3,
+        lampX + bulgeW, bulgeY
+    );
+    ctx.bezierCurveTo(
+        lampX + bulgeW, bulgeY - (bulgeY - glassTop) * 0.2,
+        lampX + topW, glassTop + (bulgeY - glassTop) * 0.15,
+        lampX + topW, glassTop + 8
+    );
+    ctx.closePath();
+    ctx.clip();
+}
+
+// Get lamp width at a given Y for boundary checks
+function lampWidthAt(y) {
+    const topW = lampW * 0.38;
+    const botW = lampW * 0.44;
+    const bulgeW = lampW * 0.51;
+    const bulgeY = lampY - lampH * 0.05;
+    if (y <= glassTop || y >= glassBot) return 0;
+    const t = (y - glassTop) / (glassBot - glassTop);
+    if (t < 0.5) {
+        const s = t / 0.5;
+        const mid = (topW + bulgeW) / 2;
+        return topW + (mid - topW) * s * s + (bulgeW - mid) * (1 - (1 - s) * (1 - s));
+    } else {
+        const s = (t - 0.5) / 0.5;
+        const mid = (bulgeW + botW) / 2;
+        return bulgeW + (mid - bulgeW) * s * s + (botW - mid) * (1 - (1 - s) * (1 - s));
+    }
+}
+
+// Blob class
+class Blob {
+    constructor(x, y, r) {
+        this.x = x || lampX + (Math.random() - 0.5) * lampW * 0.4;
+        this.y = y || glassTop + Math.random() * (glassBot - glassTop);
+        this.r = r || 20 + Math.random() * 25;
+        this.vx = (Math.random() - 0.5) * 0.3;
+        this.vy = (Math.random() - 0.5) * 0.3;
+        this.temp = 0.5 + Math.random() * 0.5;
+        this.hue = Math.random() * 30; // 0-30: red to orange
+        this.phase = Math.random() * Math.PI * 2;
+    }
+
+    update(dt) {
+        this.phase += dt * 0.5;
+        // Temperature oscillation — hot blobs rise, cool blobs fall
+        this.temp += Math.sin(this.phase) * dt * 0.15;
+        this.temp = Math.max(0.2, Math.min(1.0, this.temp));
+
+        // Buoyancy: hot = rise, cool = fall
+        const buoyancy = (this.temp - 0.5) * 40;
+        this.vy -= buoyancy * dt;
+
+        // Gentle horizontal drift
+        this.vx += (Math.sin(this.phase * 0.7) * 0.5) * dt;
+        this.vx += (Math.cos(this.phase * 1.3) * 0.3) * dt;
+
+        // Damping
+        this.vx *= (1 - 2.5 * dt);
+        this.vy *= (1 - 2.0 * dt);
+
+        // Speed limit
+        const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+        if (speed > 60) {
+            this.vx = (this.vx / speed) * 60;
+            this.vy = (this.vy / speed) * 60;
+        }
+
+        this.x += this.vx * dt;
+        this.y += this.vy * dt;
+
+        // Boundary: lamp walls
+        const hw = lampWidthAt(this.y) * 0.7;
+        if (this.x - this.r < lampX - hw) {
+            this.x = lampX - hw + this.r;
+            this.vx = Math.abs(this.vx) * 0.5;
+        }
+        if (this.x + this.r > lampX + hw) {
+            this.x = lampX + hw - this.r;
+            this.vx = -Math.abs(this.vx) * 0.5;
+        }
+
+        // Boundary: top and bottom
+        if (this.y - this.r < glassTop + 10) {
+            this.y = glassTop + 10 + this.r;
+            this.vy = Math.abs(this.vy) * 0.3;
+            this.temp = Math.max(0.3, this.temp - 0.1);
+        }
+        if (this.y + this.r > glassBot - 10) {
+            this.y = glassBot - 10 - this.r;
+            this.vy = -Math.abs(this.vy) * 0.3;
+            this.temp = Math.min(0.9, this.temp + 0.15);
+        }
+
+        // Size pulsation
+        this.r += Math.sin(this.phase * 0.8) * dt * 2;
+        this.r = Math.max(15, Math.min(50, this.r));
+    }
+
+    draw() {
+        const alpha = 0.6 + this.temp * 0.4;
+        const lightness = 45 + this.temp * 20;
+        const sat = 80 + this.temp * 20;
+
+        const grad = ctx.createRadialGradient(
+            this.x - this.r * 0.2, this.y - this.r * 0.2, 0,
+            this.x, this.y, this.r
+        );
+        grad.addColorStop(0, `hsla(${this.hue}, ${sat}%, ${lightness + 15}%, ${alpha})`);
+        grad.addColorStop(0.5, `hsla(${this.hue + 10}, ${sat}%, ${lightness}%, ${alpha * 0.9})`);
+        grad.addColorStop(1, `hsla(${this.hue + 20}, ${sat - 10}%, ${lightness - 15}%, ${alpha * 0.3})`);
+
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
+        ctx.fillStyle = grad;
+        ctx.fill();
+    }
+}
+
+// Metaball rendering
+function renderMetaballs(blobs) {
+    const res = 4; // pixel resolution (higher = faster)
+    const pad = 60;
+    const x0 = Math.max(0, Math.floor((lampX - lampW) / res) * res - pad);
+    const y0 = Math.max(0, Math.floor(glassTop / res) * res - pad);
+    const x1 = Math.min(W, Math.ceil((lampX + lampW) / res) * res + pad);
+    const y1 = Math.min(H, Math.ceil(glassBot / res) * res + pad);
+    const w = Math.ceil((x1 - x0) / res);
+    const h = Math.ceil((y1 - y0) / res);
+
+    const imgData = ctx.createImageData(w, h);
+    const data = imgData.data;
+    const threshold = 1.0;
+
+    for (let py = 0; py < h; py++) {
+        for (let px = 0; px < w; px++) {
+            const sx = x0 + px * res;
+            const sy = y0 + py * res;
+            let field = 0;
+            let hSum = 0, lSum = 0, aSum = 0, wSum = 0;
+
+            for (let i = 0; i < blobs.length; i++) {
+                const b = blobs[i];
+                const dx = sx - b.x;
+                const dy = sy - b.y;
+                const distSq = dx * dx + dy * dy;
+                const contrib = (b.r * b.r) / distSq;
+                field += contrib;
+                hSum += contrib * b.hue;
+                lSum += contrib * (45 + b.temp * 20);
+                aSum += contrib * (0.6 + b.temp * 0.4);
+                wSum += contrib;
+            }
+
+            if (field > threshold) {
+                const idx = (py * w + px) * 4;
+                const hue = hSum / wSum;
+                const light = lSum / wSum;
+                const alpha = Math.min(1, aSum / wSum);
+                const sat = 85;
+
+                // HSL to RGB
+                const c = (1 - Math.abs(2 * light / 100 - 1)) * sat / 100;
+                const x2 = c * (1 - Math.abs(((hue / 60) % 2) - 1));
+                const m = light / 100 - c / 2;
+                let r = 0, g = 0, b2 = 0;
+                if (hue < 60) { r = c; g = x2; }
+                else if (hue < 120) { r = x2; g = c; }
+                else if (hue < 180) { g = c; b2 = x2; }
+                else if (hue < 240) { g = x2; b2 = c; }
+                else if (hue < 300) { r = x2; b2 = c; }
+                else { r = c; b2 = x2; }
+
+                data[idx] = Math.min(255, ((r + m) * 255) * alpha);
+                data[idx + 1] = Math.min(255, ((g + m) * 255) * alpha);
+                data[idx + 2] = Math.min(255, ((b2 + m) * 255) * alpha);
+                data[idx + 3] = 255;
+            }
+        }
+    }
+
+    const offscreen = document.createElement('canvas');
+    offscreen.width = w;
+    offscreen.height = h;
+    const offCtx = offscreen.getContext('2d');
+    offCtx.putImageData(imgData, 0, 0);
+
+    ctx.save();
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(offscreen, x0, y0, x1 - x0, y1 - y0);
+    ctx.restore();
+}
+
+// Draw base
+function drawBase() {
+    const baseTop = glassBot;
+    const baseBot = glassBot + baseH;
+    const topW = lampW * 0.44;
+    const botW = lampW * 0.65;
+
+    const grad = ctx.createLinearGradient(lampX - botW, 0, lampX + botW, 0);
+    grad.addColorStop(0, '#2a2a2a');
+    grad.addColorStop(0.2, '#666');
+    grad.addColorStop(0.4, '#999');
+    grad.addColorStop(0.5, '#bbb');
+    grad.addColorStop(0.6, '#999');
+    grad.addColorStop(0.8, '#666');
+    grad.addColorStop(1, '#2a2a2a');
+
+    ctx.beginPath();
+    ctx.moveTo(lampX - topW, baseTop);
+    ctx.lineTo(lampX - botW, baseBot);
+    ctx.lineTo(lampX + botW, baseBot);
+    ctx.lineTo(lampX + topW, baseTop);
+    ctx.closePath();
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    // Base bottom plate
+    const plateGrad = ctx.createLinearGradient(lampX - botW - 10, 0, lampX + botW + 10, 0);
+    plateGrad.addColorStop(0, '#1a1a1a');
+    plateGrad.addColorStop(0.3, '#555');
+    plateGrad.addColorStop(0.5, '#777');
+    plateGrad.addColorStop(0.7, '#555');
+    plateGrad.addColorStop(1, '#1a1a1a');
+
+    ctx.beginPath();
+    ctx.moveTo(lampX - botW - 10, baseBot);
+    ctx.lineTo(lampX + botW + 10, baseBot);
+    ctx.lineTo(lampX + botW + 10, baseBot + 8);
+    ctx.lineTo(lampX - botW - 10, baseBot + 8);
+    ctx.closePath();
+    ctx.fillStyle = plateGrad;
+    ctx.fill();
+
+    // Highlight line
+    ctx.beginPath();
+    ctx.moveTo(lampX - topW, baseTop);
+    ctx.lineTo(lampX + topW, baseTop);
+    ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+}
+
+// Draw cap
+function drawCap() {
+    const capTop = glassTop - capH;
+    const capBot = glassTop;
+    const topW = lampW * 0.22;
+    const botW = lampW * 0.42;
+
+    const grad = ctx.createLinearGradient(lampX - botW, 0, lampX + botW, 0);
+    grad.addColorStop(0, '#2a2a2a');
+    grad.addColorStop(0.2, '#666');
+    grad.addColorStop(0.4, '#999');
+    grad.addColorStop(0.5, '#bbb');
+    grad.addColorStop(0.6, '#999');
+    grad.addColorStop(0.8, '#666');
+    grad.addColorStop(1, '#2a2a2a');
+
+    ctx.beginPath();
+    ctx.moveTo(lampX - botW, capBot);
+    ctx.lineTo(lampX - topW, capTop);
+    ctx.lineTo(lampX + topW, capTop);
+    ctx.lineTo(lampX + botW, capBot);
+    ctx.closePath();
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    // Cap top dome
+    ctx.beginPath();
+    ctx.ellipse(lampX, capTop, topW, topW * 0.4, 0, Math.PI, 0, true);
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    // Highlight
+    ctx.beginPath();
+    ctx.moveTo(lampX - botW, capBot);
+    ctx.lineTo(lampX + botW, capBot);
+    ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+}
+
+// Draw glass outline and reflection
+function drawGlass() {
+    // Glass body fill
+    ctx.save();
+    lampPath();
+    const glassGrad = ctx.createLinearGradient(lampX - lampW, 0, lampX + lampW, 0);
+    glassGrad.addColorStop(0, 'rgba(255,255,255,0.03)');
+    glassGrad.addColorStop(0.3, 'rgba(255,255,255,0.06)');
+    glassGrad.addColorStop(0.5, 'rgba(255,255,255,0.02)');
+    glassGrad.addColorStop(0.7, 'rgba(255,255,255,0.05)');
+    glassGrad.addColorStop(1, 'rgba(255,255,255,0.02)');
+    ctx.fillStyle = glassGrad;
+    ctx.fill();
+    ctx.restore();
+
+    // Glass outline
+    ctx.save();
+    lampPath();
+    ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.restore();
+
+    // Left reflection streak
+    ctx.save();
+    lampClip();
+    const reflGrad = ctx.createLinearGradient(lampX - lampW * 0.35, 0, lampX - lampW * 0.15, 0);
+    reflGrad.addColorStop(0, 'rgba(255,255,255,0)');
+    reflGrad.addColorStop(0.5, 'rgba(255,255,255,0.08)');
+    reflGrad.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = reflGrad;
+    ctx.fillRect(lampX - lampW * 0.4, glassTop, lampW * 0.2, glassBot - glassTop);
+    ctx.restore();
+
+    // Right reflection streak
+    ctx.save();
+    lampClip();
+    const reflGrad2 = ctx.createLinearGradient(lampX + lampW * 0.25, 0, lampX + lampW * 0.4, 0);
+    reflGrad2.addColorStop(0, 'rgba(255,255,255,0)');
+    reflGrad2.addColorStop(0.5, 'rgba(255,255,255,0.04)');
+    reflGrad2.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = reflGrad2;
+    ctx.fillRect(lampX + lampW * 0.2, glassTop, lampW * 0.25, glassBot - glassTop);
+    ctx.restore();
+}
+
+// Ambient glow behind lamp
+function drawGlow() {
+    const glowGrad = ctx.createRadialGradient(lampX, lampY, 0, lampX, lampY, lampW * 2.5);
+    glowGrad.addColorStop(0, 'rgba(200, 50, 30, 0.08)');
+    glowGrad.addColorStop(0.5, 'rgba(180, 40, 20, 0.03)');
+    glowGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = glowGrad;
+    ctx.fillRect(0, 0, W, H);
+}
+
+// Internal lamp glow (warm light from bottom)
+function drawInternalGlow() {
+    ctx.save();
+    lampClip();
+    const glowGrad = ctx.createRadialGradient(lampX, glassBot - 20, 0, lampX, glassBot - 20, lampW);
+    glowGrad.addColorStop(0, 'rgba(255, 80, 40, 0.25)');
+    glowGrad.addColorStop(0.4, 'rgba(255, 60, 30, 0.1)');
+    glowGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = glowGrad;
+    ctx.fillRect(lampX - lampW, glassTop, lampW * 2, glassBot - glassTop);
+    ctx.restore();
+}
+
+// Blob merging and splitting
+function manageBlobs(blobs) {
+    // Merge blobs that are too close
+    for (let i = blobs.length - 1; i >= 0; i--) {
+        for (let j = i - 1; j >= 0; j--) {
+            const dx = blobs[i].x - blobs[j].x;
+            const dy = blobs[i].y - blobs[j].y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            const minDist = (blobs[i].r + blobs[j].r) * 0.5;
+            if (dist < minDist) {
+                // Merge: larger blob absorbs smaller
+                const big = blobs[i].r > blobs[j].r ? i : j;
+                const small = big === i ? j : i;
+                blobs[big].r = Math.min(50, Math.sqrt(blobs[big].r * blobs[big].r + blobs[small].r * blobs[small].r) * 0.8);
+                blobs[big].x = (blobs[big].x + blobs[small].x) / 2;
+                blobs[big].y = (blobs[big].y + blobs[small].y) / 2;
+                blobs[big].temp = (blobs[big].temp + blobs[small].temp) / 2;
+                blobs.splice(small, 1);
+                break;
+            }
+        }
+    }
+
+    // Split blobs that are too large
+    const newBlobs = [];
+    for (const b of blobs) {
+        if (b.r > 42) {
+            const r1 = b.r * 0.65;
+            const r2 = b.r * 0.55;
+            const b1 = new Blob(b.x - r1 * 0.5, b.y, r1);
+            const b2 = new Blob(b.x + r2 * 0.5, b.y, r2);
+            b1.temp = b.temp + 0.1;
+            b2.temp = b.temp - 0.1;
+            b1.hue = b.hue;
+            b2.hue = b.hue + 5;
+            b1.vy = b.vy - 5;
+            b2.vy = b.vy + 5;
+            newBlobs.push(b1, b2);
+        } else {
+            newBlobs.push(b);
+        }
+    }
+    return newBlobs;
+}
+
+// Initialize blobs
+const blobs = [];
+const initialCount = 7;
+for (let i = 0; i < initialCount; i++) {
+    const b = new Blob();
+    // Place some at bottom (hot), some at top (cool)
+    if (i % 3 === 0) {
+        b.y = glassBot - 40 - Math.random() * 60;
+        b.temp = 0.8 + Math.random() * 0.2;
+    } else if (i % 3 === 1) {
+        b.y = glassTop + 30 + Math.random() * 60;
+        b.temp = 0.2 + Math.random() * 0.2;
+    }
+    blobs.push(b);
+}
+
+// Ensure minimum blob count
+function maintainBlobCount() {
+    if (blobs.length < 4) {
+        const b = new Blob();
+        b.y = glassBot - 30;
+        b.temp = 0.7 + Math.random() * 0.3;
+        b.r = 18 + Math.random() * 15;
+        blobs.push(b);
+    }
+}
+
+// Background
+function drawBackground() {
+    const grad = ctx.createRadialGradient(lampX, lampY, 0, lampX, lampY, Math.max(W, H));
+    grad.addColorStop(0, '#1a0f0f');
+    grad.addColorStop(0.5, '#120a0a');
+    grad.addColorStop(1, '#080505');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, W, H);
+
+    // Subtle floor reflection
+    const floorY = glassBot + baseH + 8;
+    const floorGrad = ctx.createRadialGradient(lampX, floorY, 0, lampX, floorY, lampW * 1.5);
+    floorGrad.addColorStop(0, 'rgba(180, 50, 30, 0.06)');
+    floorGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = floorGrad;
+    ctx.fillRect(0, floorY - 20, W, 80);
+}
+
+// Main loop
+let lastTime = performance.now();
+let metaballTimer = 0;
+
+function frame(now) {
+    const dt = Math.min(0.05, (now - lastTime) / 1000);
+    lastTime = now;
+
+    resize();
+
+    drawBackground();
+    drawGlow();
+
+    // Update blobs
+    for (const b of blobs) {
+        b.update(dt);
+    }
+
+    // Manage merges/splits periodically
+    metaballTimer += dt;
+    if (metaballTimer > 0.5) {
+        metaballTimer = 0;
+        manageBlobs(blobs);
+        maintainBlobCount();
+    }
+
+    // Draw lamp contents
+    ctx.save();
+    lampClip();
+
+    // Internal glow
+    drawInternalGlow();
+
+    // Metaball rendering
+    renderMetaballs(blobs);
+
+    // Additional glow overlay on blobs
+    for (const b of blobs) {
+        const glowGrad = ctx.createRadialGradient(b.x, b.y, 0, b.x, b.y, b.r * 1.5);
+        glowGrad.addColorStop(0, `hsla(${b.hue}, 90%, 60%, 0.15)`);
+        glowGrad.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, b.r * 1.5, 0, Math.PI * 2);
+        ctx.fillStyle = glowGrad;
+        ctx.fill();
+    }
+
+    ctx.restore();
+
+    // Draw lamp glass
+    drawGlass();
+
+    // Draw base and cap
+    drawBase();
+    drawCap();
+
+    requestAnimationFrame(frame);
+}
+
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

@@ -1,0 +1,23 @@
+# Origami
+
+## Creative Prompt
+Create 3D paper cranes rendered in CSS space. Multiple origami cranes in various colors float and rotate in a 3D scene. Each crane is constructed from CSS triangles and polygons to form the origami shape. The cranes have paper-like gradients and subtle fold shadows. The scene has a soft, warm background with gentle lighting. Cranes respond to mouse movement with parallax rotation. The overall aesthetic is delicate, artistic, and handcrafted — like a display of origami art.
+
+## Techniques Used
+- CSS 3D transforms with `transform-style: preserve-3d` for true volumetric crane geometry
+- Origami crane shapes built from CSS `clip-path` polygons (diamond body, swept wings, head, beak, tail)
+- Paper-like gradients with multi-stop linear gradients simulating folded paper surfaces
+- Subtle fold shadow overlays via `::after` pseudo-elements with layered gradient bands
+- Floating animation with independent per-crane duration and delay phases
+- Wing flap animation with gentle `rotateX`/`rotateZ` oscillation
+- Mouse-driven parallax rotation with smooth `requestAnimationFrame` interpolation
+- Depth sorting via `z-index` tied to per-crane Z position
+- Responsive perspective scaling based on viewport width
+- Ambient floating particles with radial gradients and drift animation
+- Soft warm lighting via `::before`/`::after` scene overlays with radial gradients
+- Subtle `drop-shadow` filter on each crane for depth separation
+- 8 distinct color themes (white, sakura, indigo, gold, mint, lavender, terracotta, sky)
+- Touch support for mobile parallax interaction
+
+## Interaction Model
+Mouse movement creates smooth parallax rotation on the entire crane scene — moving the mouse horizontally rotates the scene around the Y axis, while vertical movement rotates around the X axis. The rotation is smoothly interpolated at 60fps via `requestAnimationFrame`. Cranes float continuously with independent bobbing animations, each with unique timing phases. Touch input on mobile devices provides the same parallax behavior.

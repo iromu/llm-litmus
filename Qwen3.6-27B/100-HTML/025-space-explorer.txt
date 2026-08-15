@@ -1,0 +1,23 @@
+# Space Explorer
+
+## Creative Prompt
+Create an interactive 3D space exploration scene with a star field and various space objects (planets with optional rings, asteroids, nebula clouds). The camera moves forward continuously through space at a variable speed controlled by scroll wheel. Mouse drag rotates the view. Stars are distributed in a large volume and regenerate as they pass behind. Planets have radial gradient shading with ring ellipses. The UI shows position coordinates, star count, speed, and object count in a HUD-like overlay. The aesthetic is deep space, immersive, and exploratory.
+
+## Techniques Used
+- Canvas 3D projection with rotation matrices (Y then X) and perspective scaling
+- Star field with depth-based sizing, twinkling, and color variation (blue/white/warm)
+- Planetary rendering with multi-stop radial gradients and atmospheric glow halos
+- Ring ellipses with rotated coordinate transforms and radial gradient strokes
+- Asteroid rendering with procedurally generated irregular polygon vertices
+- Nebula clouds as large semi-transparent radial gradient overlays
+- Mouse drag rotation with yaw/pitch limits for view control
+- Scroll wheel speed control with smooth acceleration/deceleration
+- Star field regeneration for infinite forward travel illusion
+- Depth-sorted planet rendering for correct occlusion
+- HUD overlay with monospace typography and glow text-shadow
+- Speed bar indicator with gradient fill
+- Deep space radial gradient background
+- Touch support for mobile drag rotation
+
+## Interaction Model
+Drag to rotate view (mouse or touch). Scroll to change forward speed (0.1× to 10×). Camera moves forward continuously through space, creating a sense of space travel. Stars regenerate ahead of the camera as old ones pass behind. Planets, asteroids, and nebulae are encountered and passed during travel. The HUD displays real-time position coordinates, visible object count, total star count, and current speed multiplier.

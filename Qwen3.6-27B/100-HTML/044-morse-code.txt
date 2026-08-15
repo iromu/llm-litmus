@@ -1,0 +1,22 @@
+# Morse Code
+
+## Creative Prompt
+Create a morse code signal transmission visualization. The page shows morse code dots and dashes being transmitted as visual pulses. A message scrolls across the screen with each character encoded as morse code. The morse signals are displayed as light flashes, sound wave forms, and encoded dots/dashes. The aesthetic is military/radio communication style with a dark green or amber color scheme. The overall feel is technical, retro, and communicative — like a radio operator's display.
+
+## Techniques Used
+- Canvas morse code rendering with dot/dash timing
+- Radar sweep animation with rotating beam
+- Radial glow light flash overlay effects
+- Waveform visualization with amplitude modulation and carrier wave
+- Complete morse code character encoding table
+- Scrolling message display with real-time character tracking
+- Signal strength and signal quality meters
+- Dark green and amber military color scheme
+- CRT scanline and vignette overlay effects
+- State machine for morse transmission timing (dot, dash, symbol gap, character gap, word gap)
+- Progress tracking with symbol counter
+- Frequency display with simulated drift
+- Responsive grid layout
+
+## Interaction Model
+Messages cycle automatically through a queue of ten phrases. Each character is encoded into morse code and transmitted in real-time with proper timing. The radar display pulses with each signal, the waveform shows amplitude-modulated carrier waves, and the morse symbols light up sequentially. Signal meters respond to transmission activity. After each message completes, the next phrase loads and transmission resumes.

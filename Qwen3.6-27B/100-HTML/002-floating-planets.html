@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Floating Planets</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{min-height:100vh;background:#050510;overflow:hidden;display:flex;align-items:center;justify-content:center;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
+canvas#stars{position:fixed;top:0;left:0;width:100%;height:100%;z-index:0}
+.scene{position:relative;width:100vw;height:100vh;display:flex;align-items:center;justify-content:center;z-index:1}
+.title{font-size:clamp(3rem,8vw,6rem);font-weight:200;letter-spacing:0.4em;color:rgba(200,180,255,0.9);text-shadow:0 0 40px rgba(150,100,255,0.4),0 0 80px rgba(150,100,255,0.2);z-index:2;text-transform:uppercase}
+.orbit{position:absolute;border:1px solid rgba(255,255,255,0.03);border-radius:50%;animation:orbit linear infinite}
+.orbit:nth-child(1){width:300px;height:300px;animation-duration:20s}
+.orbit:nth-child(2){width:500px;height:500px;animation-duration:35s;animation-direction:reverse}
+.orbit:nth-child(3){width:700px;height:700px;animation-duration:50s}
+.orbit:nth-child(4){width:900px;height:900px;animation-duration:65s;animation-direction:reverse}
+.orbit:nth-child(5){width:1100px;height:1100px;animation-duration:80s}
+@keyframes orbit{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+.planet{position:absolute;width:var(--size);height:var(--size);border-radius:50%;top:50%;left:50%;margin-left:calc(var(--size)/-2);margin-top:calc(var(--size)/-2);transform:rotate(calc(var(--angle) * -1deg)) translateX(var(--radius));background:var(--gradient);box-shadow:var(--glow),inset -8px -8px 20px rgba(0,0,0,0.4);animation:counter-orbit linear infinite}
+.planet::after{content:'';position:absolute;top:15%;left:20%;width:30%;height:20%;border-radius:50%;background:rgba(255,255,255,0.1);filter:blur(3px)}
+@keyframes counter-orbit{from{transform:rotate(0deg)}to{transform:rotate(-360deg)}}
+.ring{position:absolute;width:600px;height:600px;border:2px solid rgba(150,100,255,0.08);border-radius:50%;top:50%;left:50%;transform:translate(-50%,-50%) rotateX(70deg);animation:ring-rotate 30s linear infinite}
+.ring:nth-child(7){width:650px;height:650px;border-color:rgba(100,150,255,0.06);animation-duration:40s;animation-direction:reverse;transform:translate(-50%,-50%) rotateX(60deg) rotateZ(30deg)}
+@keyframes ring-rotate{from{transform:translate(-50%,-50%) rotateX(70deg) rotateZ(0deg)}to{transform:translate(-50%,-50%) rotateX(70deg) rotateZ(360deg)}}
+</style>
+</head>
+<body>
+<canvas id="stars"></canvas>
+<div class="scene">
+<div class="orbit" style="--angle:0">
+<div class="planet" style="--size:20px;--radius:150px;--angle:0;--gradient:radial-gradient(circle at 30% 30%,#ff6b6b,#c0392b);--glow:0 0 20px rgba(255,107,107,0.4);animation-duration:20s"></div>
+</div>
+<div class="orbit" style="--angle:72">
+<div class="planet" style="--size:35px;--radius:250px;--angle:72;--gradient:radial-gradient(circle at 30% 30%,#74b9ff,#0984e3);--glow:0 0 30px rgba(116,185,255,0.4);animation-duration:35s"></div>
+</div>
+<div class="orbit" style="--angle:144">
+<div class="planet" style="--size:28px;--radius:350px;--angle:144;--gradient:radial-gradient(circle at 30% 30%,#a29bfe,#6c5ce7);--glow:0 0 25px rgba(162,155,254,0.4);animation-duration:50s"></div>
+</div>
+<div class="orbit" style="--angle:216">
+<div class="planet" style="--size:45px;--radius:450px;--angle:216;--gradient:radial-gradient(circle at 30% 30%,#ffeaa7,#fdcb6e);--glow:0 0 35px rgba(253,203,110,0.4);animation-duration:65s"></div>
+</div>
+<div class="orbit" style="--angle:288">
+<div class="planet" style="--size:24px;--radius:550px;--angle:288;--gradient:radial-gradient(circle at 30% 30%,#55efc4,#00b894);--glow:0 0 22px rgba(85,239,196,0.4);animation-duration:80s"></div>
+</div>
+<div class="ring"></div>
+<div class="ring"></div>
+<h1 class="title">Cosmos</h1>
+</div>
+<script>
+const c=document.getElementById('stars'),ctx=c.getContext('2d');
+let stars=[];
+function resize(){c.width=window.innerWidth;c.height=window.innerHeight;init()}
+function init(){stars=[];for(let i=0;i<300;i++)stars.push({x:Math.random()*c.width,y:Math.random()*c.height,r:Math.random()*1.8+0.3,a:Math.random(),da:Math.random()*0.015+0.003})}
+function draw(){ctx.clearRect(0,0,c.width,c.height);stars.forEach(s=>{s.a+=s.da;if(s.a>1||s.a<0.15)s.da*=-1;ctx.beginPath();ctx.arc(s.x,s.y,s.r,0,Math.PI*2);ctx.fillStyle=`rgba(200,200,255,${s.a})`;ctx.fill()});requestAnimationFrame(draw)}
+window.addEventListener('resize',resize);resize();draw();
+</script>
+</body>
+</html>

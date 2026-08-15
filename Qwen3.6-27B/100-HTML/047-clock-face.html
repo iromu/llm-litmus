@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Clock Face</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{min-height:100vh;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% 40%,#1a1a2e 0%,#0d0d1a 60%,#050510 100%);overflow:hidden;font-family:Georgia,'Times New Roman',serif}
+canvas{display:block}
+</style>
+</head>
+<body>
+<canvas id="clock"></canvas>
+<script>
+(function(){
+const c=document.getElementById('clock'),ctx=c.getContext('2d');
+const R=[
+'','I','II','III','IV','V','VI','VII','VIII','IX','X','XI','XII'
+];
+const MONTHS=['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+
+let W,H,CR;
+function resize(){
+W=c.width=window.innerWidth;
+H=c.height=window.innerHeight;
+CR=Math.min(W,H)*0.38;
+}
+resize();
+window.addEventListener('resize',resize);
+
+function metallicGrad(x1,y1,x2,y2,stops){
+const g=ctx.createLinearGradient(x1,y1,x2,y2);
+stops.forEach(function(s){g.addColorStop(s[0],s[1])});
+return g;
+}
+
+function drawDial(cx,cy,r){
+const g=ctx.createRadialGradient(cx-r*0.15,cy-r*0.15,r*0.05,cx,cy,r);
+g.addColorStop(0,'#f5f0e8');
+g.addColorStop(0.3,'#ede6d8');
+g.addColorStop(0.7,'#e8dfcf');
+g.addColorStop(1,'#d4c9b5');
+ctx.beginPath();
+ctx.arc(cx,cy,r,0,Math.PI*2);
+ctx.fillStyle=g;
+ctx.fill();
+
+const ag=ctx.createRadialGradient(cx,cy,r*0.85,cx,cy,r);
+ag.addColorStop(0,'rgba(180,165,140,0)');
+ag.addColorStop(0.7,'rgba(180,165,140,0.15)');
+ag.addColorStop(1,'rgba(160,145,120,0.3)');
+ctx.beginPath();
+ctx.arc(cx,cy,r,0,Math.PI*2);
+ctx.fillStyle=ag;
+ctx.fill();
+
+ctx.beginPath();
+ctx.arc(cx,cy,r,0,Math.PI*2);
+ctx.strokeStyle='rgba(120,110,95,0.4)';
+ctx.lineWidth=1.5;
+ctx.stroke();
+}
+
+function drawGuilloche(cx,cy,r){
+ctx.save();
+ctx.globalAlpha=0.06;
+for(let i=0;i<120;i++){
+const a=i*Math.PI*2/120;
+ctx.beginPath();
+ctx.moveTo(cx,cy);
+ctx.lineTo(cx+Math.cos(a)*r*0.92,cy+Math.sin(a)*r*0.92);
+ctx.strokeStyle='#8a7d6b';
+ctx.lineWidth=0.5;
+ctx.stroke();
+}
+ctx.restore();
+}
+
+function drawBezel(cx,cy,r){
+const bezelR=r*1.08;
+const g=ctx.createLinearGradient(cx-bezelR,cy-bezelR,cx+bezelR,cy+bezelR);
+g.addColorStop(0,'#8a8a8a');
+g.addColorStop(0.15,'#c8c8c8');
+g.addColorStop(0.3,'#a0a0a0');
+g.addColorStop(0.5,'#d8d8d8');
+g.addColorStop(0.7,'#909090');
+g.addColorStop(0.85,'#b8b8b8');
+g.addColorStop(1,'#707070');
+ctx.beginPath();
+ctx.arc(cx,cy,bezelR,0,Math.PI*2);
+ctx.fillStyle=g;
+ctx.fill();
+
+const ig=ctx.createRadialGradient(cx-bezelR*0.3,cy-bezelR*0.3,bezelR*0.5,cx,cy,bezelR);
+ig.addColorStop(0,'rgba(255,255,255,0.25)');
+ig.addColorStop(0.5,'rgba(255,255,255,0.05)');
+ig.addColorStop(0.85,'rgba(0,0,0,0.1)');
+ig.addColorStop(1,'rgba(0,0,0,0.25)');
+ctx.beginPath();
+ctx.arc(cx,cy,bezelR,0,Math.PI*2);
+ctx.fillStyle=ig;
+ctx.fill();
+
+ctx.beginPath();
+ctx.arc(cx,cy,bezelR,0,Math.PI*2);
+ctx.strokeStyle='rgba(60,60,60,0.6)';
+ctx.lineWidth=2;
+ctx.stroke();
+
+ctx.beginPath();
+ctx.arc(cx,cy,r,0,Math.PI*2);
+ctx.strokeStyle='rgba(80,80,80,0.5)';
+ctx.lineWidth=1;
+ctx.stroke();
+
+const highlight=ctx.createLinearGradient(cx-bezelR,cy-bezelR*0.5,cx-bezelR,cy+bezelR*0.5);
+highlight.addColorStop(0,'rgba(255,255,255,0)');
+highlight.addColorStop(0.3,'rgba(255,255,255,0.35)');
+highlight.addColorStop(0.5,'rgba(255,255,255,0.5)');
+highlight.addColorStop(0.7,'rgba(255,255,255,0.35)');
+highlight.addColorStop(1,'rgba(255,255,255,0)');
+ctx.save();
+ctx.beginPath();
+ctx.arc(cx,cy,bezelR,0,Math.PI*2);
+ctx.clip();
+ctx.fillStyle=highlight;
+ctx.fillRect(cx-bezelR*0.6,cy-bezelR,bezelR*0.4,bezelR*2);
+ctx.restore();
+}
+
+function drawTicks(cx,cy,r){
+for(let i=0;i<60;i++){
+const a=i*Math.PI*2/60-Math.PI/2;
+const isHour=i%5===0;
+const outerR=r*0.93;
+const innerR=isHour?r*0.82:r*0.89;
+const lw=isHour?2.5:0.8;
+const x1=cx+Math.cos(a)*innerR;
+const y1=cy+Math.sin(a)*innerR;
+const x2=cx+Math.cos(a)*outerR;
+const y2=cy+Math.sin(a)*outerR;
+ctx.beginPath();
+ctx.moveTo(x1,y1);
+ctx.lineTo(x2,y2);
+ctx.strokeStyle=isHour?'#2a2a2a':'#6a6a6a';
+ctx.lineWidth=lw;
+ctx.lineCap='round';
+ctx.stroke();
+ctx.lineCap='butt';
+}
+}
+
+function drawRomanNumerals(cx,cy,r){
+ctx.textAlign='center';
+ctx.textBaseline='middle';
+for(let i=1;i<=12;i++){
+const a=i*Math.PI*2/12-Math.PI/2;
+const numR=r*0.72;
+const x=cx+Math.cos(a)*numR;
+const y=cy+Math.sin(a)*numR;
+const fs=Math.max(r*0.1,14);
+ctx.font=`${fs}px Georgia,serif`;
+ctx.fillStyle='#1a1a1a';
+ctx.save();
+ctx.translate(x,y);
+if(i===6||i===12){
+ctx.fillText(R[i],0,0);
+}else if(i===3||i===9){
+ctx.fillText(R[i],0,0);
+}else{
+const rot=a+Math.PI/2;
+ctx.rotate(rot);
+ctx.fillText(R[i],0,0);
+ctx.rotate(-rot);
+}
+ctx.restore();
+}
+}
+
+function drawHand(cx,cy,angle,length,width,color,hasShadow){
+ctx.save();
+ctx.translate(cx,cy);
+ctx.rotate(angle);
+
+if(hasShadow){
+ctx.shadowColor='rgba(0,0,0,0.3)';
+ctx.shadowBlur=8;
+ctx.shadowOffsetX=4;
+ctx.shadowOffsetY=4;
+}
+
+ctx.beginPath();
+ctx.moveTo(-length*0.25,0);
+ctx.lineTo(0,-width/2);
+ctx.lineTo(length,width*0.15);
+ctx.lineTo(length,-width*0.15);
+ctx.lineTo(0,width/2);
+ctx.closePath();
+
+const g=ctx.createLinearGradient(0,-width,0,width);
+g.addColorStop(0,color);
+g.addColorStop(0.4,color);
+g.addColorStop(0.6,color);
+g.addColorStop(1,color);
+ctx.fillStyle=g;
+ctx.fill();
+
+ctx.shadowColor='transparent';
+ctx.shadowBlur=0;
+ctx.shadowOffsetX=0;
+ctx.shadowOffsetY=0;
+ctx.restore();
+}
+
+function drawSecondHand(cx,cy,angle,length){
+ctx.save();
+ctx.translate(cx,cy);
+ctx.rotate(angle);
+
+ctx.shadowColor='rgba(180,20,20,0.3)';
+ctx.shadowBlur=6;
+
+ctx.beginPath();
+ctx.moveTo(-length*0.35,0);
+ctx.lineTo(-1.5,0);
+ctx.lineTo(-1.5,-1.5);
+ctx.lineTo(length,-0.5);
+ctx.lineTo(length,0.5);
+ctx.lineTo(-1.5,1.5);
+ctx.lineTo(-1.5,0);
+ctx.closePath();
+ctx.fillStyle='#b81818';
+ctx.fill();
+
+ctx.shadowColor='transparent';
+ctx.shadowBlur=0;
+ctx.restore();
+}
+
+function drawCenterCap(cx,cy,r){
+const capR=r*0.04;
+const g=ctx.createRadialGradient(cx-capR*0.3,cy-capR*0.3,0,cx,cy,capR);
+g.addColorStop(0,'#e8e8e8');
+g.addColorStop(0.5,'#a0a0a0');
+g.addColorStop(1,'#606060');
+ctx.beginPath();
+ctx.arc(cx,cy,capR,0,Math.PI*2);
+ctx.fillStyle=g;
+ctx.fill();
+ctx.strokeStyle='rgba(40,40,40,0.5)';
+ctx.lineWidth=0.5;
+ctx.stroke();
+
+const sg=ctx.createRadialGradient(cx,cy,0,cx,cy,capR*0.4);
+sg.addColorStop(0,'#b81818');
+sg.addColorStop(1,'#8a1010');
+ctx.beginPath();
+ctx.arc(cx,cy,capR*0.4,0,Math.PI*2);
+ctx.fillStyle=sg;
+ctx.fill();
+}
+
+function drawDateWindow(cx,cy,r){
+const now=new Date();
+const day=now.getDate();
+const winW=r*0.22;
+const winH=r*0.14;
+const winX=cx+r*0.32;
+const winY=cy;
+
+ctx.save();
+ctx.beginPath();
+ctx.rect(winX-winW/2,winY-winH/2,winW,winH);
+ctx.clip();
+
+ctx.fillStyle='#f8f5f0';
+ctx.fillRect(winX-winW/2,winY-winH/2,winW,winH);
+
+ctx.fillStyle='#2a2a2a';
+ctx.font=`bold ${r*0.1}px Georgia,serif`;
+ctx.textAlign='center';
+ctx.textBaseline='middle';
+ctx.fillText(String(day).padStart(2,'0'),winX,winY);
+ctx.restore();
+
+ctx.beginPath();
+ctx.rect(winX-winW/2,winY-winH/2,winW,winH);
+ctx.strokeStyle='#8a8070';
+ctx.lineWidth=1.5;
+ctx.stroke();
+
+ctx.beginPath();
+ctx.rect(winX-winW/2-1,winY-winH/2-1,winW+2,winH+2);
+ctx.strokeStyle='rgba(120,110,95,0.3)';
+ctx.lineWidth=0.5;
+ctx.stroke();
+}
+
+function drawPowerReserve(cx,cy,r){
+const now=new Date();
+const hour=now.getHours()+now.getMinutes()/60;
+const reserveFrac=hour/24;
+
+const arcR=r*0.965;
+const startA=Math.PI*0.75;
+const endA=startA+reserveFrac*Math.PI*1.5;
+
+ctx.save();
+ctx.beginPath();
+ctx.arc(cx,cy,arcR,0,Math.PI*2);
+ctx.arc(cx,cy,r*0.935,0,Math.PI*2,true);
+ctx.clip();
+
+ctx.beginPath();
+ctx.arc(cx,cy,arcR,startA,endA);
+ctx.strokeStyle='rgba(180,20,20,0.6)';
+ctx.lineWidth=r*0.02;
+ctx.lineCap='round';
+ctx.stroke();
+
+ctx.beginPath();
+ctx.arc(cx,cy,arcR,startA,startA+Math.PI*1.5);
+ctx.strokeStyle='rgba(180,180,180,0.3)';
+ctx.lineWidth=r*0.02;
+ctx.lineCap='round';
+ctx.stroke();
+
+ctx.lineCap='butt';
+ctx.restore();
+
+ctx.font=`${r*0.045}px Georgia,serif`;
+ctx.fillStyle='rgba(100,95,85,0.5)';
+ctx.textAlign='center';
+ctx.textBaseline='middle';
+const labelA=Math.PI*0.75+Math.PI*0.75;
+const labelR=r*0.95;
+ctx.save();
+ctx.translate(cx+Math.cos(labelA)*labelR,cy+Math.sin(labelA)*labelR);
+ctx.rotate(labelA+Math.PI/2);
+ctx.fillText('24h',0,0);
+ctx.restore();
+}
+
+function drawSubDial(cx,cy,r){
+const subCx=cx;
+const subCy=cy+r*0.38;
+const subR=r*0.12;
+
+const g=ctx.createRadialGradient(subCx,subCy,0,subCx,subCy,subR);
+g.addColorStop(0,'#e8e0d0');
+g.addColorStop(1,'#d8cfc0');
+ctx.beginPath();
+ctx.arc(subCx,subCy,subR,0,Math.PI*2);
+ctx.fillStyle=g;
+ctx.fill();
+ctx.strokeStyle='rgba(120,110,95,0.4)';
+ctx.lineWidth=0.5;
+ctx.stroke();
+
+for(let i=0;i<12;i++){
+const a=i*Math.PI*2/12-Math.PI/2;
+const x1=subCx+Math.cos(a)*subR*0.75;
+const y1=subCy+Math.sin(a)*subR*0.75;
+const x2=subCx+Math.cos(a)*subR*0.9;
+const y2=subCy+Math.sin(a)*subR*0.9;
+ctx.beginPath();
+ctx.moveTo(x1,y1);
+ctx.lineTo(x2,y2);
+ctx.strokeStyle='#5a5a5a';
+ctx.lineWidth=0.5;
+ctx.stroke();
+}
+
+const now=new Date();
+const secFrac=(now.getSeconds()+now.getMilliseconds()/1000)/60;
+const secA=secFrac*Math.PI*2-Math.PI/2;
+ctx.beginPath();
+ctx.moveTo(subCx,subCy);
+ctx.lineTo(subCx+Math.cos(secA)*subR*0.8,subCy+Math.sin(secA)*subR*0.8);
+ctx.strokeStyle='#b81818';
+ctx.lineWidth=0.8;
+ctx.stroke();
+
+ctx.beginPath();
+ctx.arc(subCx,subCy,subR*0.1,0,Math.PI*2);
+ctx.fillStyle='#2a2a2a';
+ctx.fill();
+
+ctx.font=`${r*0.04}px Georgia,serif`;
+ctx.fillStyle='rgba(80,75,65,0.5)';
+ctx.textAlign='center';
+ctx.textBaseline='top';
+ctx.fillText('SECONDS',subCx,subCy+subR*0.3);
+}
+
+function drawLumeDots(cx,cy,r){
+for(let i=0;i<12;i++){
+const a=i*Math.PI*2/12-Math.PI/2;
+const dotR=r*0.86;
+const x=cx+Math.cos(a)*dotR;
+const y=cy+Math.sin(a)*dotR;
+const dg=ctx.createRadialGradient(x,y,0,x,y,r*0.025);
+dg.addColorStop(0,'rgba(200,220,180,0.6)');
+dg.addColorStop(1,'rgba(200,220,180,0)');
+ctx.beginPath();
+ctx.arc(x,y,r*0.025,0,Math.PI*2);
+ctx.fillStyle=dg;
+ctx.fill();
+}
+}
+
+function drawShadow(cx,cy,r){
+const bezelR=r*1.08;
+ctx.save();
+ctx.shadowColor='rgba(0,0,0,0.5)';
+ctx.shadowBlur=40;
+ctx.shadowOffsetX=0;
+ctx.shadowOffsetY=15;
+ctx.beginPath();
+ctx.arc(cx,cy,bezelR,0,Math.PI*2);
+ctx.fillStyle='rgba(0,0,0,0.01)';
+ctx.fill();
+ctx.restore();
+}
+
+function drawBrand(cx,cy,r){
+ctx.font=`${r*0.06}px Georgia,serif`;
+ctx.fillStyle='rgba(60,55,45,0.6)';
+ctx.textAlign='center';
+ctx.textBaseline='middle';
+ctx.fillText('CHRONOMETRE',cx,cy-r*0.28);
+
+ctx.font=`${r*0.035}px Georgia,serif`;
+ctx.fillStyle='rgba(80,75,65,0.35)';
+ctx.fillText('SWISS MADE',cx,cy+r*0.22);
+ctx.fillText('AUTOMATIC',cx,cy+r*0.27);
+}
+
+function draw(){
+ctx.clearRect(0,0,W,H);
+const cx=W/2;
+const cy=H/2;
+const r=CR;
+
+drawShadow(cx,cy,r);
+drawBezel(cx,cy,r);
+drawDial(cx,cy,r);
+drawGuilloche(cx,cy,r);
+drawTicks(cx,cy,r);
+drawRomanNumerals(cx,cy,r);
+drawLumeDots(cx,cy,r);
+drawBrand(cx,cy,r);
+drawDateWindow(cx,cy,r);
+drawPowerReserve(cx,cy,r);
+drawSubDial(cx,cy,r);
+
+const now=new Date();
+const ms=now.getMilliseconds();
+const sec=now.getSeconds()+ms/1000;
+const min=now.getMinutes()+sec/60;
+const hr=(now.getHours()%12)+min/60;
+
+const secA=sec*Math.PI*2/60-Math.PI/2;
+const minA=min*Math.PI*2/60-Math.PI/2;
+const hrA=hr*Math.PI*2/12-Math.PI/2;
+
+drawHand(cx,cy,hrA,r*0.5,r*0.045,'#2a2a2a',true);
+drawHand(cx,cy,minA,r*0.72,r*0.028,'#2a2a2a',true);
+drawSecondHand(cx,cy,secA,r*0.78);
+drawCenterCap(cx,cy,r);
+
+requestAnimationFrame(draw);
+}
+
+draw();
+})();
+</script>
+</body>
+</html>

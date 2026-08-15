@@ -1,0 +1,7 @@
+Neon Signage
+---
+Prompt: Create a flickering neon sign text visualization with a large neon sign reading "OPEN" mounted on a dark brick wall. The sign has realistic neon tube rendering with independent segment flickering, decorative border frames, and accent text. Colors are hot pink and cyan with multi-layered glow effects.
+
+Techniques: CSS text-shadow and box-shadow for neon glow layers, canvas neon tube rendering, random flicker via JavaScript with setTimeout intervals, brick wall CSS pattern background, per-segment on/off state management, multi-layered glow with varying blur radii, responsive sizing.
+
+Interaction: The sign flickers automatically with random segment failures. Click to trigger a dramatic power surge. Hover over segments to temporarily stabilize them.

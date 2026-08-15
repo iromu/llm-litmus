@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sunset Horizon</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{min-height:100vh;background:#1a0a2e;overflow:hidden}
+canvas{display:block;position:fixed;top:0;left:0}
+.title{position:fixed;bottom:6vh;left:50%;transform:translateX(-50%);font-size:clamp(2rem,5vw,4.5rem);font-weight:200;color:rgba(255,180,100,0.07);letter-spacing:0.25em;text-transform:uppercase;pointer-events:none;z-index:1;white-space:nowrap;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div class="title">Sunset Horizon</div>
+<script>
+const c=document.getElementById('c'),ctx=c.getContext('2d');
+let W,H,sunX,sunY,sunR,groundY,clouds=[],birds=[],trees=[];
+
+function skyGradient(t){
+const g=ctx.createLinearGradient(0,0,0,H);
+g.addColorStop(0,'#0d0221');
+g.addColorStop(0.15,'#1a0533');
+g.addColorStop(0.3,'#3d1259');
+g.addColorStop(0.45,'#7b2d52');
+g.addColorStop(0.58,'#c44e38');
+g.addColorStop(0.7,'#e8853a');
+g.addColorStop(0.82,'#f5b94a');
+g.addColorStop(0.92,'#fde68a');
+g.addColorStop(1,'#fef3c7');
+return g;
+}
+
+function drawSky(){
+ctx.fillStyle=skyGradient();
+ctx.fillRect(0,0,W,H);
+}
+
+function drawSun(){
+const glowLayers=[
+{r:sunR*8,a:0.03,color:[255,140,50]},
+{r:sunR*5,a:0.06,color:[255,160,60]},
+{r:sunR*3.5,a:0.1,color:[255,180,80]},
+{r:sunR*2.2,a:0.18,color:[255,200,100]},
+{r:sunR*1.5,a:0.3,color:[255,220,140]},
+{r:sunR*1.1,a:0.5,color:[255,240,180]},
+];
+glowLayers.forEach(l=>{
+const g=ctx.createRadialGradient(sunX,sunY,0,sunX,sunY,l.r);
+g.addColorStop(0,`rgba(${l.color[0]},${l.color[1]},${l.color[2]},${l.a})`);
+g.addColorStop(1,`rgba(${l.color[0]},${l.color[1]},${l.color[2]},0)`);
+ctx.fillStyle=g;
+ctx.beginPath();
+ctx.arc(sunX,sunY,l.r,0,Math.PI*2);
+ctx.fill();
+});
+const core=ctx.createRadialGradient(sunX,sunY,0,sunX,sunY,sunR);
+core.addColorStop(0,'rgba(255,255,240,1)');
+core.addColorStop(0.4,'rgba(255,245,200,0.95)');
+core.addColorStop(0.8,'rgba(255,220,150,0.7)');
+core.addColorStop(1,'rgba(255,190,100,0.2)');
+ctx.fillStyle=core;
+ctx.beginPath();
+ctx.arc(sunX,sunY,sunR,0,Math.PI*2);
+ctx.fill();
+}
+
+class Cloud{
+constructor(y,speed,scale){
+this.y=y;
+this.x=-200+Math.random()*W*1.4;
+this.speed=speed;
+this.scale=scale;
+this.puffs=[];
+const count=5+Math.floor(Math.random()*5);
+for(let i=0;i<count;i++){
+this.puffs.push({
+ox:(Math.random()-0.5)*160*scale,
+oy:(Math.random()-0.5)*20*scale,
+r:(15+Math.random()*35)*scale,
+a:0.15+Math.random()*0.25
+});
+}
+}
+update(){
+this.x+=this.speed;
+if(this.x>W+300)this.x=-300;
+}
+draw(){
+this.puffs.forEach(p=>{
+const px=this.x+p.ox;
+const py=this.y+p.oy;
+const g=ctx.createRadialGradient(px,py,0,px,py,p.r);
+const warm=0.7+Math.sin(this.x*0.003)*0.3;
+g.addColorStop(0,`rgba(${Math.floor(255*warm)},${Math.floor(160*warm)},${Math.floor(100*warm)},${p.a})`);
+g.addColorStop(0.5,`rgba(${Math.floor(220*warm)},${Math.floor(120*warm)},${Math.floor(80*warm)},${p.a*0.4})`);
+g.addColorStop(1,`rgba(${Math.floor(180*warm)},${Math.floor(80*warm)},${Math.floor(60*warm)},0)`);
+ctx.fillStyle=g;
+ctx.beginPath();
+ctx.arc(px,py,p.r,0,Math.PI*2);
+ctx.fill();
+});
+}
+}
+
+class Bird{
+constructor(y,speed,size){
+this.y=y;
+this.x=Math.random()*W;
+this.speed=speed;
+this.size=size;
+this.wingPhase=Math.random()*Math.PI*2;
+this.wingSpeed=3+Math.random()*3;
+this.wingAmp=0.4+Math.random()*0.3;
+}
+update(){
+this.x+=this.speed;
+this.wingPhase+=this.wingSpeed*0.016;
+if(this.x>W+50)this.x=-50;
+}
+draw(){
+const wing=Math.sin(this.wingPhase)*this.wingAmp;
+ctx.strokeStyle='rgba(30,15,20,0.7)';
+ctx.lineWidth=this.size*0.15;
+ctx.lineCap='round';
+ctx.beginPath();
+ctx.moveTo(this.x-this.size,this.y+wing*this.size);
+ctx.quadraticCurveTo(this.x-this.size*0.3,this.y-wing*this.size*0.3,this.x,this.y);
+ctx.quadraticCurveTo(this.x+this.size*0.3,this.y-wing*this.size*0.3,this.x+this.size,this.y+wing*this.size);
+ctx.stroke();
+}
+}
+
+function generateTrees(){
+trees=[];
+const count=Math.floor(W/60);
+for(let i=0;i<count;i++){
+const x=(i/count)*W+(Math.random()-0.5)*40;
+const h=30+Math.random()*80;
+const w=10+Math.random()*15;
+const layers=2+Math.floor(Math.random()*3);
+const tree={x,h,w,layers};
+for(let j=0;j<layers;j++){
+tree['layer'+j]={
+yRatio:0.2+j*0.3,
+wRatio:0.4-(j*0.12)
+};
+}
+trees.push(tree);
+}
+trees.sort((a,b)=>a.x-b.x);
+}
+
+function drawGround(){
+ctx.beginPath();
+ctx.moveTo(0,H);
+for(let x=0;x<=W;x+=2){
+const wave=Math.sin(x*0.008)*15+Math.sin(x*0.003)*25+Math.sin(x*0.02)*5;
+const y=groundY+wave;
+ctx.lineTo(x,y);
+}
+ctx.lineTo(W,H);
+ctx.closePath();
+const g=ctx.createLinearGradient(0,groundY-30,0,H);
+g.addColorStop(0,'#1a0a08');
+g.addColorStop(0.3,'#120806');
+g.addColorStop(1,'#0a0504');
+ctx.fillStyle=g;
+ctx.fill();
+}
+
+function drawTrees(){
+trees.forEach(t=>{
+const baseY=groundY+Math.sin(t.x*0.008)*15+Math.sin(t.x*0.003)*25+Math.sin(t.x*0.02)*5;
+const topY=baseY-t.h;
+const layers=2+Math.floor((t.h-30)/30);
+for(let j=0;j<Math.min(layers,4);j++){
+const ly=topY+(baseY-topY)*(0.15+j*0.25);
+const lw=t.w*(0.5-j*0.12);
+ctx.beginPath();
+ctx.moveTo(t.x,ly);
+ctx.lineTo(t.x-lw,ly+t.h*0.25);
+ctx.lineTo(t.x+lw,ly+t.h*0.25);
+ctx.closePath();
+ctx.fillStyle=`rgba(15,8,6,${0.85-j*0.05})`;
+ctx.fill();
+}
+ctx.fillStyle='#0d0605';
+ctx.fillRect(t.x-2,baseY-t.h*0.05,4,t.h*0.08);
+});
+}
+
+function init(){
+W=c.width=window.innerWidth;
+H=c.height=window.innerHeight;
+sunX=W*0.5;
+sunY=H*0.52;
+sunR=Math.min(W,H)*0.06;
+groundY=H*0.72;
+clouds=[];
+const cloudConfigs=[
+{y:H*0.15,speed:0.15,scale:0.8},
+{y:H*0.2,speed:0.08,scale:1.2},
+{y:H*0.25,speed:0.2,scale:0.6},
+{y:H*0.12,speed:0.12,scale:1.0},
+{y:H*0.3,speed:0.06,scale:1.4},
+{y:H*0.18,speed:0.18,scale:0.7},
+{y:H*0.28,speed:0.1,scale:0.9},
+];
+cloudConfigs.forEach(cfg=>clouds.push(new Cloud(cfg.y,cfg.speed,cfg.scale)));
+birds=[];
+const birdConfigs=[
+{y:H*0.25,speed:0.8,size:12},
+{y:H*0.3,speed:1.1,size:10},
+{y:H*0.2,speed:0.6,size:14},
+{y:H*0.35,speed:0.9,size:8},
+{y:H*0.22,speed:1.3,size:11},
+];
+birdConfigs.forEach(cfg=>birds.push(new Bird(cfg.y,cfg.speed,cfg.size)));
+generateTrees();
+}
+
+function animate(){
+ctx.clearRect(0,0,W,H);
+drawSky();
+drawSun();
+clouds.forEach(cl=>{cl.update();cl.draw()});
+birds.forEach(b=>{b.update();b.draw()});
+drawGround();
+drawTrees();
+requestAnimationFrame(animate);
+}
+
+window.addEventListener('resize',init);
+init();
+animate();
+</script>
+</body>
+</html>

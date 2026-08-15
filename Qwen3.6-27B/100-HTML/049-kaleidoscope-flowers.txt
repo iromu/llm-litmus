@@ -1,0 +1,20 @@
+# Kaleidoscope Flowers
+
+## Creative Prompt
+Create blooming floral kaleidoscope patterns. Flower shapes bloom from the center with radial symmetry, each petal rendered as a bezier curve with gradient fills. Multiple flower layers bloom at different speeds and sizes. The petals have vibrant colors that shift through the spectrum. The background is dark with a subtle glow. The overall aesthetic is beautiful, colorful, and organic — like a time-lapse of flowers blooming.
+
+## Techniques Used
+- Canvas flower rendering with bezier petal shapes
+- Radial symmetry with multiple petal counts
+- Bloom animation with scale and rotation
+- Gradient fills with HSL color cycling
+- Multiple flower layers with independent parameters
+- Petal overlap with alpha blending and additive compositing
+- Center glow with pulsing radial gradient
+- Continuous bloom and fade cycle
+- Floating pollen particles with orbital motion
+- Background glow rings
+- Responsive canvas with DPR scaling
+
+## Interaction Model
+Passive animation — flowers bloom, rotate, and fade continuously. Each flower layer has independent timing for bloom speed, rotation, color shift, and phase offset.

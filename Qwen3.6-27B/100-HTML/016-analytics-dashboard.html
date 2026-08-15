@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Analytics Dashboard</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{min-height:100vh;background:#0d1117;color:#c9d1d9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;padding:24px}
+.header{display:flex;justify-content:space-between;align-items:center;margin-bottom:32px}
+.header h1{font-size:1.5rem;font-weight:600;color:#f0f6fc}
+.header .date{font-size:0.8rem;color:#8b949e;font-family:monospace}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px}
+.stat-card{background:#161b22;border:1px solid #30363d;border-radius:12px;padding:20px}
+.stat-card .label{font-size:0.75rem;color:#8b949e;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px}
+.stat-card .value{font-size:2rem;font-weight:700;color:#f0f6fc}
+.stat-card .change{font-size:0.8rem;margin-top:4px}
+.stat-card .change.up{color:#3fb950}
+.stat-card .change.down{color:#f85149}
+.charts{display:grid;grid-template-columns:2fr 1fr;gap:16px;margin-bottom:24px}
+.chart-card{background:#161b22;border:1px solid #30363d;border-radius:12px;padding:20px}
+.chart-card h3{font-size:0.9rem;color:#8b949e;margin-bottom:16px}
+canvas{width:100%;height:200px}
+.table-card{background:#161b22;border:1px solid #30363d;border-radius:12px;padding:20px}
+table{width:100%;border-collapse:collapse}
+th{text-align:left;font-size:0.75rem;color:#8b949e;text-transform:uppercase;letter-spacing:0.1em;padding:12px 8px;border-bottom:1px solid #30363d}
+td{padding:12px 8px;border-bottom:1px solid #21262d;font-size:0.9rem}
+td:first-child{color:#f0f6fc;font-weight:500}
+.badge{display:inline-block;padding:2px 8px;border-radius:12px;font-size:0.75rem}
+.badge-green{background:rgba(63,185,80,0.15);color:#3fb950}
+.badge-red{background:rgba(248,81,73,0.15);color:#f85149}
+.badge-blue{background:rgba(56,132,255,0.15);color:#3884ff}
+@media(max-width:768px){.stats{grid-template-columns:1fr 1fr}.charts{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="header"><h1>Analytics Dashboard</h1><span class="date" id="date"></span></div>
+<div class="stats">
+<div class="stat-card"><div class="label">Revenue</div><div class="value">$48.2K</div><div class="change up">↑ 12.5%</div></div>
+<div class="stat-card"><div class="label">Users</div><div class="value">12,847</div><div class="change up">↑ 8.3%</div></div>
+<div class="stat-card"><div class="label">Bounce Rate</div><div class="value">23.1%</div><div class="change down">↓ 2.1%</div></div>
+<div class="stat-card"><div class="label">Sessions</div><div class="value">34,291</div><div class="change up">↑ 5.7%</div></div>
+</div>
+<div class="charts">
+<div class="chart-card"><h3>Revenue Trend</h3><canvas id="line"></canvas></div>
+<div class="chart-card"><h3>Traffic Sources</h3><canvas id="bar"></canvas></div>
+</div>
+<div class="table-card">
+<h3 style="font-size:0.9rem;color:#8b949e;margin-bottom:16px">Recent Activity</h3>
+<table>
+<thead><tr><th>Event</th><th>User</th><th>Time</th><th>Status</th></tr></thead>
+<tbody>
+<tr><td>Purchase</td><td>sarah.k</td><td>2m ago</td><td><span class="badge badge-green">Complete</span></td></tr>
+<tr><td>Signup</td><td>alex.m</td><td>5m ago</td><td><span class="badge badge-blue">New</span></td></tr>
+<tr><td>Checkout</td><td>john.d</td><td>12m ago</td><td><span class="badge badge-red">Failed</span></td></tr>
+<tr><td>Purchase</td><td>emma.w</td><td>18m ago</td><td><span class="badge badge-green">Complete</span></td></tr>
+<tr><td>Signup</td><td>liam.p</td><td>24m ago</td><td><span class="badge badge-blue">New</span></td></tr>
+</tbody>
+</table>
+</div>
+<script>
+document.getElementById('date').textContent=new Date().toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+// Line chart
+const lc=document.getElementById('line'),lctx=lc.getContext('2d');
+lc.width=lc.offsetWidth*2;lc.height=400;lctx.scale(2,2);
+const lw=lc.offsetWidth,lh=200;const data=[30,45,35,50,42,60,55,70,65,80,75,90];
+lctx.strokeStyle='#3884ff';lctx.lineWidth=2;lctx.beginPath();
+data.forEach((d,i)=>{const x=i/(data.length-1)*lw;const y=lh-d/100*lh;if(i===0)lctx.moveTo(x,y);else lctx.lineTo(x,y)});lctx.stroke();
+lctx.fillStyle='rgba(56,132,255,0.1)';lctx.beginPath();lctx.moveTo(0,lh);data.forEach((d,i)=>{const x=i/(data.length-1)*lw;lctx.lineTo(x,lh-d/100*lh)});lctx.lineTo(lw,lh);lctx.closePath();lctx.fill();
+// Bar chart
+const bc=document.getElementById('bar'),bctx=bc.getContext('2d');
+bc.width=bc.offsetWidth*2;bc.height=400;bctx.scale(2,2);
+const bw=bc.offsetWidth,bh=200;const bars=[{l:'Direct',v:65,c:'#3884ff'},{l:'Organic',v:80,c:'#3fb950'},{l:'Social',v:45,c:'#a371f7'},{l:'Referral',v:30,c:'#f0883e'}];
+const barW=(bw-40)/bars.length;
+bars.forEach((b,i)=>{const x=20+i*barW;const h=b.v/100*bh;bctx.fillStyle=b.c;bctx.fillRect(x,bh-h,barW-8,h);bctx.fillStyle='#8b949e';bctx.font='11px monospace';bctx.fillText(b.l,x+4,bh+14)});
+</script>
+</body>
+</html>

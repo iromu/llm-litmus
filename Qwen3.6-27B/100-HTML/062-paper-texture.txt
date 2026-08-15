@@ -1,0 +1,7 @@
+Title: Paper Texture
+
+Prompt: Create a textured paper article page with a realistic paper grain effect. The page has a warm cream background with SVG feTurbulence noise overlay that animates subtly, plus a vignette shadow. The content is a literary essay with serif typography, drop cap, italic subhead, ruled dividers, and a signature. The overall aesthetic is analog, warm, and literary — like a page from a fine press book or a high-end stationery brand.
+
+Techniques: SVG feTurbulence noise texture with CSS steps() animation for subtle grain movement, radial-gradient vignette overlay, serif typography (Georgia), drop cap via first-letter styling, ruled dividers, responsive layout with comfortable line lengths, warm cream/ink-on-paper color palette, box-shadow for physical page depth.
+
+Interaction: Purely static — the grain animates subtly, but no user interaction is needed.

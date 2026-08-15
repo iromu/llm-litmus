@@ -1,0 +1,19 @@
+# Pulse Rings
+
+## Creative Prompt
+Create an expanding ring visualization with colorful concentric circles that pulse outward from various points. Each ring has a unique hue, expands at its own speed, fades as it grows, and has both a main stroke and a glow stroke. Rings spawn at the mouse position on move, in bursts on click, and randomly across the canvas. The background trails with a slow fade for smooth motion. The overall aesthetic is sonar-like, hypnotic, and colorful — like a frequency visualization.
+
+## Techniques Used
+- Canvas ring rendering with expanding radius and fading alpha
+- Hue cycling via HSL color space with per-ring hue shift over time
+- Dual-stroke rendering (main stroke + wider glow stroke) for depth
+- Inner fill glow for young rings that fades as they expand
+- Mouse-follow spawning with rate limiting
+- Click burst spawning (5 rings with spread hues)
+- Auto-spawn with per-frame probability for ambient activity
+- Ring pool management with maximum ring limit and oldest-first eviction
+- Exponential background fade (semi-transparent overlay) for motion trails
+- Touch support for mobile interaction
+
+## Interaction Model
+Move mouse to spawn rings along the cursor path. Click to burst 5 rings at the cursor position. Rings expand and fade continuously from their spawn point. The canvas is always active with auto-spawned rings appearing randomly across the viewport, so there's always visual activity even without interaction. Touch events are supported on mobile devices.

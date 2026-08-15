@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Storm Clouds</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{overflow:hidden;background:#0a0a12}
+canvas{display:block;position:fixed;top:0;left:0}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c'), ctx = canvas.getContext('2d');
+let W, H;
+
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+// --- Rain ---
+const RAIN_COUNT = 600;
+const drops = [];
+
+class Drop {
+  constructor() { this.reset(true); }
+  reset(init) {
+    this.x = Math.random() * (W + 200) - 100;
+    this.y = init ? Math.random() * H : -Math.random() * 120;
+    this.speed = 12 + Math.random() * 8;
+    this.len = 18 + Math.random() * 22;
+    this.opacity = 0.15 + Math.random() * 0.25;
+    this.wind = 2.5 + Math.random() * 1;
+  }
+  update() {
+    this.y += this.speed;
+    this.x += this.wind;
+    if (this.y > H + 20) this.reset(false);
+  }
+  draw() {
+    ctx.beginPath();
+    ctx.moveTo(this.x, this.y);
+    ctx.lineTo(this.x + this.wind * 1.5, this.y - this.len);
+    ctx.strokeStyle = `rgba(180,200,230,${this.opacity})`;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+}
+
+for (let i = 0; i < RAIN_COUNT; i++) drops.push(new Drop());
+
+// --- Clouds ---
+const cloudLayers = [];
+
+function generateCloudLayer(yBase, count, scale, color, driftSpeed) {
+  const layer = [];
+  for (let i = 0; i < count; i++) {
+    layer.push({
+      x: Math.random() * (W + 400) - 200,
+      y: yBase + (Math.random() - 0.5) * 60 * scale,
+      w: (200 + Math.random() * 300) * scale,
+      h: (60 + Math.random() * 80) * scale,
+      bumps: Array.from({length: 5 + Math.floor(Math.random() * 5)}, () => ({
+        bx: (Math.random() - 0.5) * 0.8,
+        by: -(0.3 + Math.random() * 0.7),
+        br: (0.3 + Math.random() * 0.5)
+      })),
+      color,
+      driftSpeed,
+      phase: Math.random() * Math.PI * 2
+    });
+  }
+  return layer;
+}
+
+cloudLayers.push(...generateCloudLayer(H * 0.08, 5, 1.2, [25, 25, 35], 0.15));
+cloudLayers.push(...generateCloudLayer(H * 0.18, 6, 1.0, [30, 30, 42], 0.25));
+cloudLayers.push(...generateCloudLayer(H * 0.28, 5, 0.85, [35, 35, 48], 0.35));
+cloudLayers.push(...generateCloudLayer(H * 0.38, 4, 0.7, [40, 40, 52], 0.45));
+
+function drawCloud(cloud) {
+  const { x, y, w, h, bumps, color } = cloud;
+  const cx = x, cy = y;
+  const grad = ctx.createRadialGradient(cx, cy - h * 0.2, h * 0.1, cx, cy, w * 0.55);
+  grad.addColorStop(0, `rgba(${color[0]+8},${color[1]+8},${color[2]+8},0.95)`);
+  grad.addColorStop(0.5, `rgba(${color[0]},${color[1]},${color[2]},0.9)`);
+  grad.addColorStop(1, `rgba(${color[0]-5},${color[1]-5},${color[2]-5},0)`);
+
+  ctx.beginPath();
+  ctx.moveTo(cx - w * 0.5, cy + h * 0.3);
+  for (let i = 0; i <= 20; i++) {
+    const t = i / 20;
+    const px = cx - w * 0.5 + t * w;
+    let py = cy - h * 0.1;
+    bumps.forEach(b => {
+      const dist = Math.abs(t - (b.bx * 0.5 + 0.5));
+      if (dist < b.br) {
+        py += b.by * h * (1 - dist / b.br) * 0.6;
+      }
+    });
+    ctx.lineTo(px, py);
+  }
+  ctx.lineTo(cx + w * 0.5, cy + h * 0.35);
+  ctx.quadraticCurveTo(cx + w * 0.3, cy + h * 0.45, cx, cy + h * 0.38);
+  ctx.quadraticCurveTo(cx - w * 0.3, cy + h * 0.45, cx - w * 0.5, cy + h * 0.3);
+  ctx.closePath();
+  ctx.fillStyle = grad;
+  ctx.fill();
+}
+
+// --- Lightning ---
+let lightningBolts = [];
+let flashIntensity = 0;
+let flashColor = [200, 210, 255];
+let nextLightning = 2000 + Math.random() * 4000;
+let lastTime = 0;
+
+class LightningBolt {
+  constructor(x, y, angle, length, depth, maxDepth) {
+    this.segments = [];
+    this.branches = [];
+    this.life = 0.08 + Math.random() * 0.06;
+    this.maxLife = this.life;
+    this.generate(x, y, angle, length, depth, maxDepth);
+  }
+
+  generate(x, y, angle, length, depth, maxDepth) {
+    const segments = 8 + Math.floor(Math.random() * 6);
+    let cx = x, cy = y;
+    const segLen = length / segments;
+    const jitter = Math.max(15, 60 - depth * 15);
+
+    for (let i = 0; i < segments; i++) {
+      const nx = cx + Math.cos(angle + (Math.random() - 0.5) * 0.8) * segLen;
+      const ny = cy + Math.sin(angle + (Math.random() - 0.5) * 0.4) * segLen;
+      this.segments.push({ x1: cx, y1: cy, x2: nx, y2: ny });
+      cx = nx; cy = ny;
+
+      if (depth < maxDepth && Math.random() < 0.35 - depth * 0.08) {
+        const branchAngle = angle + (Math.random() > 0.5 ? 1 : -1) * (0.5 + Math.random() * 0.8);
+        const branchLen = length * (0.3 + Math.random() * 0.3);
+        this.branches.push(new LightningBolt(cx, cy, branchAngle, branchLen, depth + 1, maxDepth));
+      }
+    }
+  }
+
+  update(dt) {
+    this.life -= dt;
+    this.branches.forEach(b => b.life -= dt);
+  }
+
+  draw() {
+    const alpha = Math.max(0, this.life / this.maxLife);
+    const width = Math.max(1, 4 * alpha);
+
+    // Glow
+    ctx.save();
+    ctx.shadowColor = `rgba(180,200,255,${alpha * 0.8})`;
+    ctx.shadowBlur = 30 * alpha;
+    ctx.strokeStyle = `rgba(220,230,255,${alpha * 0.6})`;
+    ctx.lineWidth = width + 6;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    this.segments.forEach(s => { ctx.moveTo(s.x1, s.y1); ctx.lineTo(s.x2, s.y2); });
+    this.branches.forEach(b => b.drawSegments(ctx, alpha, width + 4));
+    ctx.stroke();
+    ctx.restore();
+
+    // Core
+    ctx.strokeStyle = `rgba(255,255,255,${alpha})`;
+    ctx.lineWidth = width;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    this.segments.forEach(s => { ctx.moveTo(s.x1, s.y1); ctx.lineTo(s.x2, s.y2); });
+    ctx.stroke();
+
+    // Inner bright line
+    ctx.strokeStyle = `rgba(240,245,255,${alpha * 0.9})`;
+    ctx.lineWidth = Math.max(0.5, width * 0.4);
+    ctx.beginPath();
+    this.segments.forEach(s => { ctx.moveTo(s.x1, s.y1); ctx.lineTo(s.x2, s.y2); });
+    ctx.stroke();
+
+    this.branches.forEach(b => b.draw());
+  }
+
+  drawSegments(c, alpha, w) {
+    c.beginPath();
+    this.segments.forEach(s => { c.moveTo(s.x1, s.y1); c.lineTo(s.x2, s.y2); });
+    c.strokeStyle = `rgba(220,230,255,${alpha * 0.6})`;
+    c.lineWidth = w;
+    c.lineCap = 'round';
+    c.stroke();
+  }
+
+  get alive() { return this.life > 0; }
+}
+
+function spawnLightning() {
+  const x = W * 0.15 + Math.random() * W * 0.7;
+  const y = -10;
+  const angle = Math.PI / 2 + (Math.random() - 0.5) * 0.4;
+  const length = H * (0.5 + Math.random() * 0.5);
+  const bolt = new LightningBolt(x, y, angle, length, 0, 3);
+  lightningBolts.push(bolt);
+  flashIntensity = 0.7 + Math.random() * 0.3;
+
+  // Sometimes spawn a second bolt
+  if (Math.random() < 0.4) {
+    setTimeout(() => {
+      const x2 = W * 0.15 + Math.random() * W * 0.7;
+      const a2 = Math.PI / 2 + (Math.random() - 0.5) * 0.4;
+      const l2 = H * (0.4 + Math.random() * 0.4);
+      lightningBolts.push(new LightningBolt(x2, -10, a2, l2, 0, 2));
+      flashIntensity = Math.min(1, flashIntensity + 0.2);
+    }, 80 + Math.random() * 120);
+  }
+}
+
+// --- Sky gradient ---
+function drawSky() {
+  const grad = ctx.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, '#0d0d1a');
+  grad.addColorStop(0.3, '#151525');
+  grad.addColorStop(0.6, '#1a1a2e');
+  grad.addColorStop(1, '#0e0e18');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, H);
+}
+
+// --- Distant horizon glow ---
+function drawHorizon() {
+  const grad = ctx.createRadialGradient(W * 0.5, H * 0.85, 0, W * 0.5, H * 0.85, W * 0.6);
+  grad.addColorStop(0, 'rgba(30,30,50,0.6)');
+  grad.addColorStop(0.5, 'rgba(20,20,35,0.3)');
+  grad.addColorStop(1, 'transparent');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, H);
+}
+
+// --- Ground silhouette ---
+function drawGround() {
+  ctx.beginPath();
+  ctx.moveTo(0, H);
+  for (let x = 0; x <= W; x += 3) {
+    const baseY = H * 0.92;
+    const hill = Math.sin(x * 0.003) * 25 + Math.sin(x * 0.007 + 1) * 15 + Math.sin(x * 0.015 + 2) * 8;
+    const tree = Math.sin(x * 0.05) > 0.95 ? -Math.sin((x % 60) / 60 * Math.PI) * 30 : 0;
+    ctx.lineTo(x, baseY + hill + tree);
+  }
+  ctx.lineTo(W, H);
+  ctx.closePath();
+  ctx.fillStyle = '#08080e';
+  ctx.fill();
+}
+
+// --- Tree silhouettes ---
+function drawTrees() {
+  const treePositions = [0.08, 0.18, 0.25, 0.42, 0.55, 0.63, 0.72, 0.82, 0.91];
+  treePositions.forEach(tx => {
+    const x = W * tx;
+    const baseY = H * 0.92 + Math.sin(x * 0.003) * 25 + Math.sin(x * 0.007 + 1) * 15;
+    const treeH = 40 + Math.random() * 0; // stable per frame — use deterministic
+    const h = 35 + (tx * 137) % 30;
+    ctx.beginPath();
+    ctx.moveTo(x, baseY);
+    ctx.lineTo(x - 8, baseY - h * 0.6);
+    ctx.lineTo(x - 3, baseY - h * 0.6);
+    ctx.lineTo(x, baseY - h);
+    ctx.lineTo(x + 3, baseY - h * 0.6);
+    ctx.lineTo(x + 8, baseY - h * 0.6);
+    ctx.closePath();
+    ctx.fillStyle = '#06060a';
+    ctx.fill();
+  });
+}
+
+// --- Animation loop ---
+function animate(timestamp) {
+  const dt = lastTime ? (timestamp - lastTime) / 1000 : 0.016;
+  lastTime = timestamp;
+
+  // Clear
+  drawSky();
+  drawHorizon();
+
+  // Update cloud drift
+  cloudLayers.forEach(cloud => {
+    cloud.x += cloud.driftSpeed;
+    cloud.phase += 0.005;
+    if (cloud.x > W + 300) cloud.x = -cloud.w - 100;
+  });
+
+  // Draw clouds (back to front)
+  cloudLayers.forEach(cloud => drawCloud(cloud));
+
+  // Draw ground
+  drawGround();
+  drawTrees();
+
+  // Rain
+  drops.forEach(d => { d.update(); d.draw(); });
+
+  // Lightning timing
+  nextLightning -= dt * 1000;
+  if (nextLightning <= 0) {
+    spawnLightning();
+    nextLightning = 1500 + Math.random() * 5000;
+  }
+
+  // Update and draw lightning
+  lightningBolts.forEach(b => { b.update(dt); b.draw(); });
+  lightningBolts = lightningBolts.filter(b => b.alive);
+
+  // Flash overlay
+  if (flashIntensity > 0.01) {
+    ctx.fillStyle = `rgba(${flashColor[0]},${flashColor[1]},${flashColor[2]},${flashIntensity * 0.25})`;
+    ctx.fillRect(0, 0, W, H);
+    flashIntensity *= 0.92;
+  } else {
+    flashIntensity = 0;
+  }
+
+  // Subtle vignette
+  const vig = ctx.createRadialGradient(W / 2, H / 2, W * 0.25, W / 2, H / 2, W * 0.75);
+  vig.addColorStop(0, 'transparent');
+  vig.addColorStop(1, 'rgba(0,0,0,0.4)');
+  ctx.fillStyle = vig;
+  ctx.fillRect(0, 0, W, H);
+
+  requestAnimationFrame(animate);
+}
+
+requestAnimationFrame(animate);
+</script>
+</body>
+</html>

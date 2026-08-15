@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Neon Signage</title>
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 100%; height: 100%;
+    overflow: hidden;
+    background: #0a0a0a;
+  }
+
+  body {
+    background-color: #1a1210;
+    background-image:
+      repeating-linear-gradient(
+        to bottom,
+        transparent 0px,
+        transparent 38px,
+        rgba(0,0,0,0.55) 38px,
+        rgba(0,0,0,0.55) 42px
+      ),
+      repeating-linear-gradient(
+        to right,
+        transparent 0px,
+        transparent 72px,
+        rgba(0,0,0,0.45) 72px,
+        rgba(0,0,0,0.45) 76px
+      ),
+      linear-gradient(135deg, #2a1a14 0%, #1e1410 50%, #16100c 100%);
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background:
+      repeating-linear-gradient(
+        to bottom,
+        transparent 0px,
+        transparent 38px,
+        rgba(0,0,0,0.55) 38px,
+        rgba(0,0,0,0.55) 42px
+      ),
+      repeating-linear-gradient(
+        to right,
+        transparent 0px,
+        transparent 72px,
+        rgba(0,0,0,0.4) 72px,
+        rgba(0,0,0,0.4) 76px
+      );
+    background-position: 0 0, 38px 19px;
+    background-size: 100% 42px, 76px 42px;
+    pointer-events: none;
+    opacity: 0.5;
+  }
+
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(ellipse at center, transparent 30%, rgba(0,0,0,0.7) 100%);
+    pointer-events: none;
+  }
+
+  canvas {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    cursor: pointer;
+  }
+
+  .hint {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: rgba(255,255,255,0.25);
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    pointer-events: none;
+    z-index: 10;
+    animation: hintFade 4s ease-in-out infinite;
+  }
+
+  @keyframes hintFade {
+    0%, 100% { opacity: 0.25; }
+    50% { opacity: 0.5; }
+  }
+</style>
+</head>
+<body>
+<canvas id="neon"></canvas>
+<div class="hint">click for power surge · hover to stabilize</div>
+<script>
+(function() {
+  'use strict';
+
+  /* ── Relative segment path definitions ── */
+
+  const LETTERS = {
+    O: [
+      [-0.5, -0.5, -0.5,  0.5],
+      [-0.5,  0.5,  0.5,  0.5],
+      [ 0.5,  0.5,  0.5, -0.5],
+      [ 0.5, -0.5, -0.5, -0.5]
+    ],
+    P: [
+      [-0.5, -0.5,  0.3, -0.5],
+      [ 0.3, -0.5,  0.3,  0.0],
+      [ 0.3,  0.0, -0.5,  0.0],
+      [-0.5,  0.0, -0.5,  0.5],
+      [-0.5,  0.5,  0.3,  0.5],
+      [ 0.3,  0.5,  0.3,  0.0]
+    ],
+    E: [
+      [-0.5, -0.5,  0.5, -0.5],
+      [-0.5, -0.5, -0.5,  0.5],
+      [-0.5,  0.0,  0.3,  0.0],
+      [-0.5,  0.5,  0.5,  0.5]
+    ],
+    N: [
+      [-0.5,  0.5, -0.5, -0.5],
+      [-0.5, -0.5,  0.5,  0.5],
+      [ 0.5,  0.5,  0.5, -0.5]
+    ]
+  };
+
+  const BORDER = [
+    { rx1: -1.0, ry1: -0.65, rx2:  1.0, ry2: -0.65, color: 'pink' },
+    { rx1:  1.0, ry1: -0.65, rx2:  1.0, ry2:  0.65, color: 'pink' },
+    { rx1:  1.0, ry1:  0.65, rx2: -1.0, ry2:  0.65, color: 'pink' },
+    { rx1: -1.0, ry1:  0.65, rx2: -1.0, ry2: -0.65, color: 'pink' },
+    { rx1: -1.15, ry1: -0.65, rx2: -0.85, ry2: -0.65, color: 'pink' },
+    { rx1:  0.85, ry1: -0.65, rx2:  1.15, ry2: -0.65, color: 'pink' },
+    { rx1: -1.15, ry1:  0.65, rx2: -0.85, ry2:  0.65, color: 'pink' },
+    { rx1:  0.85, ry1:  0.65, rx2:  1.15, ry2:  0.65, color: 'pink' },
+    { rx1: -1.0, ry1: -0.8, rx2: -1.0, ry2: -0.5, color: 'pink' },
+    { rx1:  1.0, ry1: -0.8, rx2:  1.0, ry2: -0.5, color: 'pink' },
+    { rx1: -1.0, ry1:  0.5, rx2: -1.0, ry2:  0.8, color: 'pink' },
+    { rx1:  1.0, ry1:  0.5, rx2:  1.0, ry2:  0.8, color: 'pink' }
+  ];
+
+  const TEXT_247 = [
+    { rx1:  0.55, ry1: -0.2, rx2:  0.85, ry2: -0.2, color: 'cyan' },
+    { rx1:  0.85, ry1: -0.2, rx2:  0.85, ry2:  0.0, color: 'cyan' },
+    { rx1:  0.85, ry1:  0.0, rx2:  0.55, ry2:  0.2, color: 'cyan' },
+    { rx1:  0.55, ry1:  0.2, rx2:  0.25, ry2:  0.2, color: 'cyan' },
+    { rx1:  0.25, ry1:  0.2, rx2:  0.25, ry2:  0.0, color: 'cyan' },
+    { rx1:  0.25, ry1:  0.0, rx2:  0.55, ry2: -0.2, color: 'cyan' },
+    { rx1:  1.0, ry1:  0.2, rx2:  1.0, ry2: -0.2, color: 'cyan' },
+    { rx1:  1.0, ry1: -0.2, rx2:  1.3, ry2:  0.0, color: 'cyan' },
+    { rx1:  1.3, ry1:  0.0, rx2:  1.3, ry2: -0.2, color: 'cyan' },
+    { rx1:  0.8, ry1:  0.0, rx2:  1.3, ry2:  0.0, color: 'cyan' },
+    { rx1:  1.45, ry1: -0.2, rx2:  1.6, ry2:  0.2, color: 'cyan' },
+    { rx1:  1.7, ry1: -0.2, rx2:  2.0, ry2: -0.2, color: 'cyan' },
+    { rx1:  2.0, ry1: -0.2, rx2:  1.75, ry2:  0.2, color: 'cyan' },
+    { rx1:  1.8, ry1:  0.0, rx2:  1.95, ry2:  0.0, color: 'cyan' }
+  ];
+
+  /* ── Canvas setup ── */
+  const canvas = document.getElementById('neon');
+  const ctx = canvas.getContext('2d');
+
+  /* ── Neon styling ── */
+  const COLORS = {
+    pink: { base: '#ff0080', glow: 'rgba(255,0,128,', bright: '#ff4da8' },
+    cyan: { base: '#00c8ff', glow: 'rgba(0,200,255,', bright: '#66e0ff' }
+  };
+
+  const TUBE_WIDTH = 4;
+  const GLOW_WIDTH = 12;
+
+  /* ── Segment data ── */
+  let segments = [];
+  let powerSurge = { active: false, intensity: 0, duration: 0 };
+  let activeSurgeSegments = [];
+  let mouseX = -9999, mouseY = -9999;
+  let stabilizedSegments = new Set();
+
+  /* ── Flicker system ── */
+  let flickerTimers = [];
+
+  function scheduleFlicker(seg, i) {
+    const delay = 80 + Math.random() * 2500;
+    const t = setTimeout(() => {
+      seg.on = Math.random() > 0.12;
+      scheduleFlicker(seg, i);
+    }, delay);
+    flickerTimers[i] = t;
+  }
+
+  /* ── Initialize segment positions ── */
+  function initPositions() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    const W = canvas.width;
+    const H = canvas.height;
+
+    const signW = Math.min(W * 0.72, 900);
+    const signH = Math.min(H * 0.55, 520);
+    const signX = (W - signW) / 2;
+    const signY = (H - signH) / 2;
+
+    const letterW = signW / 5;
+    const letterH = signH * 0.72;
+    const letterGap = signW / 5;
+    const letterStartX = signX + letterGap * 0.5;
+
+    segments = [];
+
+    const letterNames = ['O', 'P', 'E', 'N'];
+    const letterColors = ['pink', 'cyan', 'pink', 'cyan'];
+
+    for (let li = 0; li < letterNames.length; li++) {
+      const name = letterNames[li];
+      const color = letterColors[li];
+      const lx = letterStartX + li * letterGap;
+      const ly = signY + signH * 0.14;
+
+      for (const seg of LETTERS[name]) {
+        segments.push({
+          rx1: seg[0], ry1: seg[1], rx2: seg[2], ry2: seg[3],
+          x1: lx + seg[0] * letterW * 0.5,
+          y1: ly + seg[1] * letterH * 0.5,
+          x2: lx + seg[2] * letterW * 0.5,
+          y2: ly + seg[3] * letterH * 0.5,
+          color: color,
+          on: true,
+          flickerTimer: 0
+        });
+      }
+    }
+
+    const bx = signX + signW * 0.5;
+    const by = signY + signH * 0.5;
+    for (const seg of BORDER) {
+      segments.push({
+        rx1: seg.rx1, ry1: seg.ry1, rx2: seg.rx2, ry2: seg.ry2,
+        x1: bx + seg.rx1 * signW * 0.5,
+        y1: by + seg.ry1 * signH * 0.5,
+        x2: bx + seg.rx2 * signW * 0.5,
+        y2: by + seg.ry2 * signH * 0.5,
+        color: seg.color,
+        on: true,
+        flickerTimer: 0
+      });
+    }
+
+    const tx = signX + signW * 0.5;
+    const ty = signY + signH * 0.82;
+    const tScale = Math.min(signW, signH) * 0.06;
+    for (const seg of TEXT_247) {
+      segments.push({
+        rx1: seg.rx1, ry1: seg.ry1, rx2: seg.rx2, ry2: seg.ry2,
+        x1: tx + seg.rx1 * tScale,
+        y1: ty + seg.ry1 * tScale,
+        x2: tx + seg.rx2 * tScale,
+        y2: ty + seg.ry2 * tScale,
+        color: seg.color,
+        on: true,
+        flickerTimer: 0
+      });
+    }
+
+    for (const seg of segments) {
+      seg.on = Math.random() > 0.15;
+    }
+
+    for (const t of flickerTimers) clearTimeout(t);
+    flickerTimers = [];
+
+    for (let i = 0; i < segments.length; i++) {
+      scheduleFlicker(segments[i], i);
+    }
+  }
+
+  /* ── Drawing ── */
+
+  function drawGlow(seg, alpha) {
+    const c = COLORS[seg.color];
+    const layers = [
+      { blur: GLOW_WIDTH * 4, width: GLOW_WIDTH * 2.5, a: alpha * 0.12 },
+      { blur: GLOW_WIDTH * 2.5, width: GLOW_WIDTH * 1.8, a: alpha * 0.2 },
+      { blur: GLOW_WIDTH * 1.5, width: GLOW_WIDTH * 1.2, a: alpha * 0.35 },
+      { blur: GLOW_WIDTH * 0.8, width: GLOW_WIDTH * 0.7, a: alpha * 0.5 }
+    ];
+
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    for (const layer of layers) {
+      ctx.shadowColor = c.glow + layer.a.toFixed(3) + ')';
+      ctx.shadowBlur = layer.blur;
+      ctx.strokeStyle = c.glow + (layer.a * 0.6).toFixed(3) + ')';
+      ctx.lineWidth = layer.width;
+      ctx.beginPath();
+      ctx.moveTo(seg.x1, seg.y1);
+      ctx.lineTo(seg.x2, seg.y2);
+      ctx.stroke();
+    }
+
+    ctx.restore();
+  }
+
+  function drawSegment(seg) {
+    if (!seg.on) return;
+
+    const c = COLORS[seg.color];
+
+    drawGlow(seg, 1.0);
+
+    if (powerSurge.active && activeSurgeSegments.has(seg)) {
+      const surgeAlpha = powerSurge.intensity * 0.9;
+      ctx.save();
+      ctx.lineCap = 'round';
+      ctx.shadowColor = 'rgba(255,255,255,' + surgeAlpha + ')';
+      ctx.shadowBlur = GLOW_WIDTH * 3;
+      ctx.strokeStyle = 'rgba(255,255,255,' + (surgeAlpha * 0.7) + ')';
+      ctx.lineWidth = GLOW_WIDTH * 1.5;
+      ctx.beginPath();
+      ctx.moveTo(seg.x1, seg.y1);
+      ctx.lineTo(seg.x2, seg.y2);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.shadowColor = c.bright;
+    ctx.shadowBlur = GLOW_WIDTH * 0.3;
+    ctx.strokeStyle = c.bright;
+    ctx.lineWidth = TUBE_WIDTH * 0.6;
+    ctx.beginPath();
+    ctx.moveTo(seg.x1, seg.y1);
+    ctx.lineTo(seg.x2, seg.y2);
+    ctx.stroke();
+    ctx.restore();
+
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = '#ffffff';
+    ctx.globalAlpha = 0.7;
+    ctx.lineWidth = TUBE_WIDTH * 0.25;
+    ctx.beginPath();
+    ctx.moveTo(seg.x1, seg.y1);
+    ctx.lineTo(seg.x2, seg.y2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  /* ── Update logic ── */
+
+  function update() {
+    if (powerSurge.active) {
+      powerSurge.duration -= 16;
+      if (powerSurge.duration <= 0) {
+        powerSurge.active = false;
+        powerSurge.intensity = 0;
+        activeSurgeSegments = [];
+      } else {
+        var progress = 1 - (powerSurge.duration / 1200);
+        powerSurge.intensity = Math.max(0, 1 - progress * 1.3);
+        for (var si = 0; si < segments.length; si++) {
+          if (!segments[si].on && Math.random() < 0.15) {
+            segments[si].on = true;
+            if (activeSurgeSegments.indexOf(segments[si]) === -1) {
+              activeSurgeSegments.push(segments[si]);
+            }
+          }
+        }
+      }
+    }
+
+    if (mouseX > -999) {
+      var threshold = 40;
+      for (var ji = 0; ji < segments.length; ji++) {
+        var seg = segments[ji];
+        var dx = (seg.x1 + seg.x2) / 2 - mouseX;
+        var dy = (seg.y1 + seg.y2) / 2 - mouseY;
+        var dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < threshold) {
+          if (!seg.on) {
+            seg.on = true;
+            stabilizedSegments.add(seg);
+          }
+        }
+      }
+    } else {
+      var stale = [];
+      stabilizedSegments.forEach(function(s) { stale.push(s); });
+      for (var ki = 0; ki < stale.length; ki++) {
+        if (Math.random() > 0.3) stale[ki].on = false;
+      }
+      stabilizedSegments.clear();
+    }
+  }
+
+  /* ── Animation loop ── */
+
+  function animate() {
+    update();
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    for (var i = 0; i < segments.length; i++) {
+      drawSegment(segments[i]);
+    }
+
+    requestAnimationFrame(animate);
+  }
+
+  /* ── Events ── */
+
+  canvas.addEventListener('click', function() {
+    powerSurge = { active: true, intensity: 1, duration: 1200 };
+    activeSurgeSegments = segments.slice();
+    for (var i = 0; i < segments.length; i++) {
+      segments[i].on = true;
+    }
+  });
+
+  canvas.addEventListener('mousemove', function(e) {
+    mouseX = e.clientX;
+    mouseY = e.clientY;
+  });
+
+  canvas.addEventListener('mouseleave', function() {
+    mouseX = -9999;
+    mouseY = -9999;
+  });
+
+  canvas.addEventListener('touchstart', function(e) {
+    e.preventDefault();
+    var touch = e.touches[0];
+    mouseX = touch.clientX;
+    mouseY = touch.clientY;
+    powerSurge = { active: true, intensity: 1, duration: 1200 };
+    activeSurgeSegments = segments.slice();
+    for (var i = 0; i < segments.length; i++) segments[i].on = true;
+  }, { passive: false });
+
+  canvas.addEventListener('touchmove', function(e) {
+    e.preventDefault();
+    var touch = e.touches[0];
+    mouseX = touch.clientX;
+    mouseY = touch.clientY;
+  }, { passive: false });
+
+  canvas.addEventListener('touchend', function() {
+    mouseX = -9999;
+    mouseY = -9999;
+  });
+
+  window.addEventListener('resize', initPositions);
+
+  /* ── Start ── */
+  initPositions();
+  requestAnimationFrame(animate);
+
+})();
+</script>
+</body>
+</html>

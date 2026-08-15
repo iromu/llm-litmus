@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Circuit Board</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{min-height:100vh;background:#040d04;overflow:hidden;font-family:monospace}
+canvas{display:block;position:fixed;top:0;left:0}
+.title{position:fixed;bottom:28px;left:50%;transform:translateX(-50%);font-size:clamp(0.8rem,2vw,1.2rem);color:rgba(0,255,65,0.25);letter-spacing:0.4em;text-transform:uppercase;z-index:2;pointer-events:none;text-shadow:0 0 20px rgba(0,255,65,0.15)}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div class="title">Circuit Board</div>
+<script>
+const c=document.getElementById('c'),ctx=c.getContext('2d');
+let W,H,nodes=[],traces=[],pulses=[];
+const GRID_SPACING=80,CONN_DIST=160,PULSE_SPEED=0.012;
+
+function resize(){
+  W=c.width=window.innerWidth;H=c.height=window.innerHeight;
+  init();
+}
+
+function pulse(t,phase){
+  return 0.5+0.5*Math.sin(t*0.003+phase);
+}
+
+function init(){
+  nodes=[];traces=[];pulses=[];
+  const cols=Math.ceil(W/GRID_SPACING)+2;
+  const rows=Math.ceil(H/GRID_SPACING)+2;
+  for(let r=0;r<rows;r++){
+    for(let col=0;col<cols;col++){
+      if(Math.random()<0.35)continue;
+      const baseX=col*GRID_SPACING+GRID_SPACING/2;
+      const baseY=r*GRID_SPACING+GRID_SPACING/2;
+      const jitter=25;
+      const x=baseX+(Math.random()-0.5)*jitter*2;
+      const y=baseY+(Math.random()-0.5)*jitter*2;
+      nodes.push({
+        x,y,
+        r:Math.random()*2.5+2,
+        phase:Math.random()*Math.PI*2,
+        type:Math.random()<0.2?'via':'pad'
+      });
+    }
+  }
+  for(let i=0;i<nodes.length;i++){
+    for(let j=i+1;j<nodes.length;j++){
+      const dx=nodes[i].x-nodes[j].x;
+      const dy=nodes[i].y-nodes[j].y;
+      const dist=Math.sqrt(dx*dx+dy*dy);
+      if(dist<CONN_DIST&&dist>GRID_SPACING*0.5){
+        const conn=Math.random();
+        if(conn<0.3){
+          traces.push({a:i,b:j,style:'straight',pulsePhase:Math.random()*Math.PI*2,intensity:Math.random()*0.4+0.3});
+        }else if(conn<0.55){
+          const mx=(nodes[i].x+nodes[j].x)/2+(Math.random()-0.5)*40;
+          const my=(nodes[i].y+nodes[j].y)/2+(Math.random()-0.5)*40;
+          traces.push({a:i,b:j,style:'bend',mx,my,pulsePhase:Math.random()*Math.PI*2,intensity:Math.random()*0.4+0.3});
+        }else if(conn<0.7){
+          const perpX=-(nodes[j].y-nodes[i].y);
+          const perpY=(nodes[j].x-nodes[i].x);
+          const len=Math.sqrt(perpX*perpX+perpY*perpY)||1;
+          const offset=(Math.random()-0.5)*30;
+          const mx=(nodes[i].x+nodes[j].x)/2+(perpX/len)*offset;
+          const my=(nodes[i].y+nodes[j].y)/2+(perpY/len)*offset;
+          traces.push({a:i,b:j,style:'bend',mx,my,pulsePhase:Math.random()*Math.PI*2,intensity:Math.random()*0.4+0.3});
+        }
+      }
+    }
+  }
+  traces.forEach(tr=>{
+    const np=Math.random()<0.5?2:1;
+    for(let k=0;k<np;k++){
+      pulses.push({trace:tr,pos:Math.random(),speed:PULSE_SPEED*(0.5+Math.random()),size:Math.random()*1.5+1.5,phase:Math.random()*Math.PI*2});
+    }
+  });
+}
+
+function drawTrace(tr,t){
+  const p=pulse(t,tr.pulsePhase);
+  const alpha=tr.intensity*(0.4+p*0.6);
+  const ni=nodes[tr.a],nj=nodes[tr.b];
+  ctx.strokeStyle=`rgba(0,${Math.floor(200+p*55)},${Math.floor(40+p*25)},${alpha*0.6})`;
+  ctx.lineWidth=1.2;
+  ctx.shadowColor=`rgba(0,255,65,${alpha*0.5})`;
+  ctx.shadowBlur=8;
+  ctx.beginPath();
+  if(tr.style==='straight'){
+    ctx.moveTo(ni.x,ni.y);ctx.lineTo(nj.x,nj.y);
+  }else{
+    ctx.moveTo(ni.x,ni.y);
+    ctx.lineTo(tr.mx,tr.my);
+    ctx.lineTo(nj.x,nj.y);
+  }
+  ctx.stroke();
+  ctx.shadowBlur=0;
+}
+
+function tracePoint(tr,pos){
+  const ni=nodes[tr.a],nj=nodes[tr.b];
+  if(tr.style==='straight'){
+    return{x:ni.x+(nj.x-ni.x)*pos,y:ni.y+(nj.y-ni.y)*pos};
+  }else{
+    if(pos<0.5){
+      const s=pos*2;
+      return{x:ni.x+(tr.mx-ni.x)*s,y:ni.y+(tr.my-ni.y)*s};
+    }else{
+      const s=(pos-0.5)*2;
+      return{x:tr.mx+(nj.x-tr.mx)*s,y:tr.my+(nj.y-tr.my)*s};
+    }
+  }
+}
+
+function drawPulses(t){
+  pulses.forEach(p=>{
+    p.pos+=p.speed;
+    if(p.pos>1)p.pos-=1;
+    const pt=tracePoint(p.trace,p.pos);
+    const glow=pulse(t,p.phase);
+    const sz=p.size*(0.8+glow*0.4);
+    const g=ctx.createRadialGradient(pt.x,pt.y,0,pt.x,pt.y,sz*4);
+    g.addColorStop(0,`rgba(0,255,80,${0.9*glow})`);
+    g.addColorStop(0.3,`rgba(0,255,65,${0.4*glow})`);
+    g.addColorStop(1,'rgba(0,255,65,0)');
+    ctx.fillStyle=g;
+    ctx.fillRect(pt.x-sz*4,pt.y-sz*4,sz*8,sz*8);
+    ctx.beginPath();
+    ctx.arc(pt.x,pt.y,sz*0.5,0,Math.PI*2);
+    ctx.fillStyle=`rgba(180,255,200,${0.7+glow*0.3})`;
+    ctx.fill();
+  });
+}
+
+function drawNodes(t){
+  nodes.forEach(n=>{
+    const glow=pulse(t,n.phase);
+    const alpha=0.3+glow*0.7;
+    if(n.type==='via'){
+      const g=ctx.createRadialGradient(n.x,n.y,0,n.x,n.y,n.r*5);
+      g.addColorStop(0,`rgba(0,255,65,${alpha*0.8})`);
+      g.addColorStop(0.4,`rgba(0,200,50,${alpha*0.3})`);
+      g.addColorStop(1,'rgba(0,255,65,0)');
+      ctx.fillStyle=g;
+      ctx.beginPath();
+      ctx.arc(n.x,n.y,n.r*5,0,Math.PI*2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(n.x,n.y,n.r*0.6,0,Math.PI*2);
+      ctx.fillStyle=`rgba(0,255,65,${alpha})`;
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(n.x,n.y,n.r*1.2,0,Math.PI*2);
+      ctx.strokeStyle=`rgba(0,255,65,${alpha*0.5})`;
+      ctx.lineWidth=0.8;
+      ctx.stroke();
+    }else{
+      const g=ctx.createRadialGradient(n.x,n.y,0,n.x,n.y,n.r*3);
+      g.addColorStop(0,`rgba(0,255,65,${alpha*0.6})`);
+      g.addColorStop(1,'rgba(0,255,65,0)');
+      ctx.fillStyle=g;
+      ctx.beginPath();
+      ctx.arc(n.x,n.y,n.r*3,0,Math.PI*2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(n.x,n.y,n.r,0,Math.PI*2);
+      ctx.fillStyle=`rgba(0,255,65,${alpha*0.9})`;
+      ctx.fill();
+    }
+  });
+}
+
+function drawGrid(t){
+  ctx.strokeStyle='rgba(0,60,15,0.08)';
+  ctx.lineWidth=0.5;
+  for(let x=0;x<W;x+=GRID_SPACING){
+    ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();
+  }
+  for(let y=0;y<H;y+=GRID_SPACING){
+    ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();
+  }
+}
+
+let lastTime=0;
+function animate(t){
+  ctx.fillStyle='rgba(4,13,4,0.18)';
+  ctx.fillRect(0,0,W,H);
+  drawGrid(t);
+  traces.forEach(tr=>drawTrace(tr,t));
+  drawPulses(t);
+  drawNodes(t);
+  requestAnimationFrame(animate);
+}
+
+window.addEventListener('resize',resize);
+resize();
+requestAnimationFrame(animate);
+</script>
+</body>
+</html>

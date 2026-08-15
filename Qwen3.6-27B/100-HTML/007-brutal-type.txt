@@ -1,0 +1,16 @@
+# Brutal Type
+
+## Creative Prompt
+Create a brutalist typography showcase page with raw, unapologetic design. Three massive staggered title lines in contrasting colors (red, white, blue) with glitch animations. The first line is filled red, the second is outlined white, the third is filled blue. A noise texture overlay and scanning scanline add grit. A stats grid with animated bottom bars shows typographic metrics. An italic quote with citation adds editorial weight. A two-column description block explains the brutalist philosophy. Monospace labels and heavy Impact fonts throughout. The aesthetic is raw, industrial, and confrontational.
+
+## Techniques Used
+- SVG noise texture with feTurbulence as CSS background
+- CSS glitch keyframe animations on title lines
+- Scanline pseudo-element animation
+- Animated progress bars on stat items with staggered delays
+- -webkit-text-stroke for outline text
+- Responsive grid with minimal gap
+- Click-triggered animation reset via JavaScript
+
+## Interaction Model
+Click anywhere resets the glitch animations for intensification. Stats bars pulse continuously. Scanline scrolls infinitely. Noise texture provides analog feel.

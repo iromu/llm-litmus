@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zen Garden</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{min-height:100vh;background:#e8d5b7;overflow:hidden;font-family:Georgia,serif;position:relative}
+.sand{position:fixed;top:0;left:0;width:100%;height:100%;background:repeating-linear-gradient(0deg,transparent,transparent 18px,rgba(180,160,130,0.15) 18px,rgba(180,160,130,0.15) 19px)}
+.garden{position:relative;width:100vw;height:100vh;display:flex;align-items:center;justify-content:center}
+.rock{position:absolute;cursor:pointer;transition:transform 0.5s ease,filter 0.3s ease;filter:drop-shadow(4px 6px 8px rgba(0,0,0,0.2))}
+.rock:hover{transform:translateY(-8px);filter:drop-shadow(6px 12px 16px rgba(0,0,0,0.3))}
+.rock svg{width:100%;height:100%}
+.rake-circle{position:absolute;border:1px solid rgba(180,160,130,0.3);border-radius:50%;pointer-events:none}
+.bamboo{position:absolute;right:8%;top:10%;display:flex;gap:20px}
+.stalk{width:8px;height:60%;background:linear-gradient(180deg,#5a7a3a,#3d5a28);border-radius:4px;position:relative}
+.stalk::before{content:'';position:absolute;top:0;left:-4px;width:16px;height:4px;background:#4a6a2a;border-radius:2px}
+.stalk:nth-child(2){height:50%;margin-top:10%}
+.stalk:nth-child(3){height:45%;margin-top:15%}
+.step-stones{position:absolute;left:10%;bottom:20%;display:flex;flex-direction:column;gap:30px;align-items:center}
+.step{width:40px;height:12px;background:radial-gradient(ellipse,#8a8a7a,#6a6a5a);border-radius:50%;box-shadow:0 2px 4px rgba(0,0,0,0.15)}
+.title{position:absolute;bottom:8%;left:50%;transform:translateX(-50%);font-size:1.2rem;color:rgba(100,80,60,0.5);letter-spacing:0.3em;text-transform:uppercase;font-weight:300}
+</style>
+</head>
+<body>
+<div class="sand"></div>
+<div class="garden" id="garden">
+<div class="rake-circle" style="width:200px;height:200px;top:40%;left:35%"></div>
+<div class="rake-circle" style="width:280px;height:280px;top:36%;left:31%"></div>
+<div class="rake-circle" style="width:360px;height:360px;top:32%;left:27%"></div>
+<div class="rock" style="top:38%;left:42%;width:80px;height:60px">
+<svg viewBox="0 0 80 60"><path d="M10,45 Q5,30 15,20 Q25,8 40,5 Q55,3 65,12 Q75,20 78,35 Q80,50 60,55 Q40,58 20,52 Z" fill="#7a7a6a" stroke="rgba(255,255,255,0.2)" stroke-width="0.5"/><path d="M15,35 Q25,25 40,22 Q50,20 58,28" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="0.5"/></svg>
+</div>
+<div class="rock" style="top:45%;left:50%;width:60px;height:50px">
+<svg viewBox="0 0 60 50"><path d="M8,35 Q2,22 12,15 Q22,5 35,3 Q48,2 55,12 Q60,22 58,35 Q55,45 35,48 Q15,48 8,35 Z" fill="#6a6a5a" stroke="rgba(255,255,255,0.2)" stroke-width="0.5"/></svg>
+</div>
+<div class="rock" style="top:35%;left:55%;width:45px;height:40px">
+<svg viewBox="0 0 45 40"><path d="M5,28 Q0,18 8,12 Q16,4 25,2 Q34,1 40,8 Q44,15 43,25 Q42,35 25,38 Q10,38 5,28 Z" fill="#8a8a7a" stroke="rgba(255,255,255,0.2)" stroke-width="0.5"/></svg>
+</div>
+<div class="rock" style="top:50%;left:40%;width:35px;height:30px">
+<svg viewBox="0 0 35 30"><path d="M4,22 Q0,14 6,8 Q12,2 18,1 Q24,0 28,5 Q32,10 31,18 Q30,26 18,28 Q6,28 4,22 Z" fill="#5a5a4a" stroke="rgba(255,255,255,0.2)" stroke-width="0.5"/></svg>
+</div>
+<div class="rock" style="top:42%;left:60%;width:50px;height:35px">
+<svg viewBox="0 0 50 35"><path d="M5,25 Q0,16 8,10 Q16,3 25,1 Q34,0 42,6 Q48,12 47,22 Q46,32 25,34 Q8,34 5,25 Z" fill="#7a7a6a" stroke="rgba(255,255,255,0.2)" stroke-width="0.5"/></svg>
+</div>
+<div class="bamboo">
+<div class="stalk"></div>
+<div class="stalk"></div>
+<div class="stalk"></div>
+</div>
+<div class="step-stones">
+<div class="step"></div>
+<div class="step"></div>
+<div class="step"></div>
+<div class="step"></div>
+</div>
+<div class="title">Zen Garden</div>
+</div>
+<script>
+const garden=document.getElementById('garden');
+document.querySelectorAll('.rock').forEach(rock=>{rock.addEventListener('mousemove',e=>{const rect=rock.getBoundingClientRect();const x=(e.clientX-rect.left-rect.width/2)/20;const y=(e.clientY-rect.top-rect.height/2)/20;rock.style.transform=`translate(${x}px,${y}px)`})});
+document.querySelectorAll('.rock').forEach(rock=>{rock.addEventListener('mouseleave',()=>{rock.style.transform=''})});
+</script>
+</body>
+</html>

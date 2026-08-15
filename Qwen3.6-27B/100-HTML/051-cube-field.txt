@@ -1,0 +1,24 @@
+# Cube Field
+
+## Creative Prompt
+Create a 3D wireframe cube cluster visualization. Multiple wireframe cubes float in 3D space, rotating independently. The cubes have glowing edges and vertices. The scene has a dark background with a subtle grid floor. Mouse movement controls the camera rotation. The overall aesthetic is geometric, futuristic, and spatial — like a 3D wireframe art installation.
+
+## Techniques Used
+- Canvas 3D cube rendering with perspective projection
+- Rotation matrices for independent cube rotation (X, Y, Z axes)
+- Wireframe edge rendering with CSS shadow glow
+- Vertex rendering with radial gradients for luminous dots
+- Perspective grid floor with depth-based alpha fading
+- Mouse-driven smooth camera rotation with damping
+- Depth sorting for correct back-to-front rendering order
+- Multiple cube instances with varying sizes and hue colors
+- Floating animation with per-cube phase offset
+- Inter-cube connection lines based on projected distance
+- Ambient floating particles for atmospheric depth
+- Subtle vignette overlay for cinematic framing
+- Auto-drift camera when idle
+- Touch support for mobile interaction
+- Responsive canvas with devicePixelRatio scaling
+
+## Interaction Model
+Mouse movement rotates the camera view around the cube cluster with smooth damping. Touch drag works on mobile. Cubes rotate independently on all three axes at varying speeds. The camera slowly auto-drifts when idle. The scene is continuously animated with floating cubes, drifting particles, and pulsing vertex glow.

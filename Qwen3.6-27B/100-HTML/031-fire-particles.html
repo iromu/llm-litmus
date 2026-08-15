@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fire Particles</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: #0a0000; }
+canvas { display: block; width: 100%; height: 100%; cursor: none; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+let W, H;
+function resize() {
+    W = canvas.width = window.innerWidth * devicePixelRatio;
+    H = canvas.height = window.innerHeight * devicePixelRatio;
+    canvas.style.width = window.innerWidth + 'px';
+    canvas.style.height = window.innerHeight + 'px';
+}
+resize();
+window.addEventListener('resize', resize);
+
+const dpr = devicePixelRatio;
+const MAX_PARTICLES = 2000;
+const particles = [];
+
+let mouseX = -1000, mouseY = -1000;
+let mouseActive = false;
+let lastMouseX = 0, lastMouseY = 0;
+
+class Particle {
+    constructor(x, y, burst = false) {
+        this.x = x;
+        this.y = y;
+        this.vx = (Math.random() - 0.5) * (burst ? 6 : 2.5);
+        this.vy = -(Math.random() * 4 + 3) * (burst ? 1.8 : 1);
+        this.life = 1.0;
+        this.decay = 0.008 + Math.random() * 0.012;
+        this.size = (Math.random() * 8 + 4) * (burst ? 1.5 : 1);
+        this.wobbleAmp = Math.random() * 1.5 + 0.5;
+        this.wobbleSpeed = Math.random() * 0.08 + 0.04;
+        this.wobblePhase = Math.random() * Math.PI * 2;
+        this.hue = 10 + Math.random() * 40;
+        this.saturation = 85 + Math.random() * 15;
+        this.lightness = 45 + Math.random() * 25;
+        this.glowSize = this.size * (2.5 + Math.random() * 2);
+    }
+
+    update() {
+        this.wobblePhase += this.wobbleSpeed;
+        this.vx += Math.sin(this.wobblePhase) * this.wobbleAmp * 0.02;
+        this.vy -= 0.04;
+        this.vx *= 0.99;
+        this.x += this.vx;
+        this.y += this.vy;
+        this.life -= this.decay;
+        this.size *= 0.997;
+    }
+
+    draw() {
+        const alpha = this.life * this.life;
+        const currentHue = this.hue * this.life;
+        const currentSat = this.saturation;
+        const currentLight = this.lightness * (0.3 + this.life * 0.7);
+
+        // Outer glow
+        const glow = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.glowSize * this.life);
+        glow.addColorStop(0, `hsla(${currentHue}, ${currentSat}%, ${currentLight}%, ${alpha * 0.4})`);
+        glow.addColorStop(0.4, `hsla(${currentHue}, ${currentSat}%, ${currentLight * 0.6}%, ${alpha * 0.15})`);
+        glow.addColorStop(1, `hsla(${currentHue}, ${currentSat}%, 0%, 0)`);
+        ctx.fillStyle = glow;
+        ctx.fillRect(this.x - this.glowSize * this.life, this.y - this.glowSize * this.life,
+                     this.glowSize * 2 * this.life, this.glowSize * 2 * this.life);
+
+        // Bright core
+        const coreSize = this.size * this.life * 0.5;
+        const core = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, coreSize);
+        core.addColorStop(0, `hsla(60, 100%, 95%, ${alpha * 0.9})`);
+        core.addColorStop(0.3, `hsla(${currentHue}, 100%, ${currentLight + 15}%, ${alpha * 0.7})`);
+        core.addColorStop(1, `hsla(${currentHue}, ${currentSat}%, ${currentLight}%, 0)`);
+        ctx.fillStyle = core;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, coreSize, 0, Math.PI * 2);
+        ctx.fill();
+    }
+}
+
+function spawn(x, y, count = 3) {
+    for (let i = 0; i < count; i++) {
+        if (particles.length >= MAX_PARTICLES) {
+            particles.shift();
+        }
+        const offsetX = (Math.random() - 0.5) * 12;
+        const offsetY = (Math.random() - 0.5) * 8;
+        particles.push(new Particle(x + offsetX, y + offsetY));
+    }
+}
+
+function burst(x, y) {
+    for (let i = 0; i < 80; i++) {
+        if (particles.length >= MAX_PARTICLES) {
+            particles.shift();
+        }
+        particles.push(new Particle(x, y, true));
+    }
+}
+
+// Mouse tracking
+canvas.addEventListener('mousemove', (e) => {
+    mouseX = e.clientX * dpr;
+    mouseY = e.clientY * dpr;
+    mouseActive = true;
+});
+
+canvas.addEventListener('mouseleave', () => {
+    mouseActive = false;
+});
+
+canvas.addEventListener('click', (e) => {
+    burst(e.clientX * dpr, e.clientY * dpr);
+});
+
+// Touch support
+canvas.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    const t = e.touches[0];
+    mouseX = t.clientX * dpr;
+    mouseY = t.clientY * dpr;
+    mouseActive = true;
+}, { passive: false });
+
+canvas.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    const t = e.touches[0];
+    mouseX = t.clientX * dpr;
+    mouseY = t.clientY * dpr;
+    mouseActive = true;
+    burst(t.clientX * dpr, t.clientY * dpr);
+}, { passive: false });
+
+canvas.addEventListener('touchend', () => {
+    mouseActive = false;
+});
+
+// Ambient fire sources at the bottom
+const ambientSources = [];
+function initAmbient() {
+    ambientSources.length = 0;
+    const count = Math.max(5, Math.floor(W / 120));
+    for (let i = 0; i < count; i++) {
+        ambientSources.push({
+            x: (W / (count + 1)) * (i + 1) + (Math.random() - 0.5) * 80,
+            intensity: 0.5 + Math.random() * 0.5,
+            phase: Math.random() * Math.PI * 2
+        });
+    }
+}
+initAmbient();
+window.addEventListener('resize', initAmbient);
+
+let frame = 0;
+
+function animate() {
+    frame++;
+
+    // Trailing background — dark red-black with slight transparency
+    ctx.fillStyle = 'rgba(10, 0, 0, 0.12)';
+    ctx.fillRect(0, 0, W, H);
+
+    // Mouse-follow spawning
+    if (mouseActive) {
+        const dx = mouseX - lastMouseX;
+        const dy = mouseY - lastMouseY;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        const steps = Math.max(1, Math.floor(dist / 8));
+        for (let i = 0; i <= steps; i++) {
+            const t = steps === 0 ? 0 : i / steps;
+            spawn(lastMouseX + dx * t, lastMouseY + dy * t, 4);
+        }
+        lastMouseX = mouseX;
+        lastMouseY = mouseY;
+    }
+
+    // Ambient fire at bottom
+    for (const src of ambientSources) {
+        src.phase += 0.02;
+        const flicker = Math.sin(src.phase) * 0.3 + 0.7;
+        const rate = src.intensity * flicker;
+        if (Math.random() < rate * 0.6) {
+            const spread = Math.sin(frame * 0.01 + src.phase) * 30;
+            spawn(src.x + spread, H - Math.random() * 20, 1);
+        }
+    }
+
+    // Update and draw particles
+    for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.update();
+        if (p.life <= 0) {
+            particles.splice(i, 1);
+        } else {
+            p.draw();
+        }
+    }
+
+    // Cursor glow
+    if (mouseActive) {
+        const cursorGlow = ctx.createRadialGradient(mouseX, mouseY, 0, mouseX, mouseY, 40);
+        cursorGlow.addColorStop(0, 'rgba(255, 200, 80, 0.25)');
+        cursorGlow.addColorStop(0.5, 'rgba(255, 100, 20, 0.1)');
+        cursorGlow.addColorStop(1, 'rgba(255, 50, 0, 0)');
+        ctx.fillStyle = cursorGlow;
+        ctx.beginPath();
+        ctx.arc(mouseX, mouseY, 40, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    requestAnimationFrame(animate);
+}
+
+// Initial dark fill
+ctx.fillStyle = '#0a0000';
+ctx.fillRect(0, 0, W, H);
+
+animate();
+</script>
+</body>
+</html>

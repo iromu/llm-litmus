@@ -1,0 +1,20 @@
+# Pixel Art
+
+## Creative Prompt
+Create an evolving generative pixel canvas. A grid of pixels changes color over time following cellular automata rules. Each pixel has a color that evolves based on its neighbors, creating flowing, organic patterns. The color palette shifts through vibrant combinations. Clicking resets the grid with a new random seed. The overall aesthetic is retro, colorful, and generative — like a living pixel tapestry.
+
+## Techniques Used
+- Canvas pixel grid rendering with configurable cell size
+- Cellular automata evolution with birth/survival/mutation rules
+- Neighbor-based color propagation and dominant color inheritance
+- Seeded PRNG (mulberry32) for reproducible randomness
+- HSL-based vibrant color palette with smooth phase cycling
+- Toroidal wrapping for seamless edge behavior
+- Glow effect on cells based on active neighbor density
+- Subtle grid overlay for retro pixel aesthetic
+- Click-driven reinitialization with random seed
+- Responsive canvas with dynamic grid recalculation on resize
+- requestAnimationFrame with throttled step interval
+
+## Interaction Model
+Passive evolution — pixels change color and pattern following automata rules at a steady cadence. Click anywhere to reset the grid with a new random configuration and shift the color palette. The hint "click to reset" fades after initial display and reappears briefly on each reset.

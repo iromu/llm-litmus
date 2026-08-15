@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Folding Fan</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{min-height:100vh;overflow:hidden;background:#f5efe6}
+canvas{display:block;width:100vw;height:100vh}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let W, H, cx, cy, fanRadius, handleLen;
+const ribs = 12;
+
+function resize() {
+  const dpr = window.devicePixelRatio || 1;
+  W = window.innerWidth;
+  H = window.innerHeight;
+  canvas.width = W * dpr;
+  canvas.height = H * dpr;
+  canvas.style.width = W + 'px';
+  canvas.style.height = H + 'px';
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  cx = W / 2;
+  cy = H / 2 + H * 0.08;
+  fanRadius = Math.min(W, H) * 0.38;
+  handleLen = fanRadius * 0.55;
+}
+window.addEventListener('resize', resize);
+resize();
+
+// Washi paper texture — generated once
+const washiCanvas = document.createElement('canvas');
+const washiCtx = washiCanvas.getContext('2d');
+
+function generateWashi() {
+  washiCanvas.width = W;
+  washiCanvas.height = H;
+  washiCtx.fillStyle = '#f5efe6';
+  washiCtx.fillRect(0, 0, W, H);
+  // Fiber noise
+  for (let i = 0; i < 6000; i++) {
+    const x = Math.random() * W;
+    const y = Math.random() * H;
+    const a = Math.random() * 0.06;
+    washiCtx.strokeStyle = `rgba(${160 + Math.random()*40|0},${140 + Math.random()*30|0},${110 + Math.random()*25|0},${a})`;
+    washiCtx.lineWidth = Math.random() * 0.8 + 0.2;
+    washiCtx.beginPath();
+    washiCtx.moveTo(x, y);
+    washiCtx.lineTo(x + (Math.random() - 0.5) * 12, y + (Math.random() - 0.5) * 3);
+    washiCtx.stroke();
+  }
+  // Subtle specks
+  for (let i = 0; i < 2000; i++) {
+    const x = Math.random() * W;
+    const y = Math.random() * H;
+    const r = Math.random() * 1.2;
+    washiCtx.fillStyle = `rgba(${170 + Math.random()*50|0},${150 + Math.random()*40|0},${120 + Math.random()*30|0},${Math.random()*0.12})`;
+    washiCtx.beginPath();
+    washiCtx.arc(x, y, r, 0, Math.PI * 2);
+    washiCtx.fill();
+  }
+  // Subtle radial vignette
+  const vg = washiCtx.createRadialGradient(W/2, H/2, fanRadius * 0.5, W/2, H/2, Math.max(W, H) * 0.7);
+  vg.addColorStop(0, 'rgba(245,239,230,0)');
+  vg.addColorStop(1, 'rgba(180,160,130,0.12)');
+  washiCtx.fillStyle = vg;
+  washiCtx.fillRect(0, 0, W, H);
+}
+
+// Cherry blossom petal shape
+function drawPetal(x, y, size, angle, color, alpha) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  // Petal with notch at tip
+  ctx.moveTo(0, 0);
+  ctx.bezierCurveTo(size * 0.3, -size * 0.4, size * 0.8, -size * 0.6, size, -size * 0.1);
+  ctx.bezierCurveTo(size * 0.9, size * 0.05, size * 0.7, size * 0.15, size * 0.5, size * 0.1);
+  // Notch
+  ctx.lineTo(size * 0.45, size * 0.02);
+  ctx.lineTo(size * 0.5, -size * 0.05);
+  ctx.bezierCurveTo(size * 0.3, size * 0.15, size * 0.1, size * 0.25, 0, 0);
+  ctx.fill();
+  // Vein
+  ctx.strokeStyle = `rgba(180,60,80,${alpha * 0.3})`;
+  ctx.lineWidth = 0.5;
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(size * 0.7, -size * 0.15);
+  ctx.stroke();
+  ctx.restore();
+}
+
+// Full cherry blossom flower
+function drawBlossom(x, y, size, rotation) {
+  const petalColors = ['#f7c5d0', '#f5b0be', '#f8d0d8', '#f6c8d2', '#f4b8c4'];
+  const petalCount = 5;
+  for (let i = 0; i < petalCount; i++) {
+    const a = (i / petalCount) * Math.PI * 2 + rotation;
+    drawPetal(x, y, size, a, petalColors[i % petalColors.length], 0.85);
+  }
+  // Center
+  ctx.save();
+  ctx.translate(x, y);
+  const cg = ctx.createRadialGradient(0, 0, 0, 0, 0, size * 0.2);
+  cg.addColorStop(0, '#f0e050');
+  cg.addColorStop(0.5, '#e8c830');
+  cg.addColorStop(1, '#d4a020');
+  ctx.fillStyle = cg;
+  ctx.beginPath();
+  ctx.arc(0, 0, size * 0.18, 0, Math.PI * 2);
+  ctx.fill();
+  // Stamens
+  ctx.strokeStyle = 'rgba(200,140,40,0.6)';
+  ctx.lineWidth = 0.6;
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2 + rotation;
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(a) * size * 0.1, Math.sin(a) * size * 0.1);
+    ctx.lineTo(Math.cos(a) * size * 0.35, Math.sin(a) * size * 0.35);
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(220,160,50,0.7)';
+    ctx.beginPath();
+    ctx.arc(Math.cos(a) * size * 0.35, Math.sin(a) * size * 0.35, 1.2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+// Wave pattern (seigaiho-inspired)
+function drawWavePattern(fanAngle, openAngle) {
+  const waveRows = 5;
+  const waveCols = 8;
+  const startR = fanRadius * 0.25;
+  const endR = fanRadius * 0.88;
+  const rStep = (endR - startR) / waveRows;
+
+  for (let row = 0; row < waveRows; row++) {
+    const r = startR + row * rStep + rStep * 0.5;
+    const colsInRow = Math.floor(r / (fanRadius * 0.14));
+    for (let col = 0; col < colsInRow; col++) {
+      const a = fanAngle + (col / colsInRow) * openAngle;
+      const wx = cx + Math.cos(a) * r;
+      const wy = cy + Math.sin(a) * r;
+      const waveSize = fanRadius * 0.06;
+      const alpha = 0.15 + (row / waveRows) * 0.1;
+
+      ctx.save();
+      ctx.translate(wx, wy);
+      ctx.rotate(a + Math.PI / 2);
+      ctx.strokeStyle = `rgba(30,60,120,${alpha})`;
+      ctx.lineWidth = 1.2;
+      // Concentric arc segments
+      for (let ring = 0; ring < 3; ring++) {
+        const ringR = waveSize * (ring + 1) * 0.5;
+        ctx.beginPath();
+        ctx.arc(0, 0, ringR, -Math.PI * 0.7, Math.PI * 0.7);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+  }
+}
+
+// Draw the fan face with decorative pattern
+function drawFanFace(fanAngle, openAngle, alpha) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+
+  // Fan face gradient — traditional Japanese colors
+  const faceGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, fanRadius);
+  faceGrad.addColorStop(0, '#fdf5e6');
+  faceGrad.addColorStop(0.3, '#fef0db');
+  faceGrad.addColorStop(0.6, '#fce8cc');
+  faceGrad.addColorStop(1, '#f5dcc0');
+
+  // Clip to fan shape
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.arc(cx, cy, fanRadius, fanAngle, fanAngle + openAngle);
+  ctx.closePath();
+  ctx.fillStyle = faceGrad;
+  ctx.fill();
+
+  // Subtle inner gradient overlay
+  const innerGrad = ctx.createRadialGradient(cx, cy, fanRadius * 0.2, cx, cy, fanRadius * 0.9);
+  innerGrad.addColorStop(0, 'rgba(255,245,230,0)');
+  innerGrad.addColorStop(0.7, 'rgba(220,180,140,0.08)');
+  innerGrad.addColorStop(1, 'rgba(180,120,80,0.12)');
+  ctx.fillStyle = innerGrad;
+  ctx.fill();
+
+  // Clip for patterns
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.arc(cx, cy, fanRadius, fanAngle, fanAngle + openAngle);
+  ctx.closePath();
+  ctx.clip();
+
+  // Wave pattern
+  drawWavePattern(fanAngle, openAngle);
+
+  // Cherry blossoms scattered on the fan
+  const blossomPositions = [
+    { r: 0.55, a: 0.2, s: 18 },
+    { r: 0.7, a: 0.5, s: 14 },
+    { r: 0.45, a: 0.75, s: 20 },
+    { r: 0.8, a: 0.35, s: 12 },
+    { r: 0.6, a: 0.85, s: 16 },
+    { r: 0.35, a: 0.55, s: 10 },
+    { r: 0.75, a: 0.65, s: 15 },
+    { r: 0.5, a: 0.15, s: 13 },
+  ];
+
+  for (const bp of blossomPositions) {
+    const bx = cx + Math.cos(fanAngle + bp.a * openAngle) * fanRadius * bp.r;
+    const by = cy + Math.sin(fanAngle + bp.a * openAngle) * fanRadius * bp.r;
+    drawBlossom(bx, by, bp.s, bp.a * 3);
+  }
+
+  // Scattered petals
+  for (let i = 0; i < 20; i++) {
+    const pr = fanRadius * (0.2 + Math.random() * 0.7);
+    const pa = fanAngle + Math.random() * openAngle;
+    const px = cx + Math.cos(pa) * pr;
+    const py = cy + Math.sin(pa) * pr;
+    const pSize = 4 + Math.random() * 6;
+    const pAngle = Math.random() * Math.PI * 2;
+    const petalAlpha = 0.2 + Math.random() * 0.3;
+    drawPetal(px, py, pSize, pAngle, `rgba(245,${175+Math.random()*30|0},${185+Math.random()*25|0},${petalAlpha})`, petalAlpha);
+  }
+
+  // Gold accent border
+  ctx.strokeStyle = 'rgba(180,140,60,0.3)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.arc(cx, cy, fanRadius * 0.95, fanAngle, fanAngle + openAngle);
+  ctx.stroke();
+
+  // Inner decorative arc
+  ctx.strokeStyle = 'rgba(180,140,60,0.15)';
+  ctx.lineWidth = 0.8;
+  ctx.beginPath();
+  ctx.arc(cx, cy, fanRadius * 0.92, fanAngle, fanAngle + openAngle);
+  ctx.stroke();
+
+  ctx.restore(); // unclip
+
+  // Outer edge shadow
+  ctx.beginPath();
+  ctx.arc(cx, cy, fanRadius, fanAngle, fanAngle + openAngle);
+  ctx.strokeStyle = 'rgba(120,80,40,0.2)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+// Draw fold ribs
+function drawRibs(fanAngle, openAngle, alpha) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  const ribCount = ribs;
+  for (let i = 0; i <= ribCount; i++) {
+    const t = i / ribCount;
+    const a = fanAngle + t * openAngle;
+    const ribLen = fanRadius + handleLen;
+    const endX = cx + Math.cos(a) * ribLen;
+    const endY = cy + Math.sin(a) * ribLen;
+
+    // Rib line
+    const ribGrad = ctx.createLinearGradient(cx, cy, endX, endY);
+    ribGrad.addColorStop(0, '#8b6914');
+    ribGrad.addColorStop(0.3, '#a07828');
+    ribGrad.addColorStop(0.7, '#8b6914');
+    ribGrad.addColorStop(1, '#6b4f10');
+
+    ctx.strokeStyle = ribGrad;
+    ctx.lineWidth = i === 0 || i === ribCount ? 2.5 : 1.5;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(endX, endY);
+    ctx.stroke();
+
+    // Rib highlight
+    ctx.strokeStyle = 'rgba(200,170,100,0.2)';
+    ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    ctx.moveTo(cx + Math.cos(a + 0.003) * 10, cy + Math.sin(a + 0.003) * 10);
+    ctx.lineTo(endX + Math.cos(a + 0.003) * 3, endY + Math.sin(a + 0.003) * 3);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+// Draw handle (tsuka)
+function drawHandle(fanAngle, openAngle, alpha) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  const handleAngle = fanAngle + openAngle; // right edge rib
+  const handleLen = fanRadius * 0.55;
+  const endX = cx + Math.cos(handleAngle) * handleLen;
+  const endY = cy + Math.sin(handleAngle) * handleLen;
+
+  // Handle body — slightly wider
+  const perpAngle = handleAngle + Math.PI / 2;
+  const handleW = 6;
+  const hx1 = cx + Math.cos(perpAngle) * handleW;
+  const hy1 = cy + Math.sin(perpAngle) * handleW;
+  const hx2 = endX + Math.cos(perpAngle) * handleW * 0.6;
+  const hy2 = endY + Math.sin(perpAngle) * handleW * 0.6;
+  const hx3 = endX - Math.cos(perpAngle) * handleW * 0.6;
+  const hy3 = endY - Math.sin(perpAngle) * handleW * 0.6;
+  const hx4 = cx - Math.cos(perpAngle) * handleW;
+  const hy4 = cy - Math.sin(perpAngle) * handleW;
+
+  const handleGrad = ctx.createLinearGradient(hx1, hy1, hx3, hy3);
+  handleGrad.addColorStop(0, '#6b4f10');
+  handleGrad.addColorStop(0.3, '#8b6914');
+  handleGrad.addColorStop(0.5, '#a07828');
+  handleGrad.addColorStop(0.7, '#8b6914');
+  handleGrad.addColorStop(1, '#6b4f10');
+
+  ctx.fillStyle = handleGrad;
+  ctx.beginPath();
+  ctx.moveTo(hx1, hy1);
+  ctx.lineTo(hx2, hy2);
+  ctx.lineTo(hx3, hy3);
+  ctx.lineTo(hx4, hy4);
+  ctx.closePath();
+  ctx.fill();
+
+  // Handle edge
+  ctx.strokeStyle = 'rgba(80,50,10,0.4)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // Handle cap (end)
+  ctx.fillStyle = '#5a3d0a';
+  ctx.beginPath();
+  ctx.arc(endX, endY, handleW * 0.7, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(80,50,10,0.5)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // Decorative gold ring near pivot
+  const ringR = fanRadius * 0.12;
+  const ringX = cx + Math.cos(handleAngle) * ringR;
+  const ringY = cy + Math.sin(handleAngle) * ringR;
+  ctx.strokeStyle = 'rgba(200,170,80,0.5)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(ringX, ringY, handleW * 0.8, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+// Pivot pin
+function drawPivot(alpha) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  const pivotGrad = ctx.createRadialGradient(cx - 1, cy - 1, 0, cx, cy, 8);
+  pivotGrad.addColorStop(0, '#c8a84e');
+  pivotGrad.addColorStop(0.5, '#a07828');
+  pivotGrad.addColorStop(1, '#6b4f10');
+  ctx.fillStyle = pivotGrad;
+  ctx.beginPath();
+  ctx.arc(cx, cy, 7, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(80,50,10,0.5)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  // Inner detail
+  ctx.fillStyle = 'rgba(200,170,80,0.4)';
+  ctx.beginPath();
+  ctx.arc(cx, cy, 3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+// Seal (hanko) stamp
+function drawSeal(x, y, size, alpha) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  // Red square
+  ctx.fillStyle = '#c0392b';
+  ctx.strokeStyle = '#a93226';
+  ctx.lineWidth = 2;
+  const pad = 3;
+  ctx.fillRect(x - size/2, y - size/2, size, size);
+  ctx.strokeRect(x - size/2, y - size/2, size, size);
+  // Stylized character (simplified)
+  ctx.strokeStyle = '#f5efe6';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  // Horizontal
+  ctx.moveTo(x - size*0.3, y - size*0.15);
+  ctx.lineTo(x + size*0.3, y - size*0.15);
+  // Vertical
+  ctx.moveTo(x, y - size*0.35);
+  ctx.lineTo(x, y + size*0.35);
+  // Bottom horizontal
+  ctx.moveTo(x - size*0.25, y + size*0.15);
+  ctx.lineTo(x + size*0.25, y + size*0.15);
+  ctx.stroke();
+  ctx.restore();
+}
+
+// Easing function
+function easeInOutCubic(t) {
+  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
+
+// Animation cycle
+const CYCLE = 10000; // 10 seconds
+const OPEN_START = 0.15;
+const OPEN_END = 0.35;
+const CLOSE_START = 0.65;
+const CLOSE_END = 0.85;
+
+function getOpenAngle(t) {
+  const cycleT = t % 1;
+  if (cycleT < OPEN_START) return 0;
+  if (cycleT < OPEN_END) {
+    const p = (cycleT - OPEN_START) / (OPEN_END - OPEN_START);
+    return easeInOutCubic(p) * Math.PI * 0.85;
+  }
+  if (cycleT < CLOSE_START) return Math.PI * 0.85;
+  if (cycleT < CLOSE_END) {
+    const p = (cycleT - CLOSE_START) / (CLOSE_END - CLOSE_START);
+    return (1 - easeInOutCubic(p)) * Math.PI * 0.85;
+  }
+  return 0;
+}
+
+// Floating petal particles
+const petals = [];
+for (let i = 0; i < 15; i++) {
+  petals.push({
+    x: Math.random() * 2000,
+    y: Math.random() * 2000,
+    size: 3 + Math.random() * 5,
+    angle: Math.random() * Math.PI * 2,
+    rotSpeed: (Math.random() - 0.5) * 0.02,
+    vx: (Math.random() - 0.5) * 0.3,
+    vy: 0.2 + Math.random() * 0.4,
+    alpha: 0.15 + Math.random() * 0.2
+  });
+}
+
+let lastTime = 0;
+let washiDirty = true;
+
+function frame(timestamp) {
+  const t = timestamp / 1000;
+  const cycleT = ((t % (CYCLE / 1000)) / (CYCLE / 1000));
+  const openAngle = getOpenAngle(cycleT);
+
+  // Regenerate washi on resize
+  if (washiDirty) {
+    generateWashi();
+    washiDirty = false;
+  }
+  window.addEventListener('resize', () => { washiDirty = true; }, { once: true });
+
+  // Background
+  ctx.drawImage(washiCanvas, 0, 0, W, H);
+
+  // Floating petals
+  for (const p of petals) {
+    p.x += p.vx;
+    p.y += p.vy;
+    p.angle += p.rotSpeed;
+    if (p.y > H + 20) { p.y = -20; p.x = Math.random() * W; }
+    if (p.x > W + 20) p.x = -20;
+    if (p.x < -20) p.x = W + 20;
+
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.rotate(p.angle);
+    ctx.globalAlpha = p.alpha;
+    ctx.fillStyle = '#f7c5d0';
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.bezierCurveTo(p.size * 0.3, -p.size * 0.4, p.size * 0.8, -p.size * 0.6, p.size, -p.size * 0.1);
+    ctx.bezierCurveTo(p.size * 0.9, p.size * 0.05, p.size * 0.7, p.size * 0.15, p.size * 0.5, p.size * 0.1);
+    ctx.lineTo(p.size * 0.45, p.size * 0.02);
+    ctx.lineTo(p.size * 0.5, -p.size * 0.05);
+    ctx.bezierCurveTo(p.size * 0.3, p.size * 0.15, p.size * 0.1, p.size * 0.25, 0, 0);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Fan shadow on background
+  ctx.save();
+  ctx.globalAlpha = 0.08;
+  ctx.fillStyle = '#4a3520';
+  ctx.beginPath();
+  ctx.moveTo(cx + 4, cy + 6);
+  ctx.arc(cx + 4, cy + 6, fanRadius + 2, -Math.PI * 0.15 + 0.02, -Math.PI * 0.15 + openAngle + 0.02);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+
+  // Fan base rotation — subtle sway
+  const sway = Math.sin(t * 0.5) * 0.02;
+  const fanAngle = -Math.PI * 0.15 + sway;
+
+  // Draw layers
+  drawFanFace(fanAngle, openAngle, 1);
+  drawRibs(fanAngle, openAngle, 1);
+  drawHandle(fanAngle, openAngle, 1);
+  drawPivot(1);
+
+  // Hanko seal in corner
+  drawSeal(W * 0.88, H * 0.88, 28, 0.6);
+
+  // Kanji title
+  ctx.save();
+  ctx.globalAlpha = 0.12;
+  ctx.fillStyle = '#4a3520';
+  ctx.font = `${Math.min(W, H) * 0.06}px "Hiragino Mincho ProN", "Yu Mincho", "Hiragino Mincho Pro", serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('扇', cx, H * 0.12);
+  ctx.restore();
+
+  requestAnimationFrame(frame);
+}
+
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

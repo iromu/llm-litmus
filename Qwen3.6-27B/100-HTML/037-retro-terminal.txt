@@ -1,0 +1,25 @@
+# Retro Terminal
+
+## Creative Prompt
+Create a glowing green CRT terminal emulator aesthetic. The page features a dark screen with green phosphor text, scanline overlay, screen curvature effect, and a flickering cursor. Content includes a boot sequence animation, system information display, file listing, and a command prompt. The text has a green glow effect and monospace font. The screen has CRT effects including scanlines, phosphor persistence, and slight screen curvature. The overall aesthetic is retro, nostalgic, and cyberpunk — like an old CRT monitor.
+
+## Techniques Used
+- CSS CRT scanline overlay using repeating-linear-gradient
+- Screen curvature via radial-gradient vignette and inset box-shadow
+- Green phosphor glow with layered text-shadow
+- Phosphor flicker animation with subtle opacity oscillation
+- Power-on flash animation on load
+- Boot sequence with typewriter text effect (character-by-character reveal)
+- Animated progress bar during boot
+- Sequential section fade-in with CSS transitions
+- Blinking cursor on typed lines
+- Interactive command prompt with keyboard input
+- Color-coded terminal output (green, amber, red for warnings/errors)
+- Monospace typography throughout
+- Monitor shell with realistic bezel styling
+- Custom scrollbar styling
+- Responsive layout for mobile screens
+- ASCII art logo display
+
+## Interaction Model
+Boot sequence plays automatically on page load with a typewriter effect, showing BIOS POST checks, memory test, and OS boot progress bar. After boot completes, content sections (system info, file listing, network status, system messages) fade in sequentially. An interactive command prompt appears at the bottom where users can type commands like `help`, `ls`, `whoami`, `date`, `fortune`, `neofetch`, `clear`, and `echo`. The cursor blinks continuously, and the entire screen has a subtle phosphor flicker animation for authenticity.

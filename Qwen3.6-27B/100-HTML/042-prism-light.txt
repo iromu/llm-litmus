@@ -1,0 +1,19 @@
+# Prism Light
+
+## Creative Prompt
+Create a light refraction visualization through a prism. A beam of white light enters a triangular prism and refracts into a spectrum of rainbow colors. The refracted beams spread across the scene with smooth color transitions. The prism has a glass-like appearance with subtle reflections. The background is dark to emphasize the light beams. Mouse movement shifts the angle of the incoming light beam. The overall aesthetic is scientific, colorful, and elegant — like a physics demonstration.
+
+## Techniques Used
+- Canvas light beam rendering with gradient fills
+- Prism triangle with glass-like rendering and internal reflections
+- Wavelength-dependent refraction using Cauchy dispersion formula
+- Snell's law for accurate light bending at each interface
+- Rainbow spectrum rendering with smooth color interpolation
+- Beam width and alpha control per wavelength
+- Mouse-driven angle adjustment for incoming light
+- Glow effects with shadow blur and radial gradients
+- Subtle background grid and floating dust particles
+- Dark background with radial gradient for depth
+
+## Interaction Model
+Mouse movement adjusts the angle of the incoming light beam. The entry point, internal ray path, and refracted spectrum all shift in real time as the beam angle changes. Touch input is also supported on mobile devices.

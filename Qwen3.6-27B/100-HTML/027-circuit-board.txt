@@ -1,0 +1,17 @@
+# Circuit Board
+
+## Creative Prompt
+Create a glowing green circuit board visualization on a dark green background. Nodes are arranged in a semi-random grid connected by traces (lines) with pulsing signal dots traveling along them. Traces glow with a green neon color and fade in and out with pulse animation. Nodes have a similar glow and pulse. The scene has a trailing fade for smooth animation. The title "Circuit Board" appears faintly at the bottom in green. The overall aesthetic is cybernetic, technological, and neon-green — like a living PCB.
+
+## Techniques Used
+- Canvas trace rendering with pulse-driven alpha modulation
+- Traveling pulse dots along line segments
+- Grid-based node placement with random perturbation
+- Connection logic based on distance threshold
+- Radial gradient node glow with breathing animation
+- Exponential background fade for motion trail
+- Sinusoidal pulse function for organic signal feel
+- Bent and straight trace routing for PCB realism
+
+## Interaction Model
+Purely passive — traces pulse continuously with traveling signal dots. Nodes breathe with intensity. The pattern is generated fresh on resize.

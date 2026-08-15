@@ -1,0 +1,18 @@
+# Lava Lamp
+
+## Creative Prompt
+Create a retro lava lamp with blob physics. A glass lamp shape contains colorful blobs that rise and fall with buoyancy simulation. Blobs merge when close and split when they grow too large. The blobs have warm colors (red, orange, pink) with smooth gradients. The lamp has a metallic base and cap. The background is dark with subtle ambient lighting. The overall aesthetic is retro, warm, and mesmerizing — like a classic lava lamp.
+
+## Techniques Used
+- Canvas metaball rendering via pixel-level field computation
+- Buoyancy physics with temperature-based rise/fall oscillation
+- Blob merging (proximity-based absorption) and splitting (size threshold)
+- Radial gradient fills with HSL color space for warm palette
+- Bézier curve glass lamp silhouette with reflection streaks
+- Metallic gradient rendering for base and cap
+- Ambient radial glow and internal lamp illumination
+- Resolution-scaled pixel buffer for performance
+- Dynamic blob count maintenance
+
+## Interaction Model
+Passive animation — blobs continuously rise, fall, merge, and split based on simulated temperature and buoyancy. No user interaction required; the lava lamp runs as a self-contained mesmerizing display.

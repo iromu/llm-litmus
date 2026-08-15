@@ -1,0 +1,19 @@
+# Marbling
+
+## Creative Prompt
+Create a paper marbling pattern generator. Colorful ink patterns swirl and flow across the canvas, creating organic marbled textures. The patterns evolve over time with smooth, fluid motion. Multiple ink colors create intricate, flowing designs. Clicking generates a new pattern with different colors and flow directions. The overall aesthetic is artistic, organic, and unique — like traditional paper marbling.
+
+## Techniques Used
+- Canvas flow field rendering with simplex noise
+- Particle-based ink deposition with multiple color streams
+- Independent flow fields per color channel with noise modulation
+- Smooth pattern evolution via time-varying noise offsets
+- Click-driven regeneration with fresh seeds and color palettes
+- Vibrant curated color palettes inspired by traditional marbling inks
+- Procedural paper texture overlay with pixel-level grain noise
+- Secondary flow layer for depth and organic complexity
+- Responsive canvas with DPR-aware rendering
+- Seeded noise for reproducible pattern generation
+
+## Interaction Model
+Passive evolution — ink patterns flow and evolve continuously across the canvas. Click anywhere to generate a completely new pattern with fresh colors, flow directions, and noise seeds.

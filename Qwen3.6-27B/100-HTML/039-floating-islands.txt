@@ -1,0 +1,19 @@
+# Floating Islands
+
+## Creative Prompt
+Create fantasy floating islands drifting in a misty sky. Multiple islands of varying sizes float at different heights, each with terrain features like grass tops, rocky undersides, small trees, and waterfalls. The islands bob gently with sine-wave motion. Mist and clouds drift below the islands. The sky is a gradient of dawn colors (purple, pink, orange). Birds fly between islands. The overall aesthetic is magical, ethereal, and fantastical — like a scene from a fantasy world.
+
+## Techniques Used
+- Canvas island rendering with bezier terrain shapes
+- Layered island features (grass, rock, trees, waterfalls, crystals)
+- Sine-wave bobbing animation per island with independent phase and amplitude
+- Mist cloud rendering with radial gradients and drift motion
+- Bird silhouettes with animated flapping wings
+- Dawn gradient sky background with sun glow pulse
+- Parallax depth layers with distant background island silhouettes
+- Floating sparkle particles with glow halos
+- Seeded random terrain generation for reproducible island features
+- Responsive canvas with DPR-aware rendering
+
+## Interaction Model
+Passive animation — islands bob with independent timing, mist clouds drift horizontally, birds fly across the scene with flapping wings, waterfalls cascade with animated mist splashes, and sparkle particles pulse. The scene is continuously animated with no user interaction required.

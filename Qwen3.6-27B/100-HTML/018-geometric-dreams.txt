@@ -1,0 +1,16 @@
+# Geometric Dreams
+
+## Creative Prompt
+Create a visualization of 3D platonic solids morphing in space. A central icosahedron rotates continuously with wireframe edges that pulse with color. Surrounding it are smaller platonic solids (hexagon, pentagon, square, octagon, triangle) that orbit and rotate at different speeds. Each shape has a hue-cycling stroke color and subtle fill. The background has a trailing effect creating a ghostly afterimage. The overall aesthetic is mathematical, elegant, and meditative.
+
+## Techniques Used
+- Canvas wireframe rendering of 3D icosahedron with vertex projection
+- 2D regular polygon drawing with rotation
+- HSL color cycling for iridescent effect
+- Depth-based alpha for 3D edge rendering
+- requestAnimationFrame loop with trailing overlay
+- Multiple rotating shapes with independent speeds
+- Responsive canvas
+
+## Interaction Model
+Passive observation — all shapes rotate and morph continuously. The trailing effect creates a ghostly afterimage of previous frames.

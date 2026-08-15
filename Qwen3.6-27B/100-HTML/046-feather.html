@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Feather</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{min-height:100vh;overflow:hidden;background:linear-gradient(160deg,#f5f0e8 0%,#e8e0d4 40%,#ddd5c8 100%)}
+canvas{display:block}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+let W, H, featherCX, featherCY, featherLen, featherAngle;
+const barbsPerSide = 48;
+const barbulesPerBarb = 14;
+
+function resize() {
+    W = canvas.width = window.innerWidth;
+    H = canvas.height = window.innerHeight;
+    featherLen = Math.min(W, H) * 0.72;
+    featherCX = W * 0.5;
+    featherCY = H * 0.5;
+    featherAngle = -Math.PI * 0.28;
+}
+window.addEventListener('resize', resize);
+resize();
+
+function featherColor(t, hueShift) {
+    const h = 180 + Math.sin(t * Math.PI * 2.5) * 60 + hueShift;
+    const s = 55 + Math.sin(t * Math.PI * 1.8) * 20;
+    const l = 52 + Math.sin(t * Math.PI * 3.2) * 18;
+    return `hsl(${h},${s}%,${l}%)`;
+}
+
+function featherColorAlpha(t, hueShift, a) {
+    const h = 180 + Math.sin(t * Math.PI * 2.5) * 60 + hueShift;
+    const s = 55 + Math.sin(t * Math.PI * 1.8) * 20;
+    const l = 52 + Math.sin(t * Math.PI * 3.2) * 18;
+    return `hsla(${h},${s}%,${l}%,${a})`;
+}
+
+function drawShaft(sx, sy, ex, ey) {
+    const dx = ex - sx, dy = ey - sy;
+    const len = Math.sqrt(dx * dx + dy * dy);
+    const nx = -dy / len, ny = dx / len;
+    const shaftW = 2.8;
+
+    const grad = ctx.createLinearGradient(sx, sy, ex, ey);
+    grad.addColorStop(0, '#c9b896');
+    grad.addColorStop(0.3, '#a89070');
+    grad.addColorStop(0.7, '#8b7355');
+    grad.addColorStop(1, '#6b5540');
+
+    ctx.beginPath();
+    ctx.moveTo(sx + nx * shaftW * 0.5, sy + ny * shaftW * 0.5);
+    ctx.lineTo(ex + nx * shaftW * 0.2, ey + ny * shaftW * 0.2);
+    ctx.lineTo(ex - nx * shaftW * 0.2, ey - ny * shaftW * 0.2);
+    ctx.lineTo(sx - nx * shaftW * 0.5, sy - ny * shaftW * 0.5);
+    ctx.closePath();
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    ctx.strokeStyle = 'rgba(90,65,40,0.3)';
+    ctx.lineWidth = 0.5;
+    ctx.stroke();
+}
+
+function drawBarb(baseX, baseY, barbAngle, barbLen, t, side, time, phaseOffset) {
+    const sway = Math.sin(time * 1.2 + t * 4 + phaseOffset) * 0.06;
+    const sway2 = Math.sin(time * 0.7 + t * 2.8 + phaseOffset + 1.5) * 0.03;
+    const angle = barbAngle + sway + sway2;
+
+    const tipX = baseX + Math.cos(angle) * barbLen;
+    const tipY = baseY + Math.sin(angle) * barbLen;
+
+    ctx.beginPath();
+    ctx.moveTo(baseX, baseY);
+    ctx.lineTo(tipX, tipY);
+    ctx.strokeStyle = featherColor(t, side * 15);
+    ctx.lineWidth = 0.8;
+    ctx.globalAlpha = 0.6;
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+
+    for (let b = 0; b < barbulesPerBarb; b++) {
+        const bt = (b + 1) / (barbulesPerBarb + 1);
+        const bx = baseX + (tipX - baseX) * bt;
+        const by = baseY + (tipY - baseY) * bt;
+
+        const barbDx = tipX - baseX, barbDy = tipY - baseY;
+        const barbLen2 = Math.sqrt(barbDx * barbDx + barbDy * barbDy);
+        const bnx = -barbDy / barbLen2, bny = barbDx / barbLen2;
+
+        const barbuleLen = barbLen * 0.35 * Math.sin(bt * Math.PI) * (0.6 + Math.random() * 0.4);
+        const bSway = Math.sin(time * 1.5 + t * 5 + b * 0.8 + phaseOffset) * 0.08;
+
+        const bAngle = Math.atan2(barbDy, barbDx) + Math.PI / 2 * side + bSway;
+        const bTipX = bx + Math.cos(bAngle) * barbuleLen;
+        const bTipY = by + Math.sin(bAngle) * barbuleLen;
+
+        ctx.beginPath();
+        ctx.moveTo(bx, by);
+        ctx.lineTo(bTipX, bTipY);
+        ctx.strokeStyle = featherColorAlpha(t + b * 0.02, side * 20 + b * 3, 0.35);
+        ctx.lineWidth = 0.4;
+        ctx.stroke();
+    }
+}
+
+function drawHooklets(baseX, baseY, barbAngle, barbLen, t, side, time, phaseOffset) {
+    const sway = Math.sin(time * 1.2 + t * 4 + phaseOffset) * 0.06;
+    const sway2 = Math.sin(time * 0.7 + t * 2.8 + phaseOffset + 1.5) * 0.03;
+    const angle = barbAngle + sway + sway2;
+
+    const tipX = baseX + Math.cos(angle) * barbLen;
+    const tipY = baseY + Math.sin(angle) * barbLen;
+
+    for (let h = 0; h < 6; h++) {
+        const ht = 0.3 + h * 0.1;
+        const hx = baseX + (tipX - baseX) * ht;
+        const hy = baseY + (tipY - baseY) * ht;
+
+        const hookLen = 3 + Math.random() * 2;
+        const hookAngle = angle + side * 0.4 + Math.sin(time * 2 + h + t * 3) * 0.15;
+        const hTipX = hx + Math.cos(hookAngle) * hookLen;
+        const hTipY = hy + Math.sin(hookAngle) * hookLen;
+
+        ctx.beginPath();
+        ctx.moveTo(hx, hy);
+        ctx.quadraticCurveTo(
+            hx + Math.cos(hookAngle + 0.5) * hookLen * 0.6,
+            hy + Math.sin(hookAngle + 0.5) * hookLen * 0.6,
+            hTipX, hTipY
+        );
+        ctx.strokeStyle = featherColorAlpha(t, side * 10, 0.2);
+        ctx.lineWidth = 0.3;
+        ctx.stroke();
+    }
+}
+
+function drawCalamus(time) {
+    const tipX = featherCX + Math.cos(featherAngle) * featherLen * 0.5;
+    const tipY = featherCY + Math.sin(featherAngle) * featherLen * 0.5;
+    const baseX = featherCX - Math.cos(featherAngle) * featherLen * 0.05;
+    const baseY = featherCY - Math.sin(featherAngle) * featherLen * 0.05;
+
+    ctx.save();
+    ctx.shadowColor = 'rgba(60,40,20,0.15)';
+    ctx.shadowBlur = 8;
+    ctx.shadowOffsetX = 3;
+    ctx.shadowOffsetY = 4;
+    drawShaft(baseX, baseY, tipX, tipY);
+    ctx.restore();
+}
+
+function drawBarbs(time) {
+    const numBarbs = barbsPerSide;
+
+    for (let side = -1; side <= 1; side += 2) {
+        for (let i = 0; i < numBarbs; i++) {
+            const t = (i + 0.5) / numBarbs;
+            const phaseOffset = i * 0.37 + side * 2.1;
+
+            const swayMain = Math.sin(time * 0.8 + t * 3) * 0.04;
+
+            const shaftStartX = featherCX - Math.cos(featherAngle) * featherLen * 0.05;
+            const shaftStartY = featherCY - Math.sin(featherAngle) * featherLen * 0.05;
+            const shaftTipX = featherCX + Math.cos(featherAngle) * featherLen * 0.5;
+            const shaftTipY = featherCY + Math.sin(featherAngle) * featherLen * 0.5;
+
+            const shaftDx = shaftTipX - shaftStartX;
+            const shaftDy = shaftTipY - shaftStartY;
+
+            const baseX = shaftStartX + shaftDx * t;
+            const baseY = shaftStartY + shaftDy * t;
+
+            const perpAngle = featherAngle + Math.PI / 2;
+            const barbAngle = perpAngle * side + swayMain;
+
+            const barbLenProfile = Math.sin(t * Math.PI);
+            const barbLen = featherLen * 0.14 * barbLenProfile * (0.85 + Math.sin(t * 7) * 0.15);
+
+            drawBarb(baseX, baseY, barbAngle, barbLen, t, side, time, phaseOffset);
+            drawHooklets(baseX, baseY, barbAngle, barbLen, t, side, time, phaseOffset);
+        }
+    }
+}
+
+function drawVane(time) {
+    const shaftStartX = featherCX - Math.cos(featherAngle) * featherLen * 0.05;
+    const shaftStartY = featherCY - Math.sin(featherAngle) * featherLen * 0.05;
+    const shaftTipX = featherCX + Math.cos(featherAngle) * featherLen * 0.5;
+    const shaftTipY = featherCY + Math.sin(featherAngle) * featherLen * 0.5;
+
+    const shaftDx = shaftTipX - shaftStartX;
+    const shaftDy = shaftTipY - shaftStartY;
+    const perpX = -shaftDy, perpY = shaftDx;
+    const shaftLen = Math.sqrt(shaftDx * shaftDx + shaftDy * shaftDy);
+
+    ctx.save();
+    ctx.globalAlpha = 0.06;
+
+    for (let side = -1; side <= 1; side += 2) {
+        ctx.beginPath();
+        ctx.moveTo(shaftStartX, shaftStartY);
+
+        for (let i = 0; i <= 20; i++) {
+            const t = i / 20;
+            const width = shaftLen * 0.14 * Math.sin(t * Math.PI) * side;
+            const px = shaftStartX + shaftDx * t + perpX / shaftLen * width;
+            const py = shaftStartY + shaftDy * t + perpY / shaftLen * width;
+            ctx.lineTo(px, py);
+        }
+
+        for (let i = 20; i >= 0; i--) {
+            const t = i / 20;
+            const width = shaftLen * 0.14 * Math.sin(t * Math.PI) * side * 0.02;
+            const px = shaftStartX + shaftDx * t + perpX / shaftLen * width;
+            const py = shaftStartY + shaftDy * t + perpY / shaftLen * width;
+            ctx.lineTo(px, py);
+        }
+
+        ctx.closePath();
+
+        const grad = ctx.createLinearGradient(
+            shaftStartX + perpX / shaftLen * shaftLen * 0.14 * side,
+            shaftStartY + perpY / shaftLen * shaftLen * 0.14 * side,
+            shaftStartX, shaftStartY
+        );
+        grad.addColorStop(0, featherColor(0.5, side * 20));
+        grad.addColorStop(1, 'transparent');
+        ctx.fillStyle = grad;
+        ctx.fill();
+    }
+    ctx.restore();
+}
+
+function drawRachisDetail(time) {
+    const shaftStartX = featherCX - Math.cos(featherAngle) * featherLen * 0.05;
+    const shaftStartY = featherCY - Math.sin(featherAngle) * featherLen * 0.05;
+    const shaftTipX = featherCX + Math.cos(featherAngle) * featherLen * 0.5;
+    const shaftTipY = featherCY + Math.sin(featherAngle) * featherLen * 0.5;
+
+    const shaftDx = shaftTipX - shaftStartX;
+    const shaftDy = shaftTipY - shaftStartY;
+
+    for (let i = 0; i < 30; i++) {
+        const t = (i + 0.5) / 30;
+        const px = shaftStartX + shaftDx * t;
+        const py = shaftStartY + shaftDy * t;
+
+        const ridgeLen = 1.2 + Math.sin(t * 20) * 0.5;
+        const ridgeAngle = featherAngle + Math.PI / 2 + Math.sin(time + i * 0.5) * 0.02;
+
+        ctx.beginPath();
+        ctx.moveTo(px, py);
+        ctx.lineTo(px + Math.cos(ridgeAngle) * ridgeLen, py + Math.sin(ridgeAngle) * ridgeLen);
+        ctx.strokeStyle = 'rgba(120,90,60,0.2)';
+        ctx.lineWidth = 0.4;
+        ctx.stroke();
+    }
+}
+
+function drawCalmus(time) {
+    const calamusLen = featherLen * 0.08;
+    const calamusStartX = featherCX - Math.cos(featherAngle) * calamusLen;
+    const calamusStartY = featherCY - Math.sin(featherAngle) * calamusLen;
+    const calamusEndX = featherCX - Math.cos(featherAngle) * featherLen * 0.05;
+    const calamusEndY = featherCY - Math.sin(featherAngle) * featherLen * 0.05;
+
+    const dx = calamusEndX - calamusStartX;
+    const dy = calamusEndY - calamusStartY;
+    const len = Math.sqrt(dx * dx + dy * dy);
+    const nx = -dy / len, ny = dx / len;
+    const hollowW = 3.5;
+
+    ctx.save();
+    ctx.shadowColor = 'rgba(60,40,20,0.12)';
+    ctx.shadowBlur = 6;
+    ctx.shadowOffsetX = 2;
+    ctx.shadowOffsetY = 3;
+
+    const grad = ctx.createLinearGradient(calamusStartX, calamusStartY, calamusEndX, calamusEndY);
+    grad.addColorStop(0, '#d4c4a0');
+    grad.addColorStop(1, '#a89070');
+
+    ctx.beginPath();
+    ctx.moveTo(calamusStartX + nx * hollowW * 0.6, calamusStartY + ny * hollowW * 0.6);
+    ctx.lineTo(calamusEndX + nx * hollowW * 0.35, calamusEndY + ny * hollowW * 0.35);
+    ctx.lineTo(calamusEndX - nx * hollowW * 0.35, calamusEndY - ny * hollowW * 0.35);
+    ctx.lineTo(calamusStartX - nx * hollowW * 0.6, calamusStartY - ny * hollowW * 0.6);
+    ctx.closePath();
+    ctx.fillStyle = grad;
+    ctx.fill();
+    ctx.restore();
+
+    ctx.beginPath();
+    ctx.ellipse(calamusStartX, calamusStartY, hollowW * 0.5, hollowW * 0.6, featherAngle, 0, Math.PI * 2);
+    ctx.fillStyle = '#b8a480';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(90,65,40,0.3)';
+    ctx.lineWidth = 0.5;
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.ellipse(calamusStartX + nx * hollowW * 0.3, calamusStartY + ny * hollowW * 0.3, 1.2, 1.5, featherAngle, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,248,235,0.4)';
+    ctx.fill();
+}
+
+function drawIridescence(time) {
+    const shaftStartX = featherCX - Math.cos(featherAngle) * featherLen * 0.05;
+    const shaftStartY = featherCY - Math.sin(featherAngle) * featherLen * 0.05;
+    const shaftTipX = featherCX + Math.cos(featherAngle) * featherLen * 0.5;
+    const shaftTipY = featherCY + Math.sin(featherAngle) * featherLen * 0.5;
+
+    const shaftDx = shaftTipX - shaftStartX;
+    const shaftDy = shaftTipY - shaftStartY;
+
+    const iridPhase = time * 0.3;
+
+    for (let side = -1; side <= 1; side += 2) {
+        for (let i = 0; i < 12; i++) {
+            const t = 0.15 + i * 0.065;
+            const px = shaftStartX + shaftDx * t;
+            const py = shaftStartY + shaftDy * t;
+
+            const perpX = -shaftDy, perpY = shaftDx;
+            const shaftLen = Math.sqrt(shaftDx * shaftDx + shaftDy * shaftDy);
+
+            const iridOffset = Math.sin(iridPhase + t * 8 + i * 0.7) * shaftLen * 0.08;
+            const spread = shaftLen * 0.06 * Math.sin(t * Math.PI);
+
+            const ix = px + perpX / shaftLen * (iridOffset + spread * side);
+            const iy = py + perpY / shaftLen * (iridOffset + spread * side);
+
+            const hue = (200 + Math.sin(iridPhase * 1.3 + t * 10 + i) * 80 + side * 30) % 360;
+            const irad = 8 + Math.sin(iridPhase + i * 1.2) * 4;
+
+            const igrad = ctx.createRadialGradient(ix, iy, 0, ix, iy, irad);
+            igrad.addColorStop(0, `hsla(${hue},70%,70%,0.12)`);
+            igrad.addColorStop(1, `hsla(${hue},70%,70%,0)`);
+
+            ctx.beginPath();
+            ctx.arc(ix, iy, irad, 0, Math.PI * 2);
+            ctx.fillStyle = igrad;
+            ctx.fill();
+        }
+    }
+}
+
+function drawBarbTips(time) {
+    const numBarbs = barbsPerSide;
+
+    for (let side = -1; side <= 1; side += 2) {
+        for (let i = 0; i < numBarbs; i++) {
+            const t = (i + 0.5) / numBarbs;
+            const phaseOffset = i * 0.37 + side * 2.1;
+
+            const swayMain = Math.sin(time * 0.8 + t * 3) * 0.04;
+            const sway = Math.sin(time * 1.2 + t * 4 + phaseOffset) * 0.06;
+            const sway2 = Math.sin(time * 0.7 + t * 2.8 + phaseOffset + 1.5) * 0.03;
+
+            const shaftStartX = featherCX - Math.cos(featherAngle) * featherLen * 0.05;
+            const shaftStartY = featherCY - Math.sin(featherAngle) * featherLen * 0.05;
+            const shaftTipX = featherCX + Math.cos(featherAngle) * featherLen * 0.5;
+            const shaftTipY = featherCY + Math.sin(featherAngle) * featherLen * 0.5;
+
+            const shaftDx = shaftTipX - shaftStartX;
+            const shaftDy = shaftTipY - shaftStartY;
+
+            const baseX = shaftStartX + shaftDx * t;
+            const baseY = shaftStartY + shaftDy * t;
+
+            const perpAngle = featherAngle + Math.PI / 2;
+            const barbAngle = perpAngle * side + swayMain + sway + sway2;
+
+            const barbLenProfile = Math.sin(t * Math.PI);
+            const barbLen = featherLen * 0.14 * barbLenProfile * (0.85 + Math.sin(t * 7) * 0.15);
+
+            const tipX = baseX + Math.cos(barbAngle) * barbLen;
+            const tipY = baseY + Math.sin(barbAngle) * barbLen;
+
+            const hue = 40 + Math.sin(t * 6 + time * 0.5) * 20;
+            const tipGrad = ctx.createRadialGradient(tipX, tipY, 0, tipX, tipY, 3);
+            tipGrad.addColorStop(0, `hsla(${hue},60%,80%,0.25)`);
+            tipGrad.addColorStop(1, `hsla(${hue},60%,80%,0)`);
+
+            ctx.beginPath();
+            ctx.arc(tipX, tipY, 3, 0, Math.PI * 2);
+            ctx.fillStyle = tipGrad;
+            ctx.fill();
+        }
+    }
+}
+
+function drawBackground() {
+    const grad = ctx.createRadialGradient(W * 0.5, H * 0.4, 0, W * 0.5, H * 0.4, Math.max(W, H) * 0.7);
+    grad.addColorStop(0, '#faf6ee');
+    grad.addColorStop(0.5, '#f0e8d8');
+    grad.addColorStop(1, '#e0d5c0');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, W, H);
+
+    ctx.save();
+    ctx.globalAlpha = 0.03;
+    for (let i = 0; i < 8; i++) {
+        const x = W * (0.1 + i * 0.12);
+        const y = H * 0.5;
+        const r = Math.max(W, H) * 0.3;
+        const bg = ctx.createRadialGradient(x, y, 0, x, y, r);
+        bg.addColorStop(0, '#fff');
+        bg.addColorStop(1, 'transparent');
+        ctx.fillStyle = bg;
+        ctx.fillRect(0, 0, W, H);
+    }
+    ctx.restore();
+}
+
+let lastTime = 0;
+
+function render(timestamp) {
+    const time = timestamp * 0.001;
+    const dt = time - lastTime;
+    lastTime = time;
+
+    const breathe = Math.sin(time * 0.4) * 0.008;
+    featherAngle = -Math.PI * 0.28 + breathe;
+
+    drawBackground();
+
+    ctx.save();
+    ctx.shadowColor = 'rgba(50,35,20,0.08)';
+    ctx.shadowBlur = 25;
+    ctx.shadowOffsetX = 8;
+    ctx.shadowOffsetY = 12;
+
+    drawCalmus(time);
+    drawVane(time);
+    drawBarbs(time);
+    drawRachisDetail(time);
+    drawShaft(
+        featherCX - Math.cos(featherAngle) * featherLen * 0.05,
+        featherCY - Math.sin(featherAngle) * featherLen * 0.05,
+        featherCX + Math.cos(featherAngle) * featherLen * 0.5,
+        featherCY + Math.sin(featherAngle) * featherLen * 0.5
+    );
+    ctx.restore();
+
+    drawIridescence(time);
+    drawBarbTips(time);
+
+    requestAnimationFrame(render);
+}
+
+requestAnimationFrame(render);
+</script>
+</body>
+</html>

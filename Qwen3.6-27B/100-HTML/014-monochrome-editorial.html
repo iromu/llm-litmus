@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Monochrome Editorial</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{min-height:100vh;background:#fff;color:#000;font-family:Georgia,'Times New Roman',serif}
+.container{max-width:900px;margin:0 auto;padding:60px 24px}
+.hero{text-align:center;padding:80px 0;border-bottom:1px solid #000}
+.hero h1{font-size:clamp(3rem,7vw,5rem);font-weight:900;letter-spacing:-0.03em;line-height:1;margin-bottom:20px}
+.hero h1 span{background:#000;color:#fff;padding:0 12px}
+.hero .sub{font-size:1.1rem;font-style:italic;color:#666;margin-bottom:24px}
+.hero .meta{font-size:0.7rem;text-transform:uppercase;letter-spacing:0.2em;color:#999;font-family:monospace}
+.divider{text-align:center;padding:40px 0;position:relative}
+.divider::before{content:'◆';font-size:0.8rem;color:#000}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:40px;padding:40px 0;border-bottom:1px solid #eee}
+.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:24px;padding:40px 0;border-bottom:1px solid #eee}
+.card{padding:24px;border:1px solid #eee}
+.card h3{font-size:2rem;font-weight:900;margin-bottom:8px}
+.card p{font-size:0.9rem;font-style:italic;color:#666;line-height:1.6}
+.card .num{font-size:0.7rem;font-family:monospace;color:#999;margin-bottom:12px}
+blockquote{text-align:center;padding:60px 40px;font-size:clamp(1.3rem,3vw,1.8rem);font-style:italic;line-height:1.6;color:#333;border:none;margin:0}
+blockquote cite{display:block;font-style:normal;font-size:0.8rem;margin-top:20px;color:#999;font-family:monospace;letter-spacing:0.1em}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:24px;padding:40px 0;text-align:center;border-bottom:1px solid #eee}
+.stat-val{font-size:2.5rem;font-weight:900}
+.stat-label{font-size:0.7rem;text-transform:uppercase;letter-spacing:0.15em;color:#999;margin-top:4px;font-family:monospace}
+footer{text-align:center;padding:40px 0;font-size:0.75rem;color:#999;font-family:monospace;letter-spacing:0.1em}
+@media(max-width:600px){.grid-2,.grid-3{grid-template-columns:1fr}.stats{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+<div class="container">
+<div class="hero">
+<h1><span>Monochrome</span><br>Editorial</h1>
+<p class="sub">Where absence of color becomes the purest form of expression</p>
+<p class="meta">Issue 042 — August 2026 — Vol. XII</p>
+</div>
+<div class="divider"></div>
+<div class="grid-2">
+<div class="card"><div class="num">01</div><h3>Form</h3><p>The architecture of type reveals itself when stripped of chromatic distraction.</p></div>
+<div class="card"><div class="num">02</div><h3>Space</h3><p>Negative space becomes the canvas upon which meaning is inscribed.</p></div>
+<div class="card"><div class="num">03</div><h3>Weight</h3><p>Typography gains dimension through the interplay of light and heavy forms.</p></div>
+<div class="card"><div class="num">04</div><h3>Rhythm</h3><p>The cadence of black against white creates a visual symphony.</p></div>
+</div>
+<blockquote>"Perfection is achieved, not when there is nothing more to add, but when there is nothing left to take away."<cite>— Antoine de Saint-Exupéry</cite></blockquote>
+<div class="stats">
+<div><div class="stat-val">12</div><div class="stat-label">Columns</div></div>
+<div><div class="stat-val">96</div><div class="stat-label">Type Scale</div></div>
+<div><div class="stat-val">0.85</div><div class="stat-label">Line Height</div></div>
+<div><div class="stat-val">∞</div><div class="stat-label">Contrast</div></div>
+</div>
+<footer>© 2026 Monochrome Editorial — Designed with restraint</footer>
+</div>
+</body>
+</html>

@@ -1,0 +1,23 @@
+# Typographic Hierarchy
+
+## Creative Prompt
+Create an editorial type specimen showcasing typographic hierarchy. The page displays various typefaces, weights, sizes, and styles in a carefully organized layout. It includes alphabet displays, specimen paragraphs, size comparisons, weight gradations, and a type scale visualization. The design is clean, minimal, and focused on the beauty of typography. The color scheme is black, white, and a single accent color. The overall aesthetic is elegant, editorial, and design-focused — like a typography reference poster.
+
+## Techniques Used
+- CSS typography with system font stacks (Georgia, Helvetica Neue, Courier New)
+- Type scale visualization with golden ratio (1.618) size progression
+- Weight gradation display (100–900) in a grid layout
+- Alphabet specimen rows comparing serif and sans-serif
+- Specimen paragraphs with drop cap, small caps, and accent highlights
+- Numeral style comparison (linotonic, tabular, old style)
+- Style transformation showcase (uppercase, strikethrough, overline, underline)
+- CSS Grid layout for organized editorial sections
+- Decorative rules, dividers, and ornamental separators
+- Accent color (#c8553d) for visual emphasis and hierarchy
+- Responsive design with media query breakpoints
+- CSS custom properties for consistent theming
+- First-letter pseudo-element for drop cap initial
+- Font variant numeric for numeral style control
+
+## Interaction Model
+Purely static editorial layout — no JavaScript interaction needed. The page reads like a typography reference poster or specimen sheet. Content is organized into clearly labeled sections with decorative dividers, designed to be scrolled through as a visual exploration of typographic principles.

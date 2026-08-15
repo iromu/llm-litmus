@@ -1,0 +1,20 @@
+# Mandala
+
+## Creative Prompt
+Create a generative radial sacred geometry mandala. The mandala is built from concentric rings of geometric patterns — petals, dots, lines, and arcs — arranged with radial symmetry. Each ring has a different pattern and color. The mandala slowly rotates and pulses. Clicking regenerates the mandala with a new random configuration. The background is dark with a subtle golden glow at the center. The overall aesthetic is spiritual, geometric, and meditative — like a sacred geometry artwork.
+
+## Techniques Used
+- Canvas radial symmetry rendering with multiple concentric rings
+- Geometric pattern generation (petals, dots, arcs, lines, diamonds, lotus, starburst, circlets)
+- Seeded PRNG (mulberry32) for reproducible random configurations
+- HSL color cycling with golden/teal/warm/cool palette
+- Independent ring rotation speeds and directions
+- Pulse animation via per-ring scale oscillation
+- Inter-ring connecting web lines for structural depth
+- Sacred geometry center (hexagon + circle + dot)
+- Radial gradient center and outer glow
+- Click-driven regeneration with fresh random seed
+- Responsive canvas with DPR-aware rendering
+
+## Interaction Model
+Passive rotation and pulsing animation. Click anywhere to regenerate the mandala with a new random configuration — different ring count, pattern types, colors, sizes, and rotation speeds. Each mandala is unique.

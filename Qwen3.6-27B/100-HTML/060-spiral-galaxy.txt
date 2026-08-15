@@ -1,0 +1,20 @@
+# Spiral Galaxy
+
+## Creative Prompt
+Create a 5000-star spiral galaxy visualization. Thousands of stars form spiral arms rotating around a bright galactic center. The stars have color variation (blue young stars in arms, yellow/red older stars in the center). The galaxy slowly rotates. The background has a subtle nebula glow. The overall aesthetic is cosmic, grand, and beautiful — like a view of a spiral galaxy from above.
+
+## Techniques Used
+- Canvas star rendering with 5000 stars placed along logarithmic spiral arms
+- 3 spiral arms with controlled angular spread for realistic arm structure
+- Galactic center glow with layered radial gradients (core + halo)
+- Star color variation based on distance from center (blue/white in arms, yellow/red in core)
+- Continuous rotation animation with per-star orbital motion
+- Dust lane rendering with semi-transparent dark bands following spiral paths
+- Nebula background glow with 6 colored radial gradients
+- Twinkling star animation with independent speed and phase per star
+- Glow halos on larger stars for realistic brightness falloff
+- 300 additional dense core stars with rapid rotation
+- Responsive canvas filling the viewport
+
+## Interaction Model
+Passive animation — the galaxy rotates continuously at a slow, majestic pace. Each star twinkles independently with its own frequency and phase, creating a living, breathing cosmos effect. No user interaction required.

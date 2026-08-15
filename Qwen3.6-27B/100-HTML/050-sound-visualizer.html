@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sound Visualizer</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{min-height:100vh;background:#050510;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
+canvas{display:block;position:fixed;top:0;left:0}
+.overlay{position:fixed;top:0;left:0;width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;z-index:1}
+h1{font-size:clamp(1.5rem,4vw,3rem);font-weight:100;color:rgba(255,255,255,0.15);text-transform:uppercase;letter-spacing:0.5em;text-shadow:0 0 40px rgba(0,255,255,0.15)}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div class="overlay">
+<h1>Frequency</h1>
+</div>
+<script>
+const c=document.getElementById('c'),ctx=c.getContext('2d');
+let W,H;
+const BAR_COUNT=64,RING_COUNT=3;
+let time=0;
+
+function resize(){W=c.width=window.innerWidth;H=c.height=window.innerHeight}
+window.addEventListener('resize',resize);
+resize();
+
+/* --- Simulated audio data --- */
+function getFrequency(index,total){
+const t=time;
+const n=index/total;
+const base=Math.sin(t*0.7+n*2.5)*0.3+Math.sin(t*1.3+n*5.1)*0.2+Math.sin(t*0.3+n*1.2)*0.25;
+const peak=Math.max(0,Math.sin(t*2.1+n*8.3))*0.35;
+const noise=(Math.sin(t*7.7+n*47.3)*Math.sin(t*11.1+n*31.7))*0.15;
+const drop=Math.max(0,Math.sin(t*0.15))*0.2;
+return Math.max(0.05,Math.min(1,base+peak+noise+drop));
+}
+
+function getWaveform(index,total){
+const t=time;
+const n=index/total;
+return Math.sin(t*2.5+n*6.283)*0.4+Math.sin(t*3.7+n*12.566)*0.25+Math.sin(t*1.1+n*3.141)*0.35;
+}
+
+/* --- Color palette --- */
+const NEON_CYAN=[0,255,255],NEON_MAGENTA=[255,0,255],NEON_PURPLE=[128,0,255];
+function neonColor(t){
+if(t<0.5){
+const s=t*2;
+return[NEON_CYAN[0]+(NEON_MAGENTA[0]-NEON_CYAN[0])*s,NEON_CYAN[1]+(NEON_MAGENTA[1]-NEON_CYAN[1])*s,NEON_CYAN[2]+(NEON_MAGENTA[2]-NEON_CYAN[2])*s];
+}else{
+const s=(t-0.5)*2;
+return[NEON_MAGENTA[0]+(NEON_PURPLE[0]-NEON_MAGENTA[0])*s,NEON_MAGENTA[1]+(NEON_PURPLE[1]-NEON_MAGENTA[1])*s,NEON_MAGENTA[2]+(NEON_PURPLE[2]-NEON_MAGENTA[2])*s];
+}
+}
+
+/* --- Particles --- */
+const particles=[];
+const MAX_PARTICLES=200;
+class Particle{
+constructor(x,y,vx,vy,life,color){
+this.x=x;this.y=y;this.vx=vx;this.vy=vy;this.life=life;this.maxLife=life;this.color=color;this.r=Math.random()*2+0.5;
+}
+update(dt){
+this.x+=this.vx*dt;this.y+=this.vy*dt;this.life-=dt;
+this.vy+=30*dt;
+}
+draw(){
+const a=Math.max(0,this.life/this.maxLife);
+const[r,g,b]=this.color;
+ctx.beginPath();ctx.arc(this.x,this.y,this.r*a,0,Math.PI*2);
+ctx.fillStyle=`rgba(${r|0},${g|0},${b|0},${a*0.8})`;
+ctx.shadowColor=`rgba(${r|0},${g|0},${b|0},${a*0.6})`;
+ctx.shadowBlur=8;ctx.fill();ctx.shadowBlur=0;
+}
+get dead(){return this.life<=0}
+}
+
+function spawnParticles(freq,barX,barY,barH){
+if(freq>0.75&&particles.length<MAX_PARTICLES){
+const count=Math.floor((freq-0.75)*4);
+for(let i=0;i<count;i++){
+const[r,g,b]=neonColor(Math.random());
+const angle=-Math.PI/2+(Math.random()-0.5)*Math.PI*0.8;
+const speed=40+Math.random()*80;
+particles.push(new Particle(barX,barY,Math.cos(angle)*speed,Math.sin(angle)*speed,0.6+Math.random()*0.8,[r,g,b]));
+}
+}
+}
+
+/* --- Draw frequency bars --- */
+function drawBars(){
+const barAreaH=H*0.35;
+const barAreaY=H*0.25;
+const barW=Math.min(W/(BAR_COUNT*1.2),20);
+const gap=(W-barW*BAR_COUNT)/(BAR_COUNT-1);
+const startX=(W-barW*BAR_COUNT-gap*(BAR_COUNT-1))/2;
+
+for(let i=0;i<BAR_COUNT;i++){
+const freq=getFrequency(i,BAR_COUNT);
+const barH=freq*barAreaH;
+const x=startX+i*(barW+gap);
+const y=barAreaY+barAreaH-barH;
+const[r,g,b]=neonColor(i/BAR_COUNT);
+
+const grad=ctx.createLinearGradient(x,y,x,y+barH);
+grad.addColorStop(0,`rgba(${r|0},${g|0},${b|0},0.95)`);
+grad.addColorStop(0.5,`rgba(${r|0},${g|0},${b|0},0.6)`);
+grad.addColorStop(1,`rgba(${r|0},${g|0},${b|0},0.1)`);
+
+ctx.shadowColor=`rgba(${r|0},${g|0},${b|0},0.7)`;
+ctx.shadowBlur=12+freq*15;
+ctx.fillStyle=grad;
+ctx.fillRect(x,y,barW,barH);
+ctx.shadowBlur=0;
+
+/* Mirror (fainter) */
+const mirrorH=barH*0.3;
+const mGrad=ctx.createLinearGradient(x,barAreaY+barAreaH,x,barAreaY+barAreaH+mirrorH);
+mGrad.addColorStop(0,`rgba(${r|0},${g|0},${b|0},0.2)`);
+mGrad.addColorStop(1,`rgba(${r|0},${g|0},${b|0},0)`);
+ctx.fillStyle=mGrad;
+ctx.fillRect(x,barAreaY+barAreaH,barW,mirrorH);
+
+spawnParticles(freq,x,y,barH);
+}
+}
+
+/* --- Draw waveform --- */
+function drawWaveform(){
+const waveH=H*0.12;
+const waveY=H*0.55;
+const steps=200;
+const stepW=W/steps;
+
+ctx.beginPath();
+for(let i=0;i<=steps;i++){
+const x=i*stepW;
+const val=getWaveform(i,steps);
+const y=waveY+val*waveH;
+if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
+}
+const grad=ctx.createLinearGradient(0,0,W,0);
+grad.addColorStop(0,'rgba(0,255,255,0)');
+grad.addColorStop(0.3,'rgba(0,255,255,0.8)');
+grad.addColorStop(0.5,'rgba(255,0,255,0.9)');
+grad.addColorStop(0.7,'rgba(0,255,255,0.8)');
+grad.addColorStop(1,'rgba(0,255,255,0)');
+ctx.strokeStyle=grad;
+ctx.lineWidth=2.5;
+ctx.shadowColor='rgba(255,0,255,0.5)';
+ctx.shadowBlur=15;
+ctx.stroke();
+ctx.shadowBlur=0;
+
+/* Filled area under waveform */
+ctx.lineTo(W,waveY);ctx.lineTo(0,waveY);ctx.closePath();
+const fillGrad=ctx.createLinearGradient(0,waveY-waveH,0,waveY+waveH);
+fillGrad.addColorStop(0,'rgba(0,255,255,0.03)');
+fillGrad.addColorStop(0.5,'rgba(255,0,255,0.06)');
+fillGrad.addColorStop(1,'rgba(0,255,255,0.03)');
+ctx.fillStyle=fillGrad;
+ctx.fill();
+}
+
+/* --- Draw circular frequency rings --- */
+function drawRings(){
+const cx=W/2,cy=H*0.82;
+const maxR=Math.min(W,H)*0.12;
+
+for(let ring=0;ring<RING_COUNT;ring++){
+const r=maxR*(ring+1)/RING_COUNT;
+const segments=120;
+const ringFreq=getFrequency(ring,RING_COUNT);
+
+ctx.save();
+ctx.translate(cx,cy);
+ctx.rotate(time*0.2*(ring%2===0?1:-1));
+
+for(let i=0;i<segments;i++){
+const angle=i/segments*Math.PI*2;
+const nextAngle=(i+1)/segments*Math.PI*2;
+const segFreq=getFrequency(i,segments);
+const segR=r*(0.5+segFreq*0.8);
+const nextSegFreq=getFrequency((i+1)%segments,segments);
+const nextSegR=r*(0.5+nextSegFreq*0.8);
+
+const[r2,g2,b2]=neonColor(i/segments);
+ctx.beginPath();
+ctx.moveTo(Math.cos(angle)*segR,Math.sin(angle)*segR);
+ctx.lineTo(Math.cos(nextAngle)*nextSegR,Math.sin(nextAngle)*nextSegR);
+ctx.strokeStyle=`rgba(${r2|0},${g2|0},${b2|0},${0.3+ringFreq*0.5})`;
+ctx.lineWidth=1.5+ringFreq*2;
+ctx.shadowColor=`rgba(${r2|0},${g2|0},${b2|0},${ringFreq*0.4})`;
+ctx.shadowBlur=6+ringFreq*8;
+ctx.stroke();
+}
+ctx.shadowBlur=0;
+ctx.restore();
+}
+
+/* Center dot */
+const centerFreq=(getFrequency(0,1)+getFrequency(1,2)+getFrequency(2,3))/3;
+const cGrad=ctx.createRadialGradient(cx,cy,0,cx,cy,8+centerFreq*12);
+cGrad.addColorStop(0,'rgba(255,255,255,0.9)');
+cGrad.addColorStop(0.4,'rgba(0,255,255,0.6)');
+cGrad.addColorStop(1,'rgba(255,0,255,0)');
+ctx.beginPath();ctx.arc(cx,cy,8+centerFreq*12,0,Math.PI*2);
+ctx.fillStyle=cGrad;
+ctx.shadowColor='rgba(0,255,255,0.8)';
+ctx.shadowBlur=20;
+ctx.fill();
+ctx.shadowBlur=0;
+}
+
+/* --- Background subtle grid --- */
+function drawGrid(){
+const spacing=40;
+ctx.strokeStyle='rgba(255,255,255,0.015)';
+ctx.lineWidth=0.5;
+for(let x=0;x<W;x+=spacing){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+for(let y=0;y<H;y+=spacing){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+}
+
+/* --- Main loop --- */
+let lastTime=0;
+function animate(ts){
+const dt=Math.min((ts-lastTime)/1000,0.05);
+lastTime=ts;
+time+=dt;
+
+ctx.fillStyle='rgba(5,5,16,0.25)';
+ctx.fillRect(0,0,W,H);
+
+drawGrid();
+drawBars();
+drawWaveform();
+drawRings();
+
+/* Update particles */
+for(let i=particles.length-1;i>=0;i--){
+particles[i].update(dt);
+particles[i].draw();
+if(particles[i].dead)particles.splice(i,1);
+}
+
+requestAnimationFrame(animate);
+}
+requestAnimationFrame(animate);
+</script>
+</body>
+</html>

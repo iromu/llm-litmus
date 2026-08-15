@@ -1,0 +1,22 @@
+# Clock Face
+
+## Creative Prompt
+Create a real-time analog clock with elegant design. The clock features hour, minute, and second hands with smooth sweeping motion. The clock face has Roman numerals, minute markers, and a decorative bezel. The clock shows the current system time. A subtle date display and power reserve indicator add complexity. The overall aesthetic is premium, watch-like, and refined — like a luxury timepiece.
+
+## Techniques Used
+- Canvas clock rendering with concentric circles
+- Roman numeral placement with angle-aware rotation
+- 60-minute tick mark generation with hour emphasis
+- Distinct hand styles (hour: thick, minute: medium, second: thin with counterweight)
+- Smooth second hand via requestAnimationFrame with millisecond interpolation
+- Date window display with clipping
+- Power reserve arc indicator based on current hour
+- Sub-seconds dial with independent sweep
+- Metallic gradient bezel with highlight reflection
+- Guilloche sunburst dial pattern
+- Lume dot accents at hour positions
+- Shadow depth effects for dimensional realism
+- Responsive sizing based on viewport
+
+## Interaction Model
+The clock shows real system time updating continuously at display refresh rate. Second hand sweeps smoothly using millisecond interpolation. Date window reflects current day of month. Power reserve arc fills proportionally to hours elapsed since midnight. No direct user interaction required.

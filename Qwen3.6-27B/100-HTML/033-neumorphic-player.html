@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Neumorphic Player</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+--bg:#e8e4df;--bg-dark:#cdc8c2;--bg-light:#f5f2ee;
+--accent:#c47a5a;--accent-glow:#d4956f;--text:#4a4540;--text-light:#8a8279;
+--shadow-dark:rgba(164,158,152,0.5);--shadow-light:rgba(255,252,247,0.7);
+--neu-outset:8px 8px 16px var(--shadow-dark),-8px -8px 16px var(--shadow-light);
+--neu-inset:inset 4px 4px 8px var(--shadow-dark),inset -4px -4px 8px var(--shadow-light);
+--neu-btn:5px 5px 10px var(--shadow-dark),-5px -5px 10px var(--shadow-light);
+--neu-btn-pressed:inset 3px 3px 6px var(--shadow-dark),inset -3px -3px 6px var(--shadow-light);
+}
+html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
+body{background:var(--bg);color:var(--text);display:flex;align-items:center;justify-content:center;padding:24px}
+
+.player{width:100%;max-width:420px;background:var(--bg);border-radius:32px;padding:36px 28px;box-shadow:var(--neu-outset)}
+
+/* Vinyl Disc */
+.disc-wrap{position:relative;width:220px;height:220px;margin:0 auto 28px}
+.disc{width:100%;height:100%;border-radius:50%;background:conic-gradient(from 0deg,#1a1a1a 0deg,#2a2a2a 30deg,#1a1a1a 60deg,#2a2a2a 90deg,#1a1a1a 120deg,#2a2a2a 150deg,#1a1a1a 180deg,#2a2a2a 210deg,#1a1a1a 240deg,#2a2a2a 270deg,#1a1a1a 300deg,#2a2a2a 330deg,#1a1a1a 360deg);box-shadow:var(--neu-outset);position:relative;animation:spin 4s linear infinite;animation-play-state:paused}
+.disc.playing{animation-play-state:running}
+.disc::before{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:60px;height:60px;border-radius:50%;background:var(--bg);box-shadow:var(--neu-inset)}
+.disc::after{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:14px;height:14px;border-radius:50%;background:var(--bg-dark);box-shadow:0 0 4px rgba(0,0,0,0.3)}
+.disc-grooves{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:170px;height:170px;border-radius:50%;border:1px solid rgba(255,255,255,0.06);box-shadow:0 0 0 12px transparent,0 0 0 14px rgba(255,255,255,0.04),0 0 0 28px transparent,0 0 0 30px rgba(255,255,255,0.04),0 0 0 44px transparent,0 0 0 46px rgba(255,255,255,0.04),0 0 0 60px transparent,0 0 0 62px rgba(255,255,255,0.04)}
+.album-art{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent-glow));display:flex;align-items:center;justify-content:center;font-size:18px}
+@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+
+/* Sound Waves */
+.waves{display:flex;align-items:end;justify-content:center;gap:3px;height:32px;margin-bottom:20px}
+.wave-bar{width:4px;border-radius:2px;background:var(--accent);transition:height 0.15s ease;height:6px}
+.wave-bar.active{animation:wave 0.8s ease-in-out infinite alternate}
+.wave-bar:nth-child(1){animation-delay:0s}
+.wave-bar:nth-child(2){animation-delay:0.1s}
+.wave-bar:nth-child(3){animation-delay:0.2s}
+.wave-bar:nth-child(4){animation-delay:0.15s}
+.wave-bar:nth-child(5){animation-delay:0.05s}
+.wave-bar:nth-child(6){animation-delay:0.25s}
+.wave-bar:nth-child(7){animation-delay:0.12s}
+.wave-bar:nth-child(8){animation-delay:0.08s}
+.wave-bar:nth-child(9){animation-delay:0.22s}
+.wave-bar:nth-child(10){animation-delay:0.18s}
+.wave-bar:nth-child(11){animation-delay:0.03s}
+.wave-bar:nth-child(12){animation-delay:0.28s}
+.wave-bar:nth-child(13){animation-delay:0.14s}
+.wave-bar:nth-child(14){animation-delay:0.07s}
+.wave-bar:nth-child(15){animation-delay:0.2s}
+@keyframes wave{0%{height:6px}100%{height:var(--wave-h,28px)}}
+
+/* Track Info */
+.track-info{text-align:center;margin-bottom:20px}
+.track-title{font-size:1.2rem;font-weight:700;letter-spacing:-0.01em;margin-bottom:4px;color:var(--text)}
+.track-artist{font-size:0.85rem;color:var(--text-light);font-weight:400}
+
+/* Progress Bar */
+.progress-wrap{margin-bottom:20px}
+.progress-bar{width:100%;height:6px;-webkit-appearance:none;appearance:none;background:var(--bg);border-radius:3px;outline:none;box-shadow:var(--neu-inset);cursor:pointer}
+.progress-bar::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:var(--accent);box-shadow:0 2px 6px rgba(196,122,90,0.4);cursor:grab;transition:transform 0.15s ease}
+.progress-bar::-webkit-slider-thumb:hover{transform:scale(1.2)}
+.progress-bar::-webkit-slider-thumb:active{cursor:grabbing;transform:scale(1.1)}
+.progress-bar::-moz-range-thumb{width:18px;height:18px;border-radius:50%;background:var(--accent);box-shadow:0 2px 6px rgba(196,122,90,0.4);cursor:grab;border:none}
+.progress-bar::-moz-range-track{height:6px;background:var(--bg);border-radius:3px;box-shadow:var(--neu-inset)}
+.progress-times{display:flex;justify-content:space-between;font-size:0.7rem;color:var(--text-light);margin-top:6px;font-variant-numeric:tabular-nums}
+
+/* Controls */
+.controls{display:flex;align-items:center;justify-content:center;gap:16px;margin-bottom:24px}
+.ctrl-btn{width:48px;height:48px;border-radius:50%;border:none;background:var(--bg);box-shadow:var(--neu-btn);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.15s ease;color:var(--text);outline:none}
+.ctrl-btn:hover{color:var(--accent)}
+.ctrl-btn:active{box-shadow:var(--neu-btn-pressed);transform:scale(0.95)}
+.ctrl-btn svg{width:20px;height:20px;fill:currentColor}
+.play-btn{width:64px;height:64px}
+.play-btn svg{width:26px;height:26px}
+.play-btn .icon-play,.play-btn .icon-pause{transition:opacity 0.2s ease}
+.play-btn .icon-pause{position:absolute;opacity:0}
+.play-btn.playing .icon-play{opacity:0}
+.play-btn.playing .icon-pause{opacity:1}
+
+/* Volume */
+.volume{display:flex;align-items:center;gap:12px;margin-bottom:28px;padding:0 8px}
+.volume svg{width:18px;height:18px;fill:var(--text-light);flex-shrink:0}
+.volume-slider{flex:1;height:4px;-webkit-appearance:none;appearance:none;background:var(--bg);border-radius:2px;outline:none;box-shadow:var(--neu-inset);cursor:pointer}
+.volume-slider::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--accent);cursor:grab}
+.volume-slider::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:var(--accent);cursor:grab;border:none}
+
+/* Playlist */
+.playlist{background:var(--bg);border-radius:20px;padding:16px;box-shadow:var(--neu-inset)}
+.playlist-header{font-size:0.75rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-light);margin-bottom:12px;font-weight:600}
+.playlist-item{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:12px;cursor:pointer;transition:all 0.2s ease;position:relative}
+.playlist-item:hover{background:rgba(196,122,90,0.06)}
+.playlist-item.active{background:rgba(196,122,90,0.1)}
+.playlist-item.active .pl-title{color:var(--accent)}
+.pl-num{font-size:0.75rem;color:var(--text-light);width:20px;text-align:center;font-variant-numeric:tabular-nums}
+.playlist-item.active .pl-num{color:var(--accent)}
+.pl-info{flex:1;min-width:0}
+.pl-title{font-size:0.85rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:color 0.2s ease}
+.pl-artist{font-size:0.75rem;color:var(--text-light);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pl-dur{font-size:0.7rem;color:var(--text-light);font-variant-numeric:tabular-nums}
+.pl-playing{display:none;width:16px;height:16px;align-items:center;justify-content:center}
+.playlist-item.active .pl-playing{display:flex}
+.pl-playing span{display:block;width:3px;height:12px;background:var(--accent);border-radius:1px;animation:wave 0.6s ease-in-out infinite alternate}
+.pl-playing span:nth-child(2){animation-delay:0.15s;height:8px}
+.pl-playing span:nth-child(3){animation-delay:0.3s;height:10px}
+
+@media(max-width:480px){
+.player{padding:24px 16px;border-radius:24px}
+.disc-wrap{width:180px;height:180px}
+.disc::before{width:48px;height:48px}
+.album-art{width:42px;height:42px;font-size:14px}
+.disc-grooves{width:140px;height:140px}
+.controls{gap:12px}
+.play-btn{width:56px;height:56px}
+}
+</style>
+</head>
+<body>
+
+<div class="player">
+
+  <!-- Vinyl Disc -->
+  <div class="disc-wrap">
+    <div class="disc" id="disc">
+      <div class="disc-grooves"></div>
+      <div class="album-art">♫</div>
+    </div>
+  </div>
+
+  <!-- Sound Waves -->
+  <div class="waves" id="waves"></div>
+
+  <!-- Track Info -->
+  <div class="track-info">
+    <div class="track-title" id="trackTitle">Midnight Reverie</div>
+    <div class="track-artist" id="trackArtist">Aether Sounds</div>
+  </div>
+
+  <!-- Progress Bar -->
+  <div class="progress-wrap">
+    <input type="range" class="progress-bar" id="progress" min="0" max="100" value="0" step="0.1">
+    <div class="progress-times">
+      <span id="currentTime">0:00</span>
+      <span id="totalTime">3:42</span>
+    </div>
+  </div>
+
+  <!-- Controls -->
+  <div class="controls">
+    <button class="ctrl-btn" id="prevBtn" aria-label="Previous">
+      <svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
+    </button>
+    <button class="ctrl-btn play-btn" id="playBtn" aria-label="Play/Pause">
+      <svg class="icon-play" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+      <svg class="icon-pause" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+    </button>
+    <button class="ctrl-btn" id="nextBtn" aria-label="Next">
+      <svg viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
+    </button>
+  </div>
+
+  <!-- Volume -->
+  <div class="volume">
+    <svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+    <input type="range" class="volume-slider" id="volume" min="0" max="100" value="70">
+  </div>
+
+  <!-- Playlist -->
+  <div class="playlist">
+    <div class="playlist-header">Up Next</div>
+    <div id="playlistItems"></div>
+  </div>
+
+</div>
+
+<script>
+const tracks=[
+{title:"Midnight Reverie",artist:"Aether Sounds",duration:222},
+{title:"Velvet Horizon",artist:"Luna Drift",duration:198},
+{title:"Crystal Tides",artist:"Neon Pulse",duration:245},
+{title:"Solar Whisper",artist:"Ember Collective",duration:210},
+{title:"Phantom Bloom",artist:"Silk Frequency",duration:187},
+{title:"Neon Cathedral",artist:"Void Architects",duration:263},
+{title:"Glass Memories",artist:"Prism Wave",duration:204}
+];
+
+let currentTrack=0,isPlaying=false,progressVal=0,timer=null;
+const disc=document.getElementById('disc');
+const playBtn=document.getElementById('playBtn');
+const prevBtn=document.getElementById('prevBtn');
+const nextBtn=document.getElementById('nextBtn');
+const progress=document.getElementById('progress');
+const trackTitle=document.getElementById('trackTitle');
+const trackArtist=document.getElementById('trackArtist');
+const currentTimeEl=document.getElementById('currentTime');
+const totalTimeEl=document.getElementById('totalTime');
+const volumeSlider=document.getElementById('volume');
+const wavesEl=document.getElementById('waves');
+const playlistEl=document.getElementById('playlistItems');
+
+// Build wave bars
+for(let i=0;i<15;i++){
+const bar=document.createElement('div');
+bar.className='wave-bar';
+bar.style.setProperty('--wave-h',(8+Math.random()*22)+'px');
+wavesEl.appendChild(bar);
+}
+
+function formatTime(s){const m=Math.floor(s/60);return m+':'+String(Math.floor(s%60)).padStart(2,'0')}
+
+function renderPlaylist(){
+playlistEl.innerHTML='';
+tracks.forEach((t,i)=>{
+const item=document.createElement('div');
+item.className='playlist-item'+(i===currentTrack?' active':'');
+item.innerHTML=`<span class="pl-num">${i===currentTrack?'<span class="pl-playing"><span></span><span></span><span></span></span>':i+1}</span><div class="pl-info"><div class="pl-title">${t.title}</div><div class="pl-artist">${t.artist}</div></div><span class="pl-dur">${formatTime(t.duration)}</span>`;
+item.addEventListener('click',()=>{if(i!==currentTrack){currentTrack=i;loadTrack();}togglePlay();});
+playlistEl.appendChild(item);
+});
+}
+
+function loadTrack(){
+const t=tracks[currentTrack];
+trackTitle.textContent=t.title;
+trackArtist.textContent=t.artist;
+totalTimeEl.textContent=formatTime(t.duration);
+progressVal=0;progress.value=0;
+currentTimeEl.textContent='0:00';
+renderPlaylist();
+}
+
+function updateProgress(){
+const t=tracks[currentTrack];
+progressVal+=0.5;
+if(progressVal>=t.duration){currentTrack=(currentTrack+1)%tracks.length;loadTrack();if(isPlaying)startTimer();return;}
+progress.value=(progressVal/t.duration)*100;
+currentTimeEl.textContent=formatTime(progressVal);
+// Randomize wave heights
+document.querySelectorAll('.wave-bar').forEach(b=>{b.style.setProperty('--wave-h',(8+Math.random()*22)+'px');});
+}
+
+function startTimer(){if(timer)clearInterval(timer);timer=setInterval(updateProgress,500);}
+function stopTimer(){if(timer){clearInterval(timer);timer=null;}}
+
+function togglePlay(){
+isPlaying=!isPlaying;
+if(isPlaying){
+disc.classList.add('playing');
+playBtn.classList.add('playing');
+document.querySelectorAll('.wave-bar').forEach(b=>b.classList.add('active'));
+startTimer();
+}else{
+disc.classList.remove('playing');
+playBtn.classList.remove('playing');
+document.querySelectorAll('.wave-bar').forEach(b=>b.classList.remove('active'));
+stopTimer();
+}
+}
+
+playBtn.addEventListener('click',togglePlay);
+prevBtn.addEventListener('click',()=>{currentTrack=(currentTrack-1+tracks.length)%tracks.length;loadTrack();if(isPlaying)startTimer();});
+nextBtn.addEventListener('click',()=>{currentTrack=(currentTrack+1)%tracks.length;loadTrack();if(isPlaying)startTimer();});
+
+progress.addEventListener('input',e=>{
+const t=tracks[currentTrack];
+progressVal=(e.target.value/100)*t.duration;
+currentTimeEl.textContent=formatTime(progressVal);
+});
+
+// Volume visual feedback
+volumeSlider.addEventListener('input',e=>{
+const v=e.target.value;
+volumeSlider.style.background=`linear-gradient(to right,var(--accent) ${v}%,var(--bg) ${v}%)`;
+});
+volumeSlider.dispatchEvent(new Event('input'));
+
+// Progress bar gradient
+function updateProgressGradient(){
+const v=progress.value;
+progress.style.background=`linear-gradient(to right,var(--accent) ${v}%,var(--bg) ${v}%)`;
+}
+progress.addEventListener('input',updateProgressGradient);
+setInterval(()=>{if(isPlaying)updateProgressGradient();},500);
+
+// Init
+loadTrack();
+updateProgressGradient();
+</script>
+</body>
+</html>

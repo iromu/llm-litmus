@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Neon Butterfly</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{min-height:100vh;background:#0a0a1a;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
+canvas{display:block;position:fixed;top:0;left:0}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const c=document.getElementById('c'),ctx=c.getContext('2d');
+let w,h,time=0;
+class Butterfly{constructor(x,y){this.x=x;this.y=y;this.targetX=x;this.targetY=y;this.size=30+Math.random()*20;this.hue=Math.random()*360;this.wingPhase=0;this.wingSpeed=0.05+Math.random()*0.03;this.vx=0;this.vy=0;this.trail=[]}
+update(){this.wingPhase+=this.wingSpeed;this.x+=this.vx;this.y+=this.vy;this.vx*=0.98;this.vy*=0.98;this.vx+=Math.sin(time*0.005+this.hue)*0.1;this.vy+=Math.cos(time*0.007+this.hue)*0.1;this.hue+=0.5;if(this.x<50)this.vx+=0.5;if(this.x>w-50)this.vx-=0.5;if(this.y<50)this.vy+=0.5;if(this.y>h-50)this.vy-=0.5;this.trail.push({x:this.x,y:this.y,hue:this.hue,life:1});if(this.trail.length>30)this.trail.shift();this.trail.forEach(t=>t.life-=0.03);this.trail=this.trail.filter(t=>t.life>0)}
+drawWing(side){const wingAngle=Math.sin(this.wingPhase)*0.6;const s=side;ctx.save();ctx.rotate(wingAngle*s);ctx.beginPath();ctx.moveTo(0,0);ctx.bezierCurveTo(s*this.size*1.5,-this.size*0.5,s*this.size*2,-this.size*1.5,s*this.size*1.2,-this.size*2.5);ctx.bezierCurveTo(s*this.size*0.5,-this.size*2.5,s*this.size*0.2,-this.size*1.5,0,-this.size);ctx.bezierCurveTo(s*this.size*0.3,-this.size*0.5,s*this.size*0.8,0,s*this.size*0.5,this.size*0.5);ctx.bezierCurveTo(s*this.size*0.3,this.size*0.3,s*this.size*0.1,this.size*0.2,0,0);ctx.closePath();const g=ctx.createRadialGradient(s*this.size*0.5,-this.size,0,s*this.size*0.5,-this.size,this.size*2);g.addColorStop(0,`hsla(${this.hue},100%,70%,0.6)`);g.addColorStop(0.5,`hsla(${this.hue+60},100%,50%,0.3)`);g.addColorStop(1,`hsla(${this.hue+120},100%,40%,0)`);ctx.fillStyle=g;ctx.fill();ctx.strokeStyle=`hsla(${this.hue},100%,70%,0.4)`;ctx.lineWidth=1;ctx.stroke();ctx.restore()}
+draw(){this.trail.forEach(t=>{ctx.beginPath();ctx.arc(t.x,t.y,2*t.life,0,Math.PI*2);ctx.fillStyle=`hsla(${t.hue},100%,60%,${t.life*0.3})`;ctx.fill()});ctx.save();ctx.translate(this.x,this.y);this.drawWing(1);this.drawWing(-1);ctx.beginPath();ctx.ellipse(0,0,2,this.size*0.5,0,0,Math.PI*2);ctx.fillStyle=`hsla(${this.hue},100%,80%,0.8)`;ctx.fill();ctx.restore()}}
+let butterflies=[];
+function init(){w=c.width=window.innerWidth;h=c.height=window.innerHeight;butterflies=[];for(let i=0;i<5;i++)butterflies.push(new Butterfly(w/2+(Math.random()-0.5)*w*0.5,h/2+(Math.random()-0.5)*h*0.5))}
+function animate(){time++;ctx.fillStyle='rgba(10,10,26,0.1)';ctx.fillRect(0,0,w,h);butterflies.forEach(b=>{b.update();b.draw()});requestAnimationFrame(animate)}
+window.addEventListener('resize',init);
+init();animate();
+</script>
+</body>
+</html>
