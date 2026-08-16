@@ -1,0 +1,19 @@
+Geometric Abstraction — Generative De Stijl Composition
+=========================================================
+
+Creative Prompt:
+Create a Mondrian-inspired geometric abstraction composition generator. The canvas is subdivided recursively into rectangles filled with a limited palette (red, blue, yellow, white, black). Each block has slightly inset inner content with borders, creating the classic De Stijl aesthetic. Blocks have a hover scale effect. A shuffle button regenerates the composition, and a reset button does the same. The overall aesthetic is modernist, abstract, and balanced — like a generative Piet Mondrian painting.
+
+Model: Qwen3.8-27B-instruct
+Thinking effort: high
+
+Techniques:
+- Recursive subdivision algorithm (split along longer axis, random 25–75% ratio, max depth 4–5)
+- Weighted color palette (white 38%, black 22%, red/blue/yellow ~14% each) with balance enforcement
+- CSS absolute positioning for blocks inside a responsive square container (aspect-ratio: 1, min(80vmin, 640px))
+- Inset inner margins (inset: clamp(3px, 1vmin, 8px)) for the classic De Stijl border effect
+- Hover scale transform (scale 1.045) with spring cubic-bezier easing and drop shadow
+- Sliver filtering (rects < 4% width/height removed) to avoid degenerate compositions
+- Single self-contained HTML file, no external dependencies
+
+Wall time: N/A | Tokens: N/A

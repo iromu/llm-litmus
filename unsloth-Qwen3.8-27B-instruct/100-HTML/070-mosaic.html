@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mosaic — Digital Stained Glass</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #0a0a0f;
+  }
+
+  canvas {
+    display: block;
+    width: 100vw;
+    height: 100vh;
+    cursor: pointer;
+  }
+
+  .hint {
+    position: fixed;
+    bottom: 1.5rem;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 0.8rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.45);
+    pointer-events: none;
+    user-select: none;
+    transition: opacity 1.2s ease;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.6);
+  }
+
+  .hint.hidden { opacity: 0; }
+</style>
+</head>
+<body>
+<canvas id="mosaic"></canvas>
+<p class="hint" id="hint">click to regenerate</p>
+
+<script>
+(() => {
+  'use strict';
+
+  const canvas = document.getElementById('mosaic');
+  const ctx = canvas.getContext('2d');
+  const hint = document.getElementById('hint');
+
+  let W = 0, H = 0, dpr = 1;
+  let tiles = [];
+  let paletteSeed = Math.random() * 360;
+  let time = 0;
+  let lastTs = 0;
+  let fadeAlpha = 1; // for trailing fade on regeneration
+
+  /* ---------- Palette generation ---------- */
+
+  function mulberry32(a) {
+    return () => {
+      a |= 0; a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  function generatePalette(seed) {
+    const rng = mulberry32(Math.floor(seed * 100000));
+    // Pick 3–5 anchor hues spread across the spectrum
+    const anchors = [];
+    const count = 3 + Math.floor(rng() * 3); // 3..5
+    const base = rng() * 360;
+    for (let i = 0; i < count; i++) {
+      anchors.push((base + (i / count) * 360 + rng() * 40 - 20 + 360) % 360);
+    }
+    return { anchors, rng };
+  }
+
+  function tileColor(palette, rng) {
+    // Blend between two random anchors for richer transitions
+    const a = palette.anchors[Math.floor(rng() * palette.anchors.length)];
+    const b = palette.anchors[Math.floor(rng() * palette.anchors.length)];
+    const mix = rng();
+    let h = a + (b - a) * mix;
+    if (h < 0) h += 360;
+    if (h > 360) h -= 360;
+    // Full-spectrum drift: occasionally push toward any hue
+    if (rng() < 0.15) h = rng() * 360;
+
+    const s = 55 + rng() * 40;   // 55–95 saturation
+    const l = 30 + rng() * 40;   // 30–70 lightness
+    const alpha = 0.7 + rng() * 0.3; // 0.7–1.0
+
+    return { h, s, l, alpha };
+  }
+
+  /* ---------- Mosaic layout ---------- */
+
+  function buildMosaic() {
+    tiles = [];
+    const palette = generatePalette(paletteSeed);
+    const rng = palette.rng;
+
+    // Irregular grid: rows of varying heights, columns of varying widths
+    const minTileW = 28 + rng() * 20;  // 28–48 px base
+    const minTileH = 24 + rng() * 20;
+
+    let y = 0;
+    while (y < H) {
+      const rowH = minTileH * (0.7 + rng() * 1.6);
+      let x = 0;
+      while (x < W) {
+        const colW = minTileW * (0.6 + rng() * 1.8);
+        const c = tileColor(palette, rng);
+        tiles.push({
+          x, y, w: colW, h: rowH,
+          hue: c.h, sat: c.s, lit: c.l, alpha: c.alpha,
+          phase: rng() * Math.PI * 2,
+          shimmerSpeed: 0.3 + rng() * 0.9,
+          shimmerAmp: 4 + rng() * 10,
+          gap: 1.5 + rng() * 1.5, // lead-line thickness
+          rounded: rng() < 0.3,
+        });
+        x += colW;
+      }
+      y += rowH;
+    }
+  }
+
+  /* ---------- Rendering ---------- */
+
+  function drawTile(t, tNow) {
+    const shimmer = Math.sin(tNow * t.shimmerSpeed + t.phase) * t.shimmerAmp;
+    let l = t.lit + shimmer;
+    l = Math.max(15, Math.min(85, l));
+
+    const g = t.gap;
+    const rx = t.rounded ? Math.min(4, t.w * 0.12) : 0;
+
+    ctx.globalAlpha = t.alpha;
+    ctx.fillStyle = `hsl(${t.hue}, ${t.sat}%, ${l}%)`;
+
+    if (rx > 0) {
+      roundRect(ctx, t.x + g, t.y + g, t.w - g * 2, t.h - g * 2, rx);
+      ctx.fill();
+    } else {
+      ctx.fillRect(t.x + g, t.y + g, t.w - g * 2, t.h - g * 2);
+    }
+
+    // Inner highlight: subtle top-left sheen for glass depth
+    ctx.globalAlpha = t.alpha * 0.18;
+    const grad = ctx.createLinearGradient(t.x, t.y, t.x + t.w, t.y + t.h);
+    grad.addColorStop(0, 'rgba(255,255,255,0.5)');
+    grad.addColorStop(0.4, 'rgba(255,255,255,0.05)');
+    grad.addColorStop(1, 'rgba(0,0,0,0.15)');
+    ctx.fillStyle = grad;
+    if (rx > 0) {
+      roundRect(ctx, t.x + g, t.y + g, t.w - g * 2, t.h - g * 2, rx);
+      ctx.fill();
+    } else {
+      ctx.fillRect(t.x + g, t.y + g, t.w - g * 2, t.h - g * 2);
+    }
+  }
+
+  function roundRect(c, x, y, w, h, r) {
+    c.beginPath();
+    c.moveTo(x + r, y);
+    c.lineTo(x + w - r, y);
+    c.quadraticCurveTo(x + w, y, x + w, y + r);
+    c.lineTo(x + w, y + h - r);
+    c.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    c.lineTo(x + r, y + h);
+    c.quadraticCurveTo(x, y + h, x, y + h - r);
+    c.lineTo(x, y + r);
+    c.quadraticCurveTo(x, y, x + r, y);
+    c.closePath();
+  }
+
+  function render(ts) {
+    const dt = Math.min((ts - lastTs) / 1000, 0.1);
+    lastTs = ts;
+    time += dt;
+
+    // Trailing background fade — creates a soft ghosting trail
+    ctx.globalAlpha = fadeAlpha;
+    ctx.fillStyle = '#0a0a0f';
+    ctx.fillRect(0, 0, W, H);
+    fadeAlpha = 0.92; // settle into gentle persistence
+
+    for (let i = 0; i < tiles.length; i++) {
+      drawTile(tiles[i], time);
+    }
+
+    // Vignette for depth
+    ctx.globalAlpha = 1;
+    const vg = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.max(W, H) * 0.75);
+    vg.addColorStop(0, 'rgba(0,0,0,0)');
+    vg.addColorStop(1, 'rgba(0,0,0,0.35)');
+    ctx.fillStyle = vg;
+    ctx.fillRect(0, 0, W, H);
+
+    requestAnimationFrame(render);
+  }
+
+  /* ---------- Setup & events ---------- */
+
+  function resize() {
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    buildMosaic();
+    // Force full repaint after resize
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = '#0a0a0f';
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  function regenerate() {
+    paletteSeed = Math.random() * 360;
+    buildMosaic();
+    fadeAlpha = 1; // full clear flash for the "new window" moment
+    hint.classList.add('hidden');
+  }
+
+  canvas.addEventListener('click', regenerate);
+  window.addEventListener('resize', resize);
+
+  // Dismiss hint after first interaction or 6s
+  setTimeout(() => hint.classList.add('hidden'), 6000);
+
+  resize();
+  requestAnimationFrame((ts) => { lastTs = ts; requestAnimationFrame(render); });
+})();
+</script>
+</body>
+</html>

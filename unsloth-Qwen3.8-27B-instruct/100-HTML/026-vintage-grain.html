@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Meridian Review — Vol. XII, No. 4</title>
+<style>
+  /* ============================================================
+     THE MERIDIAN REVIEW — Vintage Analog Aesthetic
+     Heavy film grain, warm sepia, editorial layout
+     ============================================================ */
+
+  :root {
+    --cream: #f2e8d5;
+    --cream-light: #f9f3e6;
+    --parchment: #e8dcc4;
+    --brown-dark: #2c1e0e;
+    --brown-mid: #5a4326;
+    --brown-warm: #7a5c38;
+    --sepia: #8b6f47;
+    --rust: #9c5a2d;
+    --gold: #b8934a;
+    --ink: #3a2a14;
+    --grain-opacity: 0.09;
+    --vignette-strength: 0.55;
+  }
+
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  html {
+    font-size: 16px;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background-color: var(--brown-dark);
+    background-image:
+      radial-gradient(ellipse at 50% 40%, rgba(90, 67, 38, 0.3) 0%, transparent 70%),
+      linear-gradient(180deg, #1e1408 0%, #2c1e0e 30%, #241809 100%);
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 2rem 1rem;
+    font-family: Georgia, 'Times New Roman', Times, serif;
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ============ PAGE CONTAINER ============ */
+
+  .page {
+    position: relative;
+    width: 100%;
+    max-width: 860px;
+    background: var(--cream);
+    background-image:
+      linear-gradient(180deg, rgba(232, 220, 196, 0.4) 0%, transparent 15%),
+      linear-gradient(0deg, rgba(90, 67, 38, 0.08) 0%, transparent 10%);
+    box-shadow:
+      0 0 0 1px rgba(44, 30, 14, 0.15),
+      0 4px 24px rgba(0, 0, 0, 0.5),
+      0 16px 64px rgba(0, 0, 0, 0.4),
+      inset 0 0 80px rgba(90, 67, 38, 0.06);
+    overflow: hidden;
+    animation: pageFlicker 8s ease-in-out infinite;
+  }
+
+  /* ============ GRAIN OVERLAY (SVG feTurbulence) ============ */
+
+  .grain-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 100;
+    pointer-events: none;
+    opacity: var(--grain-opacity);
+    mix-blend-mode: multiply;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-repeat: repeat;
+    animation: grainShift 0.4s steps(4) infinite;
+  }
+
+  @keyframes grainShift {
+    0%   { transform: translate(0, 0); }
+    25%  { transform: translate(-8px, 4px); }
+    50%  { transform: translate(4px, -6px); }
+    75%  { transform: translate(-4px, -4px); }
+    100% { transform: translate(6px, 2px); }
+  }
+
+  /* Secondary grain layer — different frequency, opposite drift */
+  .grain-overlay--fine {
+    opacity: 0.05;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='nf'%3E%3CfeTurbulence type='turbulence' baseFrequency='1.2' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23nf)'/%3E%3C/svg%3E");
+    animation: grainShiftFine 0.3s steps(3) infinite reverse;
+  }
+
+  @keyframes grainShiftFine {
+    0%   { transform: translate(0, 0); }
+    33%  { transform: translate(5px, -3px); }
+    66%  { transform: translate(-3px, 5px); }
+    100% { transform: translate(2px, -2px); }
+  }
+
+  /* ============ VIGNETTE OVERLAY ============ */
+
+  .vignette {
+    position: absolute;
+    inset: 0;
+    z-index: 99;
+    pointer-events: none;
+    background:
+      radial-gradient(ellipse at 50% 50%,
+        transparent 55%,
+        rgba(44, 30, 14, 0.12) 75%,
+        rgba(44, 30, 14, var(--vignette-strength)) 100%
+      );
+  }
+
+  /* Subtle top/bottom edge darkening for aged-paper feel */
+  .edge-shade {
+    position: absolute;
+    inset: 0;
+    z-index: 98;
+    pointer-events: none;
+    background:
+      linear-gradient(180deg, rgba(44, 30, 14, 0.15) 0%, transparent 4%, transparent 96%, rgba(44, 30, 14, 0.2) 100%);
+  }
+
+  /* ============ FLICKER ANIMATION ============ */
+
+  @keyframes pageFlicker {
+    0%, 100% { opacity: 1; }
+    3%       { opacity: 0.985; }
+    7%       { opacity: 1; }
+    12%      { opacity: 0.99; }
+    15%      { opacity: 1; }
+    42%      { opacity: 0.992; }
+    45%      { opacity: 1; }
+    71%      { opacity: 0.988; }
+    74%      { opacity: 1; }
+    89%      { opacity: 0.995; }
+    92%      { opacity: 1; }
+  }
+
+  /* ============ FADE-UP ENTRANCE ============ */
+
+  .fade-up {
+    opacity: 0;
+    transform: translateY(18px);
+    animation: fadeUp 0.9s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+
+  @keyframes fadeUp {
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* Staggered delays */
+  .delay-1 { animation-delay: 0.15s; }
+  .delay-2 { animation-delay: 0.4s; }
+  .delay-3 { animation-delay: 0.7s; }
+  .delay-4 { animation-delay: 1.0s; }
+  .delay-5 { animation-delay: 1.3s; }
+  .delay-6 { animation-delay: 1.6s; }
+  .delay-7 { animation-delay: 1.9s; }
+  .delay-8 { animation-delay: 2.2s; }
+
+  /* ============ HEADER ============ */
+
+  .masthead {
+    text-align: center;
+    padding: 3rem 2.5rem 2rem;
+    border-bottom: 3px double var(--brown-mid);
+    position: relative;
+  }
+
+  .masthead::after {
+    content: '';
+    position: absolute;
+    bottom: -6px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 60px;
+    height: 1px;
+    background: var(--brown-mid);
+  }
+
+  .masthead__date {
+    font-size: 0.75rem;
+    letter-spacing: 0.35em;
+    text-transform: uppercase;
+    color: var(--sepia);
+    margin-bottom: 1.25rem;
+    font-style: italic;
+  }
+
+  .masthead__title {
+    font-size: clamp(2.2rem, 6vw, 3.8rem);
+    font-weight: normal;
+    color: var(--brown-dark);
+    letter-spacing: 0.04em;
+    line-height: 1.1;
+    margin-bottom: 0.75rem;
+    text-shadow: 0 1px 0 rgba(242, 232, 213, 0.8);
+  }
+
+  .masthead__subtitle {
+    font-size: clamp(0.95rem, 2vw, 1.15rem);
+    font-style: italic;
+    color: var(--brown-warm);
+    letter-spacing: 0.08em;
+    line-height: 1.5;
+  }
+
+  /* Decorative rule under masthead */
+  .masthead__rule {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    margin-top: 1.5rem;
+    color: var(--sepia);
+  }
+
+  .masthead__rule span {
+    display: block;
+    width: 48px;
+    height: 1px;
+    background: currentColor;
+  }
+
+  .masthead__rule .diamond {
+    width: 6px;
+    height: 6px;
+    background: currentColor;
+    transform: rotate(45deg);
+  }
+
+  /* ============ PHOTO PLACEHOLDER ============ */
+
+  .photo-frame {
+    margin: 2.5rem auto;
+    max-width: 520px;
+    padding: 0.75rem;
+    background: var(--cream-light);
+    border: 1px solid var(--parchment);
+    box-shadow:
+      0 2px 8px rgba(44, 30, 14, 0.15),
+      0 8px 32px rgba(44, 30, 14, 0.1);
+    position: relative;
+  }
+
+  .photo-frame::before {
+    content: '';
+    position: absolute;
+    inset: 4px;
+    border: 1px solid rgba(139, 111, 71, 0.25);
+    pointer-events: none;
+  }
+
+  .photo-placeholder {
+    width: 100%;
+    aspect-ratio: 3 / 2;
+    background:
+      linear-gradient(135deg, var(--parchment) 0%, var(--sepia) 40%, var(--brown-warm) 70%, var(--brown-mid) 100%);
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* Simulated photo texture inside the frame */
+  .photo-placeholder::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='256' height='256'%3E%3Cfilter id='pn'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='5' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.55 0 0 0 0 0.45 0 0 0 0 0.3 0 0 0 0.35 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23pn)'/%3E%3C/svg%3E");
+    opacity: 0.6;
+    mix-blend-mode: overlay;
+  }
+
+  /* Soft light leak across the photo */
+  .photo-placeholder::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(ellipse at 20% 30%, rgba(255, 220, 160, 0.25) 0%, transparent 50%),
+      radial-gradient(ellipse at 80% 70%, rgba(156, 90, 45, 0.2) 0%, transparent 40%);
+  }
+
+  .photo-caption {
+    text-align: center;
+    font-size: 0.78rem;
+    font-style: italic;
+    color: var(--sepia);
+    padding: 0.6rem 0.5rem 0.2rem;
+    letter-spacing: 0.05em;
+  }
+
+  /* ============ BODY TEXT — TWO COLUMN ============ */
+
+  .article-body {
+    padding: 0 2.5rem 2rem;
+    column-count: 2;
+    column-gap: 2.5rem;
+    column-rule: 1px solid rgba(139, 111, 71, 0.3);
+    font-size: 0.95rem;
+    line-height: 1.75;
+    color: var(--ink);
+    text-align: justify;
+    hyphens: auto;
+  }
+
+  .article-body p {
+    margin-bottom: 1em;
+  }
+
+  /* Drop cap on first paragraph */
+  .article-body > p:first-child::first-letter {
+    float: left;
+    font-size: 3.8em;
+    line-height: 0.85;
+    padding-right: 0.12em;
+    padding-top: 0.05em;
+    color: var(--brown-dark);
+    font-weight: bold;
+    text-shadow: 1px 1px 0 rgba(242, 232, 213, 0.9);
+  }
+
+  /* Pull quote spanning both columns */
+  .pull-quote {
+    break-inside: avoid;
+    column-span: all;
+    text-align: center;
+    margin: 1.5rem 0;
+    padding: 1.25rem 1rem;
+    border-top: 1px solid rgba(139, 111, 71, 0.35);
+    border-bottom: 1px solid rgba(139, 111, 71, 0.35);
+    font-size: 1.15rem;
+    font-style: italic;
+    color: var(--brown-mid);
+    line-height: 1.6;
+  }
+
+  .pull-quote .quote-mark {
+    display: block;
+    font-size: 2.5rem;
+    line-height: 1;
+    color: var(--gold);
+    margin-bottom: 0.25rem;
+    font-style: normal;
+  }
+
+  /* ============ VINTAGE BADGE ============ */
+
+  .badge-section {
+    display: flex;
+    justify-content: center;
+    padding: 1.5rem 2.5rem 2rem;
+  }
+
+  .vintage-badge {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 140px;
+    height: 140px;
+    border-radius: 50%;
+    border: 2px solid var(--brown-mid);
+    outline: 1px solid rgba(139, 111, 71, 0.4);
+    outline-offset: 4px;
+    background:
+      radial-gradient(circle at 40% 35%, rgba(249, 243, 230, 0.9) 0%, var(--cream) 60%, var(--parchment) 100%);
+    box-shadow:
+      0 2px 8px rgba(44, 30, 14, 0.12),
+      inset 0 0 20px rgba(139, 111, 71, 0.08);
+    text-align: center;
+    position: relative;
+  }
+
+  /* Inner ring */
+  .vintage-badge::before {
+    content: '';
+    position: absolute;
+    inset: 10px;
+    border-radius: 50%;
+    border: 1px dashed rgba(139, 111, 71, 0.4);
+  }
+
+  .vintage-badge__top {
+    font-size: 0.55rem;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--sepia);
+    margin-bottom: 0.3rem;
+  }
+
+  .vintage-badge__center {
+    font-size: 1.6rem;
+    color: var(--brown-dark);
+    font-weight: bold;
+    line-height: 1;
+  }
+
+  .vintage-badge__bottom {
+    font-size: 0.55rem;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--sepia);
+    margin-top: 0.3rem;
+  }
+
+  /* ============ FOOTER ============ */
+
+  .colophon {
+    text-align: center;
+    padding: 2rem 2.5rem 2.5rem;
+    border-top: 3px double var(--brown-mid);
+    position: relative;
+  }
+
+  .colophon::before {
+    content: '';
+    position: absolute;
+    top: -6px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 60px;
+    height: 1px;
+    background: var(--brown-mid);
+  }
+
+  .colophon__text {
+    font-size: 0.72rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--sepia);
+    line-height: 2;
+  }
+
+  .colophon__ornament {
+    margin-top: 1rem;
+    color: var(--gold);
+    font-size: 0.9rem;
+    letter-spacing: 0.5em;
+  }
+
+  /* ============ RESPONSIVE ============ */
+
+  @media (max-width: 640px) {
+    body {
+      padding: 1rem 0.5rem;
+    }
+
+    .masthead {
+      padding: 2rem 1.25rem 1.5rem;
+    }
+
+    .photo-frame {
+      margin: 2rem 1rem;
+    }
+
+    .article-body {
+      column-count: 1;
+      column-rule: none;
+      padding: 0 1.25rem 1.5rem;
+      text-align: left;
+    }
+
+    .article-body > p:first-child::first-letter {
+      font-size: 3em;
+    }
+
+    .badge-section {
+      padding: 1.25rem 1.25rem 1.5rem;
+    }
+
+    .vintage-badge {
+      width: 120px;
+      height: 120px;
+    }
+
+    .colophon {
+      padding: 1.5rem 1.25rem 2rem;
+    }
+  }
+
+  @media (max-width: 400px) {
+    .masthead__title {
+      font-size: 1.8rem;
+    }
+
+    .vintage-badge {
+      width: 100px;
+      height: 100px;
+    }
+
+    .vintage-badge__center {
+      font-size: 1.2rem;
+    }
+  }
+
+  /* Respect reduced motion preferences */
+  @media (prefers-reduced-motion: reduce) {
+    .grain-overlay,
+    .grain-overlay--fine {
+      animation: none;
+    }
+    .page {
+      animation: none;
+    }
+    .fade-up {
+      animation-duration: 0.01s;
+      animation-delay: 0s;
+    }
+  }
+</style>
+</head>
+<body>
+
+<article class="page">
+  <!-- Overlays -->
+  <div class="grain-overlay" aria-hidden="true"></div>
+  <div class="grain-overlay grain-overlay--fine" aria-hidden="true"></div>
+  <div class="vignette" aria-hidden="true"></div>
+  <div class="edge-shade" aria-hidden="true"></div>
+
+  <!-- Masthead -->
+  <header class="masthead">
+    <p class="masthead__date fade-up delay-1">Autumn 1957 &middot; Volume XII, Number 4</p>
+    <h1 class="masthead__title fade-up delay-2">The Meridian Review</h1>
+    <p class="masthead__subtitle fade-up delay-3">A Journal of Letters, Art &amp; Quiet Observation</p>
+    <div class="masthead__rule fade-up delay-3" aria-hidden="true">
+      <span></span>
+      <span class="diamond"></span>
+      <span></span>
+    </div>
+  </header>
+
+  <!-- Photo placeholder -->
+  <figure class="photo-frame fade-up delay-4">
+    <div class="photo-placeholder" role="img" aria-label="Sepia-toned photograph of a quiet harbor at dusk"></div>
+    <figcaption class="photo-caption">Fig. I — The harbor at dusk, as seen from the eastern pier. Photograph by E. Marchetti.</figcaption>
+  </figure>
+
+  <!-- Body text -->
+  <section class="article-body fade-up delay-5">
+    <p>There is a particular quality of light that settles over the water in late October, when the sun descends so low that it seems less a source of illumination than a slow ember cooling behind the hills. The fishermen who still work these waters have names for such moments — words that do not appear in any dictionary, passed down like small coins between generations, each one worn smooth by the mouths that have repeated it. They call this hour the amber tide, and they say that whatever is caught in its glow carries a memory of the sea long after it has been landed, cleaned, and sold at market.</p>
+
+    <p>The old lighthouse keeper, Mr. Aldous Finch, kept his logbooks in a cedar chest that smelled of camphor and salt. Each entry was written in a hand so precise it seemed almost mechanical, yet there was a warmth in the pressure of his pen that no machine could replicate. He recorded the weather, the tides, the ships passing with their lights strung along the horizon like beads on a thread. But what struck me most, when I was permitted to read those pages, was the silence he noted — not the absence of sound, but a presence of quiet so complete it felt like something living, breathing just beneath the surface of the day.</p>
+
+    <blockquote class="pull-quote">
+      <span class="quote-mark">&ldquo;</span>
+      We are not so much observers of the world as we think. We are more like the grain in old photographs — present everywhere, shaping what can be seen, yet never quite part of the image itself.
+      <span class="quote-mark" style="transform: scaleY(-1);">&rdquo;</span>
+    </blockquote>
+
+    <p>In the archives of the municipal library, I found a collection of letters dated between 1923 and 1941, written by a woman named Clara Voss to her sister in Geneva. The letters were bound in a cloth cover the color of dried lavender, and their edges had softened to a faint translucence, as though time itself had begun to thin them out. Clara wrote about the garden, about the particular way frost formed on the rose petals each morning, about a cat that appeared uninvited and stayed for eleven years. She wrote, in one letter, that she had stopped trying to capture beauty in words because she had come to believe that beauty was not a thing to be captured but a condition to be inhabited — like weather, like hunger, like the slow turning of seasons.</p>
+
+    <p>The town itself has changed, of course. The mill that once drove the river's current now stands empty, its windows dark as closed eyes. The bakery on Linden Street has been replaced by a shop that sells things made from resin and plastic, objects that imitate the shapes of older crafts without inheriting their weight or patience. And yet, if you walk the narrow lane behind the church at dawn, when the fog has not yet lifted and the cobblestones hold the night's moisture like a secret, you can still feel the old rhythm of the place — the creak of the bridge, the distant bell marking the hours, the particular quality of silence that belongs only to towns that have stood for centuries and intend to stand for many more.</p>
+
+    <p>What remains, I think, is not nostalgia in the sentimental sense. It is something closer to fidelity — a faithfulness to the textures of a life actually lived, with all its imperfections and its small, stubborn beauties. The grain in the photograph, the flicker of the lamp, the worn edge of the page: these are not flaws to be corrected but signatures to be honored. They remind us that every record of experience is also an act of transformation, that nothing passes through us unchanged, and that the oldest stories are often the ones we tell most quietly, in the smallest voices, to the fewest ears.</p>
+  </section>
+
+  <!-- Vintage badge -->
+  <div class="badge-section fade-up delay-6">
+    <div class="vintage-badge" role="presentation">
+      <span class="vintage-badge__top">Est. 1945</span>
+      <span class="vintage-badge__center">MR</span>
+      <span class="vintage-badge__bottom">Meridian Press</span>
+    </div>
+  </div>
+
+  <!-- Colophon / Footer -->
+  <footer class="colophon fade-up delay-7">
+    <p class="colophon__text">
+      Set in Georgia &middot; Printed on recycled stock<br>
+      The Meridian Review &middot; Published Quarterly<br>
+      All rights reserved &middot; Autumn 1957
+    </p>
+    <p class="colophon__ornament" aria-hidden="true">&#10022; &#10022; &#10022;</p>
+  </footer>
+</article>
+
+</body>
+</html>

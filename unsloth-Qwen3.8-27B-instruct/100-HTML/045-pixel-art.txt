@@ -1,0 +1,30 @@
+# Pixel Art — Generative Living Canvas
+
+## Creative Prompt
+
+Create a generative pixel art display with a grid of colored pixels that form organic patterns. Pixels are arranged based on a noise function, creating clusters and structures. Colors come from a random palette and gently flicker. Individual pixels occasionally change color, making the pattern slowly evolve. The entire grid regenerates every 8 seconds with a new palette and pattern. The background is dark with trailing fade. The overall aesthetic is retro, chunky, and dynamic — like a living pixel canvas.
+
+## Model
+
+Qwen3.8-27B-instruct
+
+## Thinking Effort
+
+high
+
+## Techniques Used
+
+- Canvas pixel grid rendering with PIXEL_SIZE (8px) blocks for a chunky retro look
+- Noise-based pattern generation using layered sine/cosine combinations with random seeds and frequencies
+- Random palette generation via HSL color space with analogous/complementary/triadic/random schemes
+- Per-pixel flicker driven by a time-based sine function with per-position phase offset
+- Random pixel mutation each few frames for slow organic evolution
+- Periodic full regeneration every 8 seconds with new palette + noise parameters
+- Click/tap to force immediate regeneration
+- Trailing background fade via semi-transparent fill (alpha 0.12) over previous frame
+- devicePixelRatio-aware canvas sizing for crisp rendering on HiDPI displays
+- Debounced resize handler that reflows the grid and regenerates
+
+## Stats
+
+Wall time: N/A | Tokens: N/A

@@ -1,0 +1,24 @@
+# 036 — DNA Helix
+
+## Creative Prompt
+Create a 3D DNA double helix visualization with glowing base pairs. Two colored strands (blue-cyan and pink-magenta) spiral around a central axis, connected by horizontal bonds. Each base pair is a sphere with glow, sized and faded based on its Z-depth. Backbone lines trace the two strands. Mouse position affects the twist phase. The background is a deep dark blue with trailing fade. The overall aesthetic is scientific, bioluminescent, and futuristic — like a molecular biology visualization.
+
+## Model
+Qwen3.8-27B-instruct
+
+## Thinking Effort
+high
+
+## Techniques Used
+- Canvas 2D pseudo-3D rendering: trigonometric helix positioning (cos/sin per base-pair index), perspective projection with focal scaling, and a slight camera tilt for depth.
+- Depth-based alpha and size: nucleotides closer to the camera are larger and brighter; far ones recede into the dark.
+- Pre-rendered radial-gradient glow sprites (offscreen canvases) drawn with additive ("lighter") compositing for bioluminescent halos; bright radial cores on each nucleotide.
+- Base-pair bonds as gradient-stroked lines with a wide soft glow pass plus a thin core line.
+- Backbone strands rendered as connected polylines with per-segment depth-faded glow + core strokes.
+- HSL color cycling along the helix (hue drifts with rotation) for strand A (cyan-blue family) and strand B (pink-magenta family).
+- Mouse X drives a smoothed twist-phase offset so the user can "untwist" the helix; passive continuous rotation otherwise.
+- Trailing background fade via semi-transparent dark-blue fill each frame for motion trails.
+- Fully self-contained single HTML file, responsive canvas with devicePixelRatio handling, no external dependencies.
+
+## Stats
+Wall time: N/A | Tokens: N/A

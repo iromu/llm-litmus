@@ -1,0 +1,19 @@
+Creative prompt artifact — 047-clock-face
+
+Creative prompt:
+Create a minimalist analog clock face with glowing blue elements on a dark background. The clock features hour markers (with longer marks at 12, 3, 6, 9), minute dots, hour numbers at cardinal positions, hour/minute/second hands, a glowing second hand with trail, and a center dot. A digital time display sits below the clock face. The clock tells real time. The overall aesthetic is clean, luminous, and precise — like a premium smartwatch face.
+
+Model: Qwen3.8-27B-instruct
+Thinking effort: high
+
+Techniques used:
+- Canvas 2D rendering with trigonometric hand positioning (angleFor maps fractions of the circle to radians, 12 o'clock up)
+- Real-time clock via Date(), with millisecond interpolation for a smooth sweeping second hand
+- Radial gradient dial + multi-pass outer ring glow for a soft bloom effect
+- Multi-style markers: rounded-cap lines for hours (longer/thicker at cardinals), small glowing dots for minutes
+- Hands rendered with varying widths/opacities and canvas shadowBlur glow; red-accented second hand with a segmented fading arc trail and counterweight dot
+- Static face cached to an offscreen canvas (redrawn only on resize) so the per-frame cost is just the hands
+- Digital HH:MM:SS + day/date readout below the face, updated once per second, tabular numerals with text-shadow glow
+- HiDPI-aware sizing (devicePixelRatio scaling, capped at 2x) and fully responsive vmin-based layout
+
+Wall time: N/A | Tokens: N/A

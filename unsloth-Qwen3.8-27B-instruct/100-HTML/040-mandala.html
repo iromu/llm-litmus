@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mandala — Generative Sacred Geometry</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #05050a;
+  }
+
+  canvas {
+    display: block;
+    width: 100vw;
+    height: 100vh;
+    cursor: pointer;
+  }
+
+  .hint {
+    position: fixed;
+    bottom: 1.2rem;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 0.78rem;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.35);
+    pointer-events: none;
+    user-select: none;
+    transition: opacity 2s ease;
+  }
+  .hint.hidden { opacity: 0; }
+</style>
+</head>
+<body>
+<canvas id="mandala" aria-label="Generative mandala with 16-fold radial symmetry"></canvas>
+<p class="hint" id="hint">click to shift the spectrum</p>
+
+<script>
+(() => {
+  'use strict';
+
+  const canvas = document.getElementById('mandala');
+  const ctx = canvas.getContext('2d');
+  const hint = document.getElementById('hint');
+
+  // ---------- Configuration ----------
+  const SEGMENTS = 16;            // radial symmetry order
+  const LAYERS = 12;             // concentric layers
+  const TAU = Math.PI * 2;
+
+  // Per-layer design parameters (radius fraction of max radius)
+  // Each layer: { r, speed, petals, petalLen, petalWidth, dots, dotR, arcs, arcSpan, circle }
+  const layerDefs = [
+    { r: 0.97, speed: 0.010, petals: 16, petalLen: 0.055, petalWidth: 0.030, dots: 16, dotR: 0.006, arcs: 16, arcSpan: 0.55, circle: true },
+    { r: 0.88, speed: -0.016, petals: 16, petalLen: 0.070, petalWidth: 0.040, dots: 32, dotR: 0.004, arcs: 16, arcSpan: 0.40, circle: true },
+    { r: 0.79, speed: 0.024, petals: 32, petalLen: 0.045, petalWidth: 0.020, dots: 16, dotR: 0.007, arcs: 8,  arcSpan: 0.70, circle: false },
+    { r: 0.70, speed: -0.012, petals: 16, petalLen: 0.080, petalWidth: 0.048, dots: 48, dotR: 0.003, arcs: 16, arcSpan: 0.30, circle: true },
+    { r: 0.61, speed: 0.030, petals: 32, petalLen: 0.035, petalWidth: 0.016, dots: 32, dotR: 0.005, arcs: 16, arcSpan: 0.50, circle: false },
+    { r: 0.53, speed: -0.020, petals: 16, petalLen: 0.075, petalWidth: 0.042, dots: 16, dotR: 0.008, arcs: 8,  arcSpan: 0.60, circle: true },
+    { r: 0.45, speed: 0.038, petals: 32, petalLen: 0.040, petalWidth: 0.018, dots: 48, dotR: 0.003, arcs: 16, arcSpan: 0.35, circle: false },
+    { r: 0.37, speed: -0.026, petals: 16, petalLen: 0.065, petalWidth: 0.036, dots: 32, dotR: 0.005, arcs: 16, arcSpan: 0.45, circle: true },
+    { r: 0.29, speed: 0.044, petals: 32, petalLen: 0.030, petalWidth: 0.014, dots: 16, dotR: 0.006, arcs: 8,  arcSpan: 0.65, circle: false },
+    { r: 0.22, speed: -0.034, petals: 16, petalLen: 0.055, petalWidth: 0.032, dots: 32, dotR: 0.004, arcs: 16, arcSpan: 0.40, circle: true },
+    { r: 0.155,speed: 0.052, petals: 16, petalLen: 0.040, petalWidth: 0.022, dots: 16, dotR: 0.005, arcs: 8,  arcSpan: 0.55, circle: false },
+    { r: 0.095,speed: -0.042, petals: 16, petalLen: 0.030, petalWidth: 0.018, dots: 16, dotR: 0.004, arcs: 16, arcSpan: 0.35, circle: true },
+  ];
+
+  // Center lotus cluster rings
+  const lotusRings = [
+    { count: 1,  rFrac: 0.000, size: 0.014, speed: 0.060 },
+    { count: 8,  rFrac: 0.030, size: 0.006, speed: -0.045 },
+    { count: 16, rFrac: 0.052, size: 0.005, speed: 0.035 },
+    { count: 16, rFrac: 0.074, size: 0.004, speed: -0.028 },
+  ];
+
+  // ---------- State ----------
+  let W, H, DPR, maxR;
+  let baseHue = 200;
+  let hueShift = 0;          // eased toward targetHueShift
+  let targetHueShift = 0;
+  let t = 0;                 // accumulated time (seconds)
+  let lastTime = performance.now();
+  let hintTimer;
+
+  function resize() {
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = W * DPR;
+    canvas.height = H * DPR;
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    maxR = Math.min(W, H) * 0.46;
+    // Paint a solid background so trails start clean
+    ctx.fillStyle = '#05050a';
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  window.addEventListener('resize', resize);
+  resize();
+
+  // ---------- Interaction ----------
+  function onPointerDown() {
+    targetHueShift += 47;   // irrational-ish step so hues never repeat quickly
+    if (!hint.classList.contains('hidden')) {
+      hint.classList.add('hidden');
+    }
+    clearTimeout(hintTimer);
+  }
+  canvas.addEventListener('pointerdown', onPointerDown);
+
+  // Fade hint after a while even without a click
+  hintTimer = setTimeout(() => hint.classList.add('hidden'), 6000);
+
+  // ---------- Drawing helpers ----------
+
+  /** Draw one petal pointing outward along +x axis at given radius. */
+  function drawPetal(cx, cy, angle, dist, len, wid, fillStyle, strokeStyle) {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(angle);
+    ctx.beginPath();
+    const x0 = dist - len / 2;
+    const x1 = dist + len / 2;
+    ctx.moveTo(x0, 0);
+    ctx.quadraticCurveTo(dist, -wid, x1, 0);
+    ctx.quadraticCurveTo(dist, wid, x0, 0);
+    ctx.closePath();
+    if (fillStyle) { ctx.fillStyle = fillStyle; ctx.fill(); }
+    if (strokeStyle) { ctx.strokeStyle = strokeStyle; ctx.lineWidth = 1; ctx.stroke(); }
+    ctx.restore();
+  }
+
+  /** Draw a ring of N dots at given radius. */
+  function drawDotRing(cx, cy, angleOffset, count, dist, size, style) {
+    for (let i = 0; i < count; i++) {
+      const a = angleOffset + (i / count) * TAU;
+      const x = cx + Math.cos(a) * dist;
+      const y = cy + Math.sin(a) * dist;
+      ctx.beginPath();
+      ctx.arc(x, y, size, 0, TAU);
+      ctx.fillStyle = style;
+      ctx.fill();
+    }
+  }
+
+  /** Draw N arcs at given radius, each spanning `span` radians. */
+  function drawArcRing(cx, cy, angleOffset, count, dist, span, style, lineWidth) {
+    const segAngle = TAU / count;
+    const half = (segAngle * span) / 2;
+    ctx.strokeStyle = style;
+    ctx.lineWidth = lineWidth;
+    ctx.lineCap = 'round';
+    for (let i = 0; i < count; i++) {
+      const a = angleOffset + (i / count) * TAU;
+      ctx.beginPath();
+      ctx.arc(cx, cy, dist, a - half, a + half);
+      ctx.stroke();
+    }
+  }
+
+  /** Draw a full concentric circle. */
+  function drawCircle(cx, cy, dist, style, lineWidth) {
+    ctx.beginPath();
+    ctx.arc(cx, cy, dist, 0, TAU);
+    ctx.strokeStyle = style;
+    ctx.lineWidth = lineWidth;
+    ctx.stroke();
+  }
+
+  // ---------- Main render ----------
+  function frame(now) {
+    const dt = Math.min((now - lastTime) / 1000, 0.05);
+    lastTime = now;
+    t += dt;
+
+    // Ease hue shift
+    hueShift += (targetHueShift - hueShift) * Math.min(1, dt * 6);
+
+    const cx = W / 2;
+    const cy = H / 2;
+
+    // Trailing fade — semi-transparent dark wash each frame
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = 'rgba(5, 5, 10, 0.16)';
+    ctx.fillRect(0, 0, W, H);
+
+    // Additive blending for luminous overlap
+    ctx.globalCompositeOperation = 'lighter';
+
+    const hueBase = (baseHue + hueShift + t * 8) % 360;
+
+    // ---- Layers (outermost first) ----
+    for (let li = 0; li < LAYERS; li++) {
+      const L = layerDefs[li];
+      const dist = L.r * maxR;
+      const layerHue = (hueBase + li * 26) % 360;
+      const rot = t * L.speed;
+
+      // Structural concentric circle
+      if (L.circle) {
+        const alpha = 0.10 + 0.06 * Math.sin(t * 0.4 + li);
+        drawCircle(cx, cy, dist,
+          `hsla(${layerHue}, 70%, 62%, ${alpha.toFixed(3)})`, 1);
+      }
+
+      // Petals — drawn per segment with 16-fold symmetry baked into counts
+      const petalAlpha = 0.35 + 0.2 * Math.sin(t * 0.7 + li * 1.3);
+      const petalFill = `hsla(${layerHue}, 85%, 55%, ${(petalAlpha * 0.5).toFixed(3)})`;
+      const petalStroke = `hsla(${(layerHue + 30) % 360}, 90%, 70%, ${petalAlpha.toFixed(3)})`;
+      const plen = L.petalLen * maxR;
+      const pwid = L.petalWidth * maxR;
+      for (let s = 0; s < SEGMENTS; s++) {
+        const a = rot + (s / SEGMENTS) * TAU;
+        // If layer has more petals than segments, subdivide within each segment
+        const perSeg = L.petals / SEGMENTS;
+        for (let p = 0; p < perSeg; p++) {
+          const pa = a + ((p + 0.5) / perSeg) * (TAU / SEGMENTS);
+          drawPetal(cx, cy, pa, dist, plen, pwid, petalFill, petalStroke);
+        }
+      }
+
+      // Dot ring
+      const dotAlpha = 0.5 + 0.3 * Math.sin(t * 0.9 + li * 0.8);
+      drawDotRing(cx, cy, rot * 1.5, L.dots, dist, L.dotR * maxR,
+        `hsla(${(layerHue + 60) % 360}, 95%, 75%, ${dotAlpha.toFixed(3)})`);
+
+      // Arc details
+      const arcAlpha = 0.25 + 0.15 * Math.sin(t * 0.5 + li * 2.1);
+      drawArcRing(cx, cy, -rot * 0.7, L.arcs, dist * 0.985, L.arcSpan,
+        `hsla(${(layerHue + 120) % 360}, 80%, 65%, ${arcAlpha.toFixed(3)})`, 1.5);
+    }
+
+    // ---- Center lotus cluster ----
+    const glowR = maxR * 0.16;
+    const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, glowR);
+    const glowHue = (hueBase + 180) % 360;
+    grad.addColorStop(0, `hsla(${glowHue}, 90%, 80%, 0.5)`);
+    grad.addColorStop(0.4, `hsla(${glowHue}, 85%, 60%, 0.18)`);
+    grad.addColorStop(1, 'hsla(0, 0%, 0%, 0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(cx, cy, glowR, 0, TAU);
+    ctx.fill();
+
+    for (const ring of lotusRings) {
+      const rd = ring.rFrac * maxR;
+      const rs = ring.size * maxR;
+      const rr = t * ring.speed;
+      const rh = (hueBase + 40 + ring.count * 8) % 360;
+      const ra = 0.6 + 0.3 * Math.sin(t * 1.2 + ring.count);
+      if (ring.count === 1) {
+        ctx.beginPath();
+        ctx.arc(cx, cy, rs, 0, TAU);
+        ctx.fillStyle = `hsla(${rh}, 95%, 85%, ${ra.toFixed(3)})`;
+        ctx.fill();
+      } else {
+        drawDotRing(cx, cy, rr, ring.count, rd, rs,
+          `hsla(${rh}, 90%, 75%, ${ra.toFixed(3)})`);
+      }
+    }
+
+    // Faint outer halo
+    const haloR = maxR * 1.02;
+    const halo = ctx.createRadialGradient(cx, cy, maxR * 0.9, cx, cy, haloR);
+    halo.addColorStop(0, 'hsla(0, 0%, 0%, 0)');
+    halo.addColorStop(1, `hsla(${hueBase}, 60%, 50%, 0.05)`);
+    ctx.fillStyle = halo;
+    ctx.beginPath();
+    ctx.arc(cx, cy, haloR, 0, TAU);
+    ctx.fill();
+
+    ctx.globalCompositeOperation = 'source-over';
+    requestAnimationFrame(frame);
+  }
+
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,20 @@
+Creative prompt artifact
+========================
+
+Creative prompt:
+Create a circular rainbow spectrum with colored bars arranged in a radial pattern, like light passing through a prism. Bars rotate slowly and have varying widths and heights that pulse. The full color spectrum cycles continuously. A subtle white glow at the center adds depth. The background is very dark with trailing fade. The overall aesthetic is colorful, optical, and mesmerizing — like a spinning color wheel or disco ball.
+
+Model name: Qwen3.8-27B-instruct
+Thinking effort: high
+
+Techniques used:
+- Canvas 2D radial rainbow rendering: 96 bars laid out as a ring of quads around a center circle, each bar drawn from an inner radius to a pulsing outer radius.
+- Per-band hue mapping across the full 360° spectrum (hue = band index / total * 360), plus a slow global hue drift so the whole wheel continuously cycles colors, and small per-band jitter for organic variation.
+- Sine-based modulation: a travelling spatial sine wave (angle-dependent) combined with per-band temporal "breathing" sines drive bar length; separate per-band sines oscillate angular width between thin and fat.
+- Rotation animation via a time-based angle offset applied to every band.
+- Center radial gradient white glow for depth, plus a faint breathing outer halo.
+- Trailing background fade: each frame paints a translucent dark rect (alpha ~0.14) instead of clearing, leaving motion trails.
+- Additive ("lighter") compositing so overlapping glows bloom like real light; per-bar linear gradients and radial tip-cap dots add shimmer.
+- Responsive: canvas resizes to viewport with devicePixelRatio scaling; wheel radius derived from min(viewport dimensions).
+
+Wall time: N/A | Tokens: N/A

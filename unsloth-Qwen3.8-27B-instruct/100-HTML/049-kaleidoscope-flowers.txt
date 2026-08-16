@@ -1,0 +1,23 @@
+Kaleidoscope Flowers — Botanical Psychedelia
+=============================================
+
+Creative Prompt:
+Create a floral kaleidoscope with blooming flowers that drift and rotate. Each flower has 8 petals drawn with bezier curves, filled with soft radial gradients in shifting hues. Petals bloom open and closed with a sine wave. The center has a glowing core. Clicking adds a new flower at the cursor. Flowers drift slowly with sine-wave motion. The background is dark purple with trailing fade. The overall aesthetic is floral, psychedelic, and delicate — like animated botanical illustrations.
+
+Model: Qwen3.8-27B-instruct
+Thinking effort: high
+
+Techniques used:
+- Canvas 2D bezier curve petal outlines (two cubic beziers per petal, 8-fold rotational symmetry)
+- Multi-petal flowers: outer ring of 8 petals + optional inner counter-rotating ring for depth
+- Radial gradient petal fills with progressive hue shift (base → tip), plus subtle vein strokes
+- Glowing center core built from concentric circles + pulsing halo (radial gradient)
+- Sine-based blooming animation modulating petal length/width over time
+- Drift physics: base position + independent sine modulation on X/Y axes at different frequencies
+- Slow continuous rotation per flower; per-flower seeded randomness (mulberry32) for variety
+- Click/touch to plant a new flower; pool capped at 25 with oldest recycled
+- Trailing background fade via low-alpha fill each frame (motion blur trails)
+- Subtle vignette overlay for framing; spawn scale-in easing for newly planted flowers
+- DPR-aware canvas sizing, pointer events + touch fallback, fully self-contained single file
+
+Wall time: N/A | Tokens: N/A

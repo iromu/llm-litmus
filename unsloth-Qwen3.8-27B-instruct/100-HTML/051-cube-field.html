@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cube Field — Volumetric Crystal Lattice</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #040818;
+  }
+
+  canvas {
+    display: block;
+    width: 100vw;
+    height: 100vh;
+    cursor: crosshair;
+  }
+
+  .hud {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: rgba(160, 190, 255, 0.45);
+    font-family: "SF Mono", "Cascadia Code", "Fira Code", Consolas, monospace;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    user-select: none;
+    pointer-events: none;
+    white-space: nowrap;
+    transition: opacity 1.2s ease;
+  }
+
+  .hud.hidden { opacity: 0; }
+
+  .title {
+    position: fixed;
+    top: 28px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: rgba(140, 175, 255, 0.55);
+    font-family: "SF Mono", "Cascadia Code", "Fira Code", Consolas, monospace;
+    font-size: 13px;
+    letter-spacing: 0.55em;
+    text-transform: uppercase;
+    user-select: none;
+    pointer-events: none;
+    transition: opacity 1.2s ease;
+  }
+
+  .title.hidden { opacity: 0; }
+</style>
+</head>
+<body>
+<canvas id="scene" aria-label="Rotating field of glowing wireframe cubes"></canvas>
+<header class="title" id="title">Cube Field</header>
+<footer class="hud" id="hud">move to rotate &middot; click to regenerate</footer>
+
+<script>
+(() => {
+  "use strict";
+
+  // ------------------------------------------------------------------
+  // Canvas setup
+  // ------------------------------------------------------------------
+  const canvas = document.getElementById("scene");
+  const ctx = canvas.getContext("2d");
+  let W = 0, H = 0, CX = 0, CY = 0, DPR = 1;
+
+  function resize() {
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = W * DPR;
+    canvas.height = H * DPR;
+    canvas.style.width = W + "px";
+    canvas.style.height = H + "px";
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    CX = W / 2;
+    CY = H / 2;
+  }
+  window.addEventListener("resize", resize);
+  resize();
+
+  // Fade the HUD/title after a while
+  setTimeout(() => {
+    document.getElementById("hud").classList.add("hidden");
+    document.getElementById("title").classList.add("hidden");
+  }, 5000);
+
+  // ------------------------------------------------------------------
+  // Cube geometry helpers
+  // ------------------------------------------------------------------
+  // 8 vertices of a unit cube centered at origin
+  const VERTS = [
+    [-1, -1, -1], [ 1, -1, -1], [ 1,  1, -1], [-1,  1, -1],
+    [-1, -1,  1], [ 1, -1,  1], [ 1,  1,  1], [-1,  1,  1]
+  ];
+
+  // 12 edges as index pairs
+  const EDGES = [
+    [0, 1], [1, 2], [2, 3], [3, 0],   // back face
+    [4, 5], [5, 6], [6, 7], [7, 4],   // front face
+    [0, 4], [1, 5], [2, 6], [3, 7]    // connectors
+  ];
+
+  // ------------------------------------------------------------------
+  // State
+  // ------------------------------------------------------------------
+  const CUBE_COUNT_MIN = 90;
+  const CUBE_COUNT_MAX = 160;
+
+  let cubes = [];
+  let rotX = 0.3;        // current rotation angles (radians)
+  let rotY = 0.0;
+  let targetRotX = 0.3; // targets driven by mouse
+  let targetRotY = 0.0;
+  let autoSpin = 0;     // slow continuous drift
+  let hueBase = 200;    // base hue for this configuration
+  let regenFlash = 0;   // flash intensity on regeneration (0..1)
+
+  // Mouse state
+  let mouseX = 0.5;
+  let mouseY = 0.5;
+  let hasMouse = false;
+
+  // Perspective
+  const FOCAL = 600;
+  const VIEW_DIST = 14; // camera distance from center
+
+  // ------------------------------------------------------------------
+  // Generate a new configuration
+  // ------------------------------------------------------------------
+  function generateCubes() {
+    cubes = [];
+    const count = CUBE_COUNT_MIN + Math.floor(Math.random() * (CUBE_COUNT_MAX - CUBE_COUNT_MIN));
+    hueBase = Math.random() * 360;
+
+    for (let i = 0; i < count; i++) {
+      // Spherical distribution via uniform-on-sphere sampling
+      const u = Math.random();
+      const v = Math.random();
+      const theta = 2 * Math.PI * u;
+      const phi = Math.acos(2 * v - 1);
+      // Radius: bias toward shell but allow some interior cubes
+      const r = 3.5 + Math.pow(Math.random(), 0.6) * 6.5;
+
+      const x = r * Math.sin(phi) * Math.cos(theta);
+      const y = r * Math.sin(phi) * Math.sin(theta);
+      const z = r * Math.cos(phi);
+
+      // Size: mostly small, a few larger "anchor" crystals
+      const isAnchor = Math.random() < 0.12;
+      const size = isAnchor
+        ? 0.9 + Math.random() * 0.9
+        : 0.18 + Math.random() * 0.55;
+
+      // Hue offset around the base — keeps palette coherent but varied
+      const hueOffset = (Math.random() - 0.5) * 120;
+      const hue = (hueBase + hueOffset + 360) % 360;
+      const sat = 65 + Math.random() * 35;
+      const light = 45 + Math.random() * 25;
+
+      // Per-cube spin (slow individual tumbling)
+      const spinSpeed = (Math.random() - 0.5) * 0.4;
+      const spinPhase = Math.random() * Math.PI * 2;
+
+      cubes.push({
+        x, y, z,
+        size,
+        hue, sat, light,
+        spinSpeed,
+        spinPhase,
+        // Pre-computed local vertex positions (unit cube scaled)
+        verts: VERTS.map(v => [v[0] * size, v[1] * size, v[2] * size])
+      });
+    }
+
+    regenFlash = 1.0;
+  }
+
+  // ------------------------------------------------------------------
+  // Rotation matrix (X then Y), applied to a point
+  // ------------------------------------------------------------------
+  const sinX = new Float64Array(1);
+  const cosX = new Float64Array(1);
+  const sinY = new Float64Array(1);
+  const cosY = new Float64Array(1);
+
+  function project(px, py, pz) {
+    // Rotate around X axis
+    const y1 = py * cosX[0] - pz * sinX[0];
+    const z1 = py * sinX[0] + pz * cosX[0];
+
+    // Rotate around Y axis
+    const x2 = px * cosY[0] + z1 * sinY[0];
+    const z2 = -px * sinY[0] + z1 * cosY[0];
+
+    // Translate away from camera and perspective-project
+    const zc = z2 + VIEW_DIST;
+    if (zc < 0.1) return null; // behind camera
+    const scale = FOCAL / zc;
+    return {
+      sx: CX + x2 * scale,
+      sy: CY - y1 * scale,
+      depth: zc,
+      scale
+    };
+  }
+
+  // ------------------------------------------------------------------
+  // Render one frame
+  // ------------------------------------------------------------------
+  function render(time) {
+    // Trailing fade: paint translucent dark blue over previous frame
+    const fadeAlpha = 0.18;
+    ctx.fillStyle = `rgba(4, 8, 24, ${fadeAlpha})`;
+    ctx.fillRect(0, 0, W, H);
+
+    // Regen flash: brief brightening overlay
+    if (regenFlash > 0.01) {
+      ctx.fillStyle = `rgba(80, 130, 255, ${regenFlash * 0.08})`;
+      ctx.fillRect(0, 0, W, H);
+      regenFlash *= 0.92;
+    }
+
+    // Update rotation with smooth interpolation toward mouse target
+    if (hasMouse) {
+      targetRotY = (mouseX - 0.5) * Math.PI * 1.6;
+      targetRotX = (mouseY - 0.5) * Math.PI * 1.2;
+    }
+    autoSpin += 0.0012;
+
+    const lerp = 0.045;
+    rotY += (targetRotY + autoSpin - rotY) * lerp;
+    rotX += (targetRotX - rotX) * lerp;
+
+    sinX[0] = Math.sin(rotX);
+    cosX[0] = Math.cos(rotX);
+    sinY[0] = Math.sin(rotY);
+    cosY[0] = Math.cos(rotY);
+
+    // Compute projected data for every cube, collect draw items
+    const drawItems = [];
+
+    for (let i = 0; i < cubes.length; i++) {
+      const c = cubes[i];
+
+      // Individual tumble
+      const tumble = time * 0.0004 * c.spinSpeed + c.spinPhase;
+      const ts = Math.sin(tumble), tc = Math.cos(tumble);
+
+      // Project all 8 vertices
+      const proj = new Array(8);
+      let sumZ = 0;
+      let valid = true;
+
+      for (let v = 0; v < 8; v++) {
+        const lx = c.verts[v][0];
+        const ly = c.verts[v][1];
+        const lz = c.verts[v][2];
+
+        // Local tumble around Z-ish axis (mix X/Y for variety)
+        const rx = lx * tc - ly * ts;
+        const ry = lx * ts + ly * tc;
+
+        const p = project(c.x + rx, c.y + ry, c.z + lz);
+        if (!p) { valid = false; break; }
+        proj[v] = p;
+        sumZ += p.depth;
+      }
+      if (!valid) continue;
+
+      const avgDepth = sumZ / 8;
+
+      // Depth-based alpha: closer = brighter
+      const depthNorm = (avgDepth - (VIEW_DIST - 10)) / 20; // ~0 near, ~1 far
+      const clamped = Math.max(0, Math.min(1, depthNorm));
+      const alpha = 0.95 - clamped * 0.75; // 0.95 near → 0.2 far
+
+      // Vertex glow radius scales with perspective
+      const dotR = Math.max(1.2, 2.8 * (FOCAL / avgDepth) * 0.018);
+
+      drawItems.push({
+        depth: avgDepth,
+        alpha,
+        proj,
+        cube: c,
+        dotR
+      });
+    }
+
+    // Painter's algorithm: draw far first
+    drawItems.sort((a, b) => b.depth - a.depth);
+
+    ctx.lineCap = "round";
+
+    for (let d = 0; d < drawItems.length; d++) {
+      const item = drawItems[d];
+      const { proj, cube, alpha, dotR } = item;
+
+      // --- Edges ---
+      ctx.lineWidth = Math.max(0.5, 1.4 * (FOCAL / item.depth) * 0.014);
+      ctx.strokeStyle = `hsla(${cube.hue}, ${cube.sat}%, ${cube.light}%, ${alpha})`;
+      ctx.beginPath();
+      for (let e = 0; e < 12; e++) {
+        const a = proj[EDGES[e][0]];
+        const b = proj[EDGES[e][1]];
+        ctx.moveTo(a.sx, a.sy);
+        ctx.lineTo(b.sx, b.sy);
+      }
+      ctx.stroke();
+
+      // --- Vertices (glowing dots) ---
+      const coreColor = `hsla(${cube.hue}, ${cube.sat}%, ${Math.min(cube.light + 25, 95)}%, ${alpha})`;
+      const glowColor = `hsla(${cube.hue}, ${cube.sat}%, ${cube.light}%, ${alpha * 0.35})`;
+
+      for (let v = 0; v < 8; v++) {
+        const p = proj[v];
+
+        // Outer glow
+        ctx.fillStyle = glowColor;
+        ctx.beginPath();
+        ctx.arc(p.sx, p.sy, dotR * 2.2, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Bright core
+        ctx.fillStyle = coreColor;
+        ctx.beginPath();
+        ctx.arc(p.sx, p.sy, dotR, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // Subtle vignette for depth
+    const vg = ctx.createRadialGradient(CX, CY, Math.min(W, H) * 0.3, CX, CY, Math.max(W, H) * 0.75);
+    vg.addColorStop(0, "rgba(4, 8, 24, 0)");
+    vg.addColorStop(1, "rgba(2, 4, 14, 0.55)");
+    ctx.fillStyle = vg;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  // ------------------------------------------------------------------
+  // Animation loop
+  // ------------------------------------------------------------------
+  let lastTime = 0;
+  function loop(time) {
+    render(time);
+    requestAnimationFrame(loop);
+  }
+
+  // ------------------------------------------------------------------
+  // Input
+  // ------------------------------------------------------------------
+  window.addEventListener("mousemove", (e) => {
+    mouseX = e.clientX / W;
+    mouseY = e.clientY / H;
+    hasMouse = true;
+  });
+
+  window.addEventListener("touchmove", (e) => {
+    if (e.touches.length > 0) {
+      mouseX = e.touches[0].clientX / W;
+      mouseY = e.touches[0].clientY / H;
+      hasMouse = true;
+    }
+  }, { passive: true });
+
+  window.addEventListener("click", () => {
+    generateCubes();
+  });
+
+  window.addEventListener("touchstart", (e) => {
+    if (e.touches.length > 0) {
+      mouseX = e.touches[0].clientX / W;
+      mouseY = e.touches[0].clientY / H;
+      hasMouse = true;
+      generateCubes();
+    }
+  }, { passive: true });
+
+  // Keyboard: space also regenerates
+  window.addEventListener("keydown", (e) => {
+    if (e.code === "Space") {
+      e.preventDefault();
+      generateCubes();
+    }
+  });
+
+  // ------------------------------------------------------------------
+  // Init
+  // ------------------------------------------------------------------
+  // Paint solid background once so the first frame isn't transparent
+  ctx.fillStyle = "#040818";
+  ctx.fillRect(0, 0, W, H);
+
+  generateCubes();
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

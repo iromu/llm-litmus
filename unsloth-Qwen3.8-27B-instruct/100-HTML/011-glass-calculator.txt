@@ -1,0 +1,24 @@
+# 011 — Glass Calculator
+
+## Creative Prompt
+Create a fully functional calculator with a premium glassmorphism aesthetic. The calculator floats above a dark purple gradient background with two large blurred orbs that drift slowly. The calculator body is translucent with backdrop blur and subtle border glow. Buttons are categorized: number buttons (semi-transparent white), operator buttons (cyan tint), function buttons (more transparent), and a gradient equals button. The display shows the expression and result with elegantly sized typography. Button press has a scale animation. Each button has a mouse-tracking radial shine overlay. The design feels like a premium iOS/macOS accessory crafted from crystal.
+
+## Model
+Qwen3.8-27B-instruct
+
+## Thinking Effort
+high
+
+## Techniques Used
+- CSS glassmorphism: `backdrop-filter: blur(40px) saturate(1.4)` on the calculator body, semi-transparent layered backgrounds, inset border highlights for the crystal edge-light effect
+- Multi-layered background: three drifting radial-gradient orbs (violet, cyan, pink) with long alternate float animations, plus an SVG fractal-noise grain overlay for texture
+- CSS Grid for the 4-column button layout; zero key spans two columns
+- JavaScript calculator engine: chained operations, repeated-equals repeat of last operand, divide-by-zero error state, floating-point rounding to 1e10 precision, auto-shrinking display font for long numbers
+- Button press: `scale(0.92)` with a springy cubic-bezier transition
+- Mouse-tracking radial shine: per-button `--mx`/`--my` custom properties updated on `pointermove`, consumed by a `::before` radial-gradient overlay
+- Gradient equals button (cyan → violet) with glow shadow; active-operator highlight state
+- Full keyboard support (digits, operators, Enter, Escape, Backspace, %)
+- Responsive: `min()` width clamp, media queries for small screens and short viewports, `prefers-reduced-motion` respected
+
+## Stats
+Wall time: N/A | Tokens: N/A

@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sand Dunes — Shifting Desert</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #1a1008;
+  }
+
+  canvas {
+    display: block;
+    width: 100vw;
+    height: 100vh;
+    cursor: pointer;
+  }
+
+  .hint {
+    position: fixed;
+    bottom: 1.5rem;
+    left: 50%;
+    transform: translateX(-50%);
+    color: rgba(235, 210, 170, 0.45);
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 0.85rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    pointer-events: none;
+    user-select: none;
+    transition: opacity 2s ease;
+    white-space: nowrap;
+  }
+
+  .hint.hidden { opacity: 0; }
+</style>
+</head>
+<body>
+<canvas id="dunes"></canvas>
+<p class="hint" id="hint">click to reshape the desert</p>
+
+<script>
+(() => {
+  'use strict';
+
+  const canvas = document.getElementById('dunes');
+  const ctx = canvas.getContext('2d');
+  const hint = document.getElementById('hint');
+
+  let W = 0, H = 0, dpr = 1;
+  let time = 0;
+  let lastTs = 0;
+  let dunes = [];
+  let hintTimer = null;
+
+  // ── Warm sand palette (dark → light) ──────────────────────────────
+  // Each dune gets a color from this range based on its depth.
+  const PALETTE = [
+    { r: 42,  g: 26,  b: 14 },   // deep shadow brown
+    { r: 62,  g: 38,  b: 20 },   // dark umber
+    { r: 92,  g: 58,  b: 30 },   // warm sienna
+    { r: 130, g: 85,  b: 45 },   // ochre
+    { r: 168, g: 118, b: 68 },   // tan
+    { r: 200, g: 155, b: 95 },   // light sand
+    { r: 225, g: 185, b: 130 },  // pale gold
+  ];
+
+  function lerpColor(c1, c2, t) {
+    return {
+      r: Math.round(c1.r + (c2.r - c1.r) * t),
+      g: Math.round(c1.g + (c2.g - c1.g) * t),
+      b: Math.round(c1.b + (c2.b - c1.b) * t),
+    };
+  }
+
+  function paletteColor(t) {
+    // t in [0,1] → interpolate across palette
+    const idx = t * (PALETTE.length - 1);
+    const i = Math.floor(idx);
+    const f = idx - i;
+    if (i >= PALETTE.length - 1) return PALETTE[PALETTE.length - 1];
+    return lerpColor(PALETTE[i], PALETTE[i + 1], f);
+  }
+
+  function css(c, alpha) {
+    return `rgba(${c.r},${c.g},${c.b},${alpha})`;
+  }
+
+  // ── Dune generation ───────────────────────────────────────────────
+  function rand(min, max) { return min + Math.random() * (max - min); }
+
+  function generateDunes() {
+    dunes = [];
+    const count = Math.max(6, Math.min(12, Math.floor(W / 140)));
+
+    for (let i = 0; i < count; i++) {
+      const depthT = i / (count - 1); // 0 = farthest, 1 = nearest
+      const baseY = H * (0.25 + depthT * 0.65); // vertical band
+
+      // Dual sine parameters for organic undulation
+      const amp1 = rand(H * 0.03, H * 0.09) * (0.5 + depthT * 0.8);
+      const freq1 = rand(0.8, 2.2);
+      const phase1 = rand(0, Math.PI * 2);
+      const speed1 = rand(0.08, 0.25) * (Math.random() < 0.5 ? -1 : 1);
+
+      const amp2 = rand(H * 0.01, H * 0.04) * (0.5 + depthT * 0.6);
+      const freq2 = rand(2.5, 5.5);
+      const phase2 = rand(0, Math.PI * 2);
+      const speed2 = rand(0.12, 0.35) * (Math.random() < 0.5 ? -1 : 1);
+
+      // Color: farther dunes darker, nearer lighter
+      const colT = depthT * 0.85 + rand(-0.05, 0.05);
+      const color = paletteColor(Math.max(0, Math.min(1, colT)));
+
+      // Ridge highlight is slightly lighter
+      const ridgeColor = lerpColor(color, PALETTE[PALETTE.length - 1], 0.3);
+
+      dunes.push({
+        baseY,
+        amp1, freq1, phase1, speed1,
+        amp2, freq2, phase2, speed2,
+        color,
+        ridgeColor,
+        depthT,
+      });
+    }
+
+    // Sort by baseY so we draw back-to-front (depth sort)
+    dunes.sort((a, b) => a.baseY - b.baseY);
+  }
+
+  // ── Dune surface Y at given x and time ────────────────────────────
+  function duneY(d, x, t) {
+    const nx = x / W;
+    const s1 = Math.sin(nx * Math.PI * 2 * d.freq1 + d.phase1 + t * d.speed1);
+    const s2 = Math.sin(nx * Math.PI * 2 * d.freq2 + d.phase2 + t * d.speed2);
+    return d.baseY + d.amp1 * s1 + d.amp2 * s2;
+  }
+
+  // ── Rendering ─────────────────────────────────────────────────────
+  function drawBackground() {
+    // Trailing fade: semi-transparent fill creates motion trails
+    ctx.fillStyle = 'rgba(26, 16, 8, 0.12)';
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  function drawSkyGlow() {
+    // Subtle warm glow near horizon
+    const grad = ctx.createLinearGradient(0, H * 0.15, 0, H * 0.55);
+    grad.addColorStop(0, 'rgba(60, 35, 18, 0.03)');
+    grad.addColorStop(1, 'rgba(26, 16, 8, 0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, W, H * 0.55);
+  }
+
+  function drawDune(d, t) {
+    const steps = Math.max(64, Math.floor(W / 6));
+    const dx = W / steps;
+
+    // Build path along the dune surface
+    ctx.beginPath();
+    ctx.moveTo(0, H);
+    for (let i = 0; i <= steps; i++) {
+      const x = i * dx;
+      const y = duneY(d, x, t);
+      if (i === 0) ctx.lineTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.lineTo(W, H);
+    ctx.closePath();
+
+    // Fill with subtle vertical gradient for volume
+    const topY = d.baseY - d.amp1 - d.amp2;
+    const botY = d.baseY + d.amp1 + d.amp2;
+    const grad = ctx.createLinearGradient(0, topY, 0, botY + H * 0.1);
+    grad.addColorStop(0, css(d.color, 0.92));
+    grad.addColorStop(0.5, css(d.color, 0.88));
+    grad.addColorStop(1, css(lerpColor(d.color, PALETTE[0], 0.3), 0.85));
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    // Ridge highlight stroke along the crest
+    ctx.beginPath();
+    for (let i = 0; i <= steps; i++) {
+      const x = i * dx;
+      const y = duneY(d, x, t);
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.strokeStyle = css(d.ridgeColor, 0.35 + d.depthT * 0.25);
+    ctx.lineWidth = 1 + d.depthT * 1.5;
+    ctx.stroke();
+
+    // Secondary inner highlight (slightly below crest) for softness
+    ctx.beginPath();
+    for (let i = 0; i <= steps; i++) {
+      const x = i * dx;
+      const y = duneY(d, x, t) + 3 + d.depthT * 4;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.strokeStyle = css(d.ridgeColor, 0.12 + d.depthT * 0.1);
+    ctx.lineWidth = 2 + d.depthT * 2;
+    ctx.stroke();
+  }
+
+  function drawGrainOverlay() {
+    // Very subtle noise grain for texture (drawn sparsely each frame)
+    ctx.globalAlpha = 0.015;
+    const grains = 120;
+    for (let i = 0; i < grains; i++) {
+      const gx = Math.random() * W;
+      const gy = Math.random() * H;
+      const gs = Math.random() * 1.5 + 0.5;
+      ctx.fillStyle = Math.random() > 0.5 ? '#fff' : '#000';
+      ctx.fillRect(gx, gy, gs, gs);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function drawVignette() {
+    const grad = ctx.createRadialGradient(W / 2, H / 2, H * 0.3, W / 2, H / 2, H * 0.9);
+    grad.addColorStop(0, 'rgba(0,0,0,0)');
+    grad.addColorStop(1, 'rgba(10, 5, 2, 0.4)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  // ── Animation loop ────────────────────────────────────────────────
+  function frame(ts) {
+    const dt = Math.min((ts - lastTs) / 1000, 0.05);
+    lastTs = ts;
+    time += dt;
+
+    drawBackground();
+    drawSkyGlow();
+
+    for (const d of dunes) {
+      drawDune(d, time);
+    }
+
+    drawGrainOverlay();
+    drawVignette();
+
+    requestAnimationFrame(frame);
+  }
+
+  // ── Resize handling ───────────────────────────────────────────────
+  function resize() {
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    // Full clear on resize
+    ctx.fillStyle = '#1a1008';
+    ctx.fillRect(0, 0, W, H);
+
+    generateDunes();
+  }
+
+  // ── Interaction ───────────────────────────────────────────────────
+  function hideHint() {
+    hint.classList.add('hidden');
+    clearTimeout(hintTimer);
+  }
+
+  function regenerate() {
+    // Full clear then new dunes
+    ctx.fillStyle = '#1a1008';
+    ctx.fillRect(0, 0, W, H);
+    generateDunes();
+    hideHint();
+  }
+
+  canvas.addEventListener('click', regenerate);
+  window.addEventListener('resize', resize);
+
+  // ── Init ──────────────────────────────────────────────────────────
+  resize();
+  hintTimer = setTimeout(hideHint, 5000);
+  requestAnimationFrame((ts) => { lastTs = ts; frame(ts); });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,23 @@
+# Neon Signage — 061
+
+## Creative Prompt
+Create a neon sign display with five glowing text lines in different neon colors (pink, cyan, yellow, green, purple). Each line has a multi-layered text-shadow creating a realistic neon glow effect, and each has a unique flicker animation simulating neon tube imperfections (flickering on/off at various rates). A subtle grid background suggests a city window at night. The overall aesthetic is retro, luminous, and urban — like a collection of vintage neon signs in a dark alley.
+
+## Model
+Qwen3.8-27B-instruct
+
+## Thinking Effort
+high
+
+## Techniques Used
+- CSS multi-layered text-shadow: 7 shadow layers per sign (2px → 110px blur) from narrow hot core to wide ambient halo, giving a realistic neon tube glow.
+- Unique flicker keyframes per color (`flicker-pink`, `flicker-cyan`, `flicker-yellow`, `flicker-green`, `flicker-purple`), each with a distinct period (6.2s–10.7s) and hand-tuned pattern of opacity pulses and hard dropouts so no two signs blink in sync.
+- Subtle layered CSS grid background (fine 24px + coarse 120px grids) plus radial gradients and diagonal light streaks suggesting a city window at night, finished with an edge vignette.
+- Stacked vertical layout of the five neon lines inside a semi-transparent mounted "sign board" panel.
+- Monospace subtitle footer for the retro signage caption.
+- Responsive font sizing via clamp() throughout; wrapping fallback below 480px.
+- Small JS layer adds organic micro-stutters on random signs at random intervals so the flicker never feels looped; respects prefers-reduced-motion.
+- Semantic HTML (main/section/footer/h1) with aria-labels on decorative sign spans.
+
+## Stats
+Wall time: N/A | Tokens: N/A

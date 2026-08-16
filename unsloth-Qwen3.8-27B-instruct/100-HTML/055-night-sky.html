@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Night Sky — Portable Planetarium</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #04081a;
+    font-family: 'Georgia', 'Times New Roman', serif;
+  }
+
+  canvas {
+    display: block;
+    position: fixed;
+    top: 0;
+    left: 0;
+  }
+
+  .ui-overlay {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: rgba(160, 190, 255, 0.45);
+    font-size: 13px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    pointer-events: none;
+    user-select: none;
+    transition: opacity 1.5s ease;
+    white-space: nowrap;
+  }
+
+  .ui-overlay.hidden { opacity: 0; }
+
+  .constellation-label {
+    position: fixed;
+    pointer-events: none;
+    user-select: none;
+    color: rgba(200, 220, 255, 0.9);
+    font-size: 15px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    text-shadow: 0 0 12px rgba(120, 160, 255, 0.6), 0 0 30px rgba(80, 120, 255, 0.3);
+    opacity: 0;
+    transition: opacity 0.4s ease;
+    white-space: nowrap;
+  }
+
+  .constellation-label.visible { opacity: 1; }
+
+  .constellation-label .sub {
+    display: block;
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    color: rgba(140, 170, 230, 0.55);
+    margin-top: 3px;
+    font-style: italic;
+    text-transform: none;
+  }
+</style>
+</head>
+<body>
+<canvas id="sky"></canvas>
+<div class="ui-overlay" id="hint">move your cursor near a constellation</div>
+<div class="constellation-label" id="label"><span id="labelName"></span><span class="sub" id="labelSub"></span></div>
+
+<script>
+'use strict';
+
+/* ============================================================
+   Night Sky — Portable Planetarium
+   Canvas star field with color temperature, twinkle, glow,
+   auto-generated constellations, and mouse-proximity hover.
+   ============================================================ */
+
+const canvas = document.getElementById('sky');
+const ctx = canvas.getContext('2d');
+const labelEl = document.getElementById('label');
+const labelNameEl = document.getElementById('labelName');
+const labelSubEl = document.getElementById('labelSub');
+const hintEl = document.getElementById('hint');
+
+let W = 0, H = 0, dpr = 1;
+let stars = [];
+let constellations = [];
+let mouse = { x: -9999, y: -9999 };
+let time = 0;
+let hintHidden = false;
+
+/* ---------- Constellation names & flavor ---------- */
+const CONSTELLATION_NAMES = [
+  ['Lyra', 'the Harp'],
+  ['Cygnus', 'the Swan'],
+  ['Orion', 'the Hunter'],
+  ['Draco', 'the Dragon'],
+  ['Ursa Major', "Bear's Head"],
+  ['Cassiopeia', 'the Queen'],
+  ['Pegasus', 'the Winged Horse'],
+  ['Andromeda', 'the Princess'],
+  ['Aquila', 'the Eagle'],
+  ['Corvus', 'the Crow'],
+  ['Crux', 'the Southern Cross'],
+  ['Vela', 'the Sail'],
+  ['Carina', 'the Keel'],
+  ['Lepus', 'the Hare'],
+  ['Phoenix', 'the Firebird'],
+  ['Serpens', 'the Serpent'],
+  ['Hydra', 'the Water Snake'],
+  ['Fornax', 'the Furnace'],
+  ['Reticulum', 'the Net'],
+  ['Norma', 'the Ruler'],
+  ['Triangulum', 'the Triangle'],
+  ['Pyxis', 'the Compass'],
+  ['Mensa', 'the Table'],
+  ['Horologium', 'the Clock'],
+  ['Antlia', 'the Air Pump'],
+  ['Apus', 'the Bird of Paradise'],
+  ['Tucana', 'the Toucan'],
+  ['Indus', 'the Native American'],
+  ['Musca', 'the Fly'],
+  ['Volans', 'the Flying Fish'],
+];
+
+/* ---------- Color temperature → RGB ----------
+   Approximate blackbody radiation colors.
+   temp in Kelvin (1500–40000) mapped to sRGB. */
+function tempToRGB(tempK) {
+  const t = tempK / 100;
+  let r, g, b;
+
+  if (t <= 66) {
+    r = 255;
+    g = 99.4708025861 * Math.log(t) - 161.1195681661;
+    b = t <= 19 ? 0 : 138.5177312231 * Math.log(t - 10) - 305.0447927307;
+  } else {
+    r = 329.698727446 * Math.pow(t - 60, -0.1332047592);
+    g = 288.1221695283 * Math.pow(t - 60, -0.0755148492);
+    b = 255;
+  }
+
+  return {
+    r: Math.max(0, Math.min(255, r)),
+    g: Math.max(0, Math.min(255, g)),
+    b: Math.max(0, Math.min(255, b))
+  };
+}
+
+/* Pre-compute a lookup table for common temperatures */
+const TEMP_TABLE = {};
+function getStarColor(tempK) {
+  const key = Math.round(tempK / 500) * 500;
+  if (!TEMP_TABLE[key]) {
+    TEMP_TABLE[key] = tempToRGB(key);
+  }
+  return TEMP_TABLE[key];
+}
+
+/* ---------- Star generation ---------- */
+function generateStars() {
+  stars = [];
+  // Density scales with area; target ~1 star per 1800 px²
+  const count = Math.floor((W * H) / 1800);
+  const minCount = Math.max(count, 150);
+  const maxCount = Math.min(minCount, 1200);
+
+  for (let i = 0; i < maxCount; i++) {
+    const magnitude = Math.random();
+    // Power-law distribution: most stars dim, few bright
+    const mag = Math.pow(magnitude, 3.2);
+    const size = 0.4 + mag * 2.8;
+
+    // Color temperature: weighted toward blue-white (like real sky)
+    let tempK;
+    const roll = Math.random();
+    if (roll < 0.45) {
+      tempK = 5500 + Math.random() * 5000;   // yellow-white
+    } else if (roll < 0.75) {
+      tempK = 7000 + Math.random() * 8000;   // blue-white
+    } else if (roll < 0.9) {
+      tempK = 3500 + Math.random() * 2000;   // orange
+    } else {
+      tempK = 2000 + Math.random() * 1500;   // red
+    }
+
+    const color = getStarColor(tempK);
+
+    stars.push({
+      x: Math.random() * W,
+      y: Math.random() * H,
+      size: size,
+      brightness: 0.3 + mag * 0.7,
+      color: color,
+      tempK: tempK,
+      twinklePhase: Math.random() * Math.PI * 2,
+      twinkleSpeed: 0.5 + Math.random() * 2.5,
+      twinkleAmount: 0.15 + Math.random() * 0.35,
+      isConstellationStar: false,
+      constellationIndex: -1
+    });
+  }
+}
+
+/* ---------- Constellation generation ----------
+   Pick anchor stars, connect nearest neighbors within range,
+   forming small connected graphs of 4–9 stars. */
+function generateConstellations() {
+  constellations = [];
+  const usedStars = new Set();
+
+  // Number of constellations scales with screen area
+  const numConst = Math.max(4, Math.min(14, Math.floor((W * H) / 120000)));
+  const maxDist = Math.min(W, H) * 0.12;
+
+  for (let c = 0; c < numConst; c++) {
+    // Find an unused anchor star (prefer brighter ones)
+    let anchor = null;
+    for (let attempt = 0; attempt < 200; attempt++) {
+      const idx = Math.floor(Math.random() * stars.length);
+      if (!usedStars.has(idx) && stars[idx].brightness > 0.4) {
+        anchor = idx;
+        break;
+      }
+    }
+    if (anchor === null) continue;
+
+    // Grow the constellation by connecting nearest unused neighbors
+    const members = [anchor];
+    usedStars.add(anchor);
+    const edges = [];
+
+    const targetSize = 4 + Math.floor(Math.random() * 6); // 4–9 stars
+
+    while (members.length < targetSize) {
+      // For each member, find its nearest unused neighbor within maxDist
+      let bestPair = null;
+      let bestDist = Infinity;
+
+      for (const m of members) {
+        const sm = stars[m];
+        for (let j = 0; j < stars.length; j++) {
+          if (usedStars.has(j)) continue;
+          const sj = stars[j];
+          const dx = sm.x - sj.x;
+          const dy = sm.y - sj.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < maxDist && dist < bestDist) {
+            bestDist = dist;
+            bestPair = { from: m, to: j };
+          }
+        }
+      }
+
+      if (!bestPair || bestDist > maxDist) break;
+
+      members.push(bestPair.to);
+      usedStars.add(bestPair.to);
+      edges.push([bestPair.from, bestPair.to]);
+    }
+
+    if (members.length < 4) {
+      // Too small — release these stars back
+      for (const m of members) usedStars.delete(m);
+      continue;
+    }
+
+    // Mark stars as constellation members
+    for (const m of members) {
+      stars[m].isConstellationStar = true;
+      stars[m].constellationIndex = constellations.length;
+    }
+
+    const nameIdx = c % CONSTELLATION_NAMES.length;
+    constellations.push({
+      name: CONSTELLATION_NAMES[nameIdx][0],
+      sub: CONSTELLATION_NAMES[nameIdx][1],
+      members: members,
+      edges: edges,
+      highlight: 0, // 0..1 animation value
+      cx: 0, cy: 0  // centroid, computed below
+    });
+
+    // Compute centroid
+    let sx = 0, sy = 0;
+    for (const m of members) { sx += stars[m].x; sy += stars[m].y; }
+    constellations[constellations.length - 1].cx = sx / members.length;
+    constellations[constellations.length - 1].cy = sy / members.length;
+  }
+}
+
+/* ---------- Resize handling ---------- */
+function resize() {
+  dpr = window.devicePixelRatio || 1;
+  W = window.innerWidth;
+  H = window.innerHeight;
+  canvas.width = W * dpr;
+  canvas.height = H * dpr;
+  canvas.style.width = W + 'px';
+  canvas.style.height = H + 'px';
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  generateStars();
+  generateConstellations();
+}
+
+window.addEventListener('resize', () => {
+  // Debounce
+  clearTimeout(resize._t);
+  resize._t = setTimeout(resize, 150);
+});
+
+/* ---------- Mouse tracking ---------- */
+window.addEventListener('mousemove', (e) => {
+  mouse.x = e.clientX;
+  mouse.y = e.clientY;
+  if (!hintHidden) {
+    hintHidden = true;
+    hintEl.classList.add('hidden');
+  }
+});
+
+window.addEventListener('mouseleave', () => {
+  mouse.x = -9999;
+  mouse.y = -9999;
+});
+
+// Touch support
+window.addEventListener('touchmove', (e) => {
+  const t = e.touches[0];
+  mouse.x = t.clientX;
+  mouse.y = t.clientY;
+  if (!hintHidden) {
+    hintHidden = true;
+    hintEl.classList.add('hidden');
+  }
+}, { passive: true });
+
+window.addEventListener('touchend', () => {
+  mouse.x = -9999;
+  mouse.y = -9999;
+});
+
+/* ---------- Rendering ---------- */
+function drawBackground() {
+  // Trailing fade: semi-transparent dark blue overlay
+  ctx.fillStyle = 'rgba(4, 8, 26, 0.28)';
+  ctx.fillRect(0, 0, W, H);
+}
+
+function drawStar(s, alpha) {
+  const { r, g, b } = s.color;
+  const size = s.size * (0.85 + 0.15 * Math.sin(time * s.twinkleSpeed + s.twinklePhase));
+  const bright = s.brightness * (1 - s.twinkleAmount * 0.5 * (1 + Math.sin(time * s.twinkleSpeed + s.twinklePhase)));
+  const a = alpha * bright;
+
+  if (a < 0.02) return;
+
+  // Core dot
+  ctx.beginPath();
+  ctx.arc(s.x, s.y, size * 0.5, 0, Math.PI * 2);
+  ctx.fillStyle = `rgba(${Math.round(r)},${Math.round(g)},${Math.round(b)},${a.toFixed(3)})`;
+  ctx.fill();
+
+  // Glow for brighter stars
+  if (s.brightness > 0.55) {
+    const glowRadius = size * 3.5;
+    const grad = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, glowRadius);
+    grad.addColorStop(0, `rgba(${Math.round(r)},${Math.round(g)},${Math.round(b)},${(a * 0.35).toFixed(3)})`);
+    grad.addColorStop(0.4, `rgba(${Math.round(r)},${Math.round(g)},${Math.round(b)},${(a * 0.12).toFixed(3)})`);
+    grad.addColorStop(1, `rgba(${Math.round(r)},${Math.round(g)},${Math.round(b)},0)`);
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, glowRadius, 0, Math.PI * 2);
+    ctx.fillStyle = grad;
+    ctx.fill();
+  }
+
+  // Diffraction spikes for very bright stars
+  if (s.brightness > 0.85) {
+    const spikeLen = size * 4;
+    ctx.save();
+    ctx.globalAlpha = a * 0.25;
+    ctx.strokeStyle = `rgb(${Math.round(r)},${Math.round(g)},${Math.round(b)})`;
+    ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    ctx.moveTo(s.x - spikeLen, s.y);
+    ctx.lineTo(s.x + spikeLen, s.y);
+    ctx.moveTo(s.x, s.y - spikeLen);
+    ctx.lineTo(s.x, s.y + spikeLen);
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+function drawConstellation(c, dt) {
+  // Update highlight based on mouse proximity to centroid or any member
+  let target = 0;
+  const hoverRadius = 100;
+
+  for (const m of c.members) {
+    const s = stars[m];
+    const dx = mouse.x - s.x;
+    const dy = mouse.y - s.y;
+    if (dx * dx + dy * dy < hoverRadius * hoverRadius) {
+      target = 1;
+      break;
+    }
+  }
+
+  // Smooth interpolation
+  const speed = target > c.highlight ? 4 : 2.5;
+  c.highlight += (target - c.highlight) * Math.min(1, dt * speed);
+
+  if (c.highlight < 0.01) return;
+
+  const h = c.highlight;
+
+  // Draw edges
+  for (const [a, b] of c.edges) {
+    const sa = stars[a];
+    const sb = stars[b];
+
+    // Base line (always faintly visible)
+    ctx.beginPath();
+    ctx.moveTo(sa.x, sa.y);
+    ctx.lineTo(sb.x, sb.y);
+    ctx.strokeStyle = `rgba(100, 140, 220,${(0.06 + h * 0.35).toFixed(3)})`;
+    ctx.lineWidth = 0.8 + h * 0.8;
+    ctx.stroke();
+
+    // Highlight glow line
+    if (h > 0.1) {
+      ctx.beginPath();
+      ctx.moveTo(sa.x, sa.y);
+      ctx.lineTo(sb.x, sb.y);
+      ctx.strokeStyle = `rgba(140, 180, 255,${(h * 0.2).toFixed(3)})`;
+      ctx.lineWidth = 2.5 + h * 1.5;
+      ctx.stroke();
+    }
+  }
+
+  // Brighten member stars
+  for (const m of c.members) {
+    const s = stars[m];
+    const { r, g, b } = s.color;
+    const pulse = 0.5 + 0.5 * Math.sin(time * 2 + m);
+    const glowR = s.size * (4 + h * 3 + pulse * h * 2);
+
+    const grad = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, glowR);
+    grad.addColorStop(0, `rgba(${Math.round(r)},${Math.round(g)},${Math.round(b)},${(h * 0.5).toFixed(3)})`);
+    grad.addColorStop(0.5, `rgba(${Math.round(r)},${Math.round(g)},${Math.round(b)},${(h * 0.15).toFixed(3)})`);
+    grad.addColorStop(1, `rgba(${Math.round(r)},${Math.round(g)},${Math.round(b)},0)`);
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, glowR, 0, Math.PI * 2);
+    ctx.fillStyle = grad;
+    ctx.fill();
+  }
+
+  // Label
+  if (h > 0.3) {
+    labelNameEl.textContent = c.name;
+    labelSubEl.textContent = c.sub;
+    labelEl.classList.add('visible');
+
+    // Position label near centroid but offset to avoid overlap
+    const lx = c.cx;
+    const ly = c.cy - 30;
+    labelEl.style.left = lx + 'px';
+    labelEl.style.top = ly + 'px';
+    labelEl.style.transform = 'translate(-50%, -100%)';
+    labelEl.style.opacity = ((h - 0.3) / 0.7).toFixed(2);
+  }
+}
+
+/* ---------- Main loop ---------- */
+let lastTime = performance.now();
+
+function frame(now) {
+  const dt = Math.min((now - lastTime) / 1000, 0.1);
+  lastTime = now;
+  time += dt;
+
+  drawBackground();
+
+  // Draw all stars
+  for (const s of stars) {
+    drawStar(s, 1);
+  }
+
+  // Draw constellations
+  let anyHighlighted = false;
+  for (const c of constellations) {
+    drawConstellation(c, dt);
+    if (c.highlight > 0.3) anyHighlighted = true;
+  }
+
+  if (!anyHighlighted) {
+    labelEl.classList.remove('visible');
+  }
+
+  requestAnimationFrame(frame);
+}
+
+/* ---------- Init ---------- */
+resize();
+requestAnimationFrame(frame);
+
+</script>
+</body>
+</html>

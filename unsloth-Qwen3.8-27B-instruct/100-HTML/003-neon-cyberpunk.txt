@@ -1,0 +1,23 @@
+# 003 — NEON//DREAM (Cyberpunk / Retrowave)
+
+## Creative Prompt
+Create a cyberpunk/retrowave inspired page with a glitch text effect, animated scanline overlay, grid background with perspective, and neon cards. The main title "NEON//DREAM" has a glitch animation with cyan and magenta offset layers. A scanning line travels down the screen. Four neon-accented cards display system-like metrics with animated progress bars on hover. Corner brackets appear on card hover. The color palette is deep purple/black with hot pink (#ff0080) and cyan (#00c8ff) neon accents. Monospace typography throughout.
+
+## Model
+Qwen3.8-27B-instruct
+
+## Thinking Effort
+high
+
+## Techniques Used
+- CSS glitch text: `::before`/`::after` pseudo-elements with cyan/magenta offsets, animated `clip-path: inset()` slicing, plus a JS-triggered random "burst" class (reflow-forced restart) for hard glitch flicker.
+- Scanline overlay via `repeating-linear-gradient` with multiply blend mode; separate traveling scan beam animated with `translateY`.
+- Perspective grid floor using `transform: perspective() rotateX()` on a fixed layer with scrolling `background-position`, masked to fade at the horizon.
+- Neon glow via layered `text-shadow` and `box-shadow` (outer + inset), alternating pink/cyan per card via CSS custom property `--neon`.
+- Hover-triggered corner brackets: four absolutely-positioned L-shaped spans that scale/fade in with staggered transition delays.
+- Animated progress bars: width transitions driven by a `--pct` custom property toggled on load, paired with JS eased counters (`requestAnimationFrame`, ease-out cubic).
+- Scene-wide flicker via steps() keyframes on a vignette layer; seamless infinite ticker footer; `prefers-reduced-motion` fallback.
+- Fully self-contained: inline CSS + vanilla JS, no external fonts/images/CDNs; monospace system stack; responsive via `clamp()` and auto-fit grid.
+
+## Stats
+Wall time: N/A | Tokens: N/A

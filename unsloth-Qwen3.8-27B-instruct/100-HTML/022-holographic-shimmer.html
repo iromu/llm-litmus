@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Holographic Premium Card</title>
+<style>
+  /* ============ Custom Properties & Animation Registration ============ */
+  @property --border-angle {
+    syntax: "<angle>";
+    initial-value: 0deg;
+    inherits: false;
+  }
+
+  :root {
+    --card-w: min(420px, calc(100vw - 48px));
+    --card-h: min(560px, calc(100vh - 96px));
+    --tilt-max: 14deg;
+    --accent-cyan: #00f0ff;
+    --accent-magenta: #ff2ec4;
+    --accent-violet: #8b5cf6;
+    --accent-gold: #ffd166;
+    --bg-deep: #05060f;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body { height: 100%; }
+
+  body {
+    display: grid;
+    place-items: center;
+    min-height: 100vh;
+    overflow: hidden;
+    background: var(--bg-deep);
+    font-family: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+    color: #e8ecf8;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ============ Ambient Background ============ */
+  .scene-bg {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    overflow: hidden;
+    background:
+      radial-gradient(ellipse 80% 60% at 20% 10%, rgba(139, 92, 246, 0.14), transparent 60%),
+      radial-gradient(ellipse 70% 55% at 85% 85%, rgba(0, 240, 255, 0.10), transparent 60%),
+      radial-gradient(ellipse 50% 40% at 70% 20%, rgba(255, 46, 196, 0.07), transparent 65%),
+      var(--bg-deep);
+  }
+
+  /* faint grid texture over the whole scene */
+  .scene-bg::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(120, 140, 255, 0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(120, 140, 255, 0.05) 1px, transparent 1px);
+    background-size: 48px 48px;
+    mask-image: radial-gradient(ellipse 75% 70% at 50% 50%, black 30%, transparent 75%);
+    -webkit-mask-image: radial-gradient(ellipse 75% 70% at 50% 50%, black 30%, transparent 75%);
+  }
+
+  /* slow drifting aurora blobs */
+  .aurora {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(90px);
+    opacity: 0.35;
+    animation: drift 26s ease-in-out infinite alternate;
+    will-change: transform;
+  }
+  .aurora--a { width: 420px; height: 420px; left: -8%; top: -12%;
+    background: radial-gradient(circle, rgba(139,92,246,.55), transparent 70%); }
+  .aurora--b { width: 380px; height: 380px; right: -10%; bottom: -14%;
+    background: radial-gradient(circle, rgba(0,240,255,.45), transparent 70%);
+    animation-delay: -9s; animation-duration: 32s; }
+  .aurora--c { width: 300px; height: 300px; left: 55%; top: 65%;
+    background: radial-gradient(circle, rgba(255,46,196,.35), transparent 70%);
+    animation-delay: -17s; animation-duration: 40s; }
+
+  @keyframes drift {
+    0%   { transform: translate3d(0, 0, 0) scale(1); }
+    50%  { transform: translate3d(60px, -40px, 0) scale(1.15); }
+    100% { transform: translate3d(-50px, 50px, 0) scale(0.95); }
+  }
+
+  /* floating particles */
+  .particle {
+    position: absolute;
+    width: 3px; height: 3px;
+    border-radius: 50%;
+    background: rgba(180, 220, 255, 0.5);
+    box-shadow: 0 0 8px 1px rgba(120, 200, 255, 0.4);
+    animation: rise linear infinite;
+    opacity: 0;
+  }
+  @keyframes rise {
+    0%   { transform: translateY(0) translateX(0); opacity: 0; }
+    10%  { opacity: 0.8; }
+    90%  { opacity: 0.6; }
+    100% { transform: translateY(-110vh) translateX(var(--sway, 20px)); opacity: 0; }
+  }
+
+  /* ============ Stage / Perspective ============ */
+  .stage {
+    position: relative;
+    z-index: 1;
+    perspective: 1400px;
+    perspective-origin: 50% 50%;
+  }
+
+  /* ============ The Holographic Card ============ */
+  .holo-card {
+    position: relative;
+    width: var(--card-w);
+    height: var(--card-h);
+    transform-style: preserve-3d;
+    transform: rotateX(0deg) rotateY(0deg);
+    transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+    will-change: transform;
+    animation: float-idle 7s ease-in-out infinite;
+  }
+  .holo-card.is-hovering {
+    animation: none;
+    transition: transform 0.12s ease-out;
+  }
+
+  @keyframes float-idle {
+    0%, 100% { transform: rotateX(2deg) rotateY(-3deg) translateY(0); }
+    50%      { transform: rotateX(-2deg) rotateY(3deg) translateY(-14px); }
+  }
+
+  /* --- Spinning conic-gradient border (outer shell) --- */
+  .holo-card::before {
+    content: "";
+    position: absolute;
+    inset: -3px;
+    border-radius: 28px;
+    background: conic-gradient(
+      from var(--border-angle),
+      #00f0ff 0deg,
+      #8b5cf6 70deg,
+      #ff2ec4 140deg,
+      #ffd166 210deg,
+      #00f0ff 280deg,
+      #8b5cf6 330deg,
+      #00f0ff 360deg
+    );
+    animation: spin-border 4s linear infinite;
+    z-index: -2;
+    filter: saturate(1.2);
+  }
+
+  /* glow halo behind the card */
+  .holo-card::after {
+    content: "";
+    position: absolute;
+    inset: -40px;
+    border-radius: 40px;
+    background: conic-gradient(
+      from calc(var(--border-angle) + 180deg),
+      rgba(0, 240, 255, 0.25),
+      rgba(139, 92, 246, 0.25),
+      rgba(255, 46, 196, 0.25),
+      rgba(255, 209, 102, 0.2),
+      rgba(0, 240, 255, 0.25)
+    );
+    filter: blur(48px);
+    z-index: -3;
+    animation: spin-border 4s linear infinite reverse;
+    opacity: 0.8;
+  }
+
+  @keyframes spin-border {
+    to { --border-angle: 360deg; }
+  }
+
+  /* --- Card face (inner, masks the border) --- */
+  .card-face {
+    position: absolute;
+    inset: 0;
+    border-radius: 25px;
+    overflow: hidden;
+    background: linear-gradient(145deg, #0b0e1e 0%, #10142b 45%, #0a0c1a 100%);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.12),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.5),
+      0 30px 60px -12px rgba(0, 0, 0, 0.7);
+  }
+
+  /* iridescent shimmer layer — multi-color gradient sweeping across */
+  .card-face .shimmer {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      115deg,
+      transparent 0%,
+      rgba(0, 240, 255, 0.06) 15%,
+      rgba(139, 92, 246, 0.10) 30%,
+      rgba(255, 46, 196, 0.08) 45%,
+      rgba(255, 209, 102, 0.06) 55%,
+      rgba(0, 240, 255, 0.08) 70%,
+      transparent 85%
+    );
+    background-size: 300% 300%;
+    animation: shimmer-sweep 6s ease-in-out infinite;
+    pointer-events: none;
+  }
+  @keyframes shimmer-sweep {
+    0%, 100% { background-position: 0% 0%; }
+    50%      { background-position: 100% 100%; }
+  }
+
+  /* moving light overlay — a diagonal band of light that travels */
+  .card-face .light-band {
+    position: absolute;
+    inset: -60%;
+    background: linear-gradient(
+      100deg,
+      transparent 42%,
+      rgba(255, 255, 255, 0.05) 47%,
+      rgba(255, 255, 255, 0.14) 50%,
+      rgba(255, 255, 255, 0.05) 53%,
+      transparent 58%
+    );
+    animation: light-travel 5.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+    pointer-events: none;
+    mix-blend-mode: screen;
+  }
+  @keyframes light-travel {
+    0%   { transform: translateX(-55%) rotate(8deg); }
+    60%  { transform: translateX(55%) rotate(8deg); }
+    100% { transform: translateX(55%) rotate(8deg); }
+  }
+
+  /* fine grid texture on the card surface */
+  .card-face .grid-tex {
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(140, 160, 255, 0.06) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(140, 160, 255, 0.06) 1px, transparent 1px);
+    background-size: 26px 26px;
+    mask-image: radial-gradient(ellipse 90% 85% at 50% 40%, black, transparent 80%);
+    -webkit-mask-image: radial-gradient(ellipse 90% 85% at 50% 40%, black, transparent 80%);
+    pointer-events: none;
+  }
+
+  /* cursor-following specular highlight */
+  .card-face .specular {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(
+      circle 260px at var(--mx, 50%) var(--my, 50%),
+      rgba(255, 255, 255, 0.14),
+      rgba(160, 200, 255, 0.05) 40%,
+      transparent 70%
+    );
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.4s ease;
+  }
+  .holo-card.is-hovering .specular { opacity: 1; }
+
+  /* subtle holographic rainbow film (very low opacity interference pattern) */
+  .card-face .hologram-film {
+    position: absolute;
+    inset: 0;
+    background:
+      repeating-linear-gradient(
+        45deg,
+        rgba(0, 240, 255, 0.025) 0px,
+        rgba(139, 92, 246, 0.025) 3px,
+        rgba(255, 46, 196, 0.025) 6px,
+        rgba(255, 209, 102, 0.02) 9px,
+        rgba(0, 240, 255, 0.025) 12px
+      );
+    background-size: 200% 200%;
+    animation: shimmer-sweep 9s linear infinite;
+    mix-blend-mode: overlay;
+    pointer-events: none;
+  }
+
+  /* ============ Content (glassmorphism panel) ============ */
+  .card-content {
+    position: relative;
+    z-index: 2;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: clamp(24px, 5%, 34px);
+    transform: translateZ(30px);
+  }
+
+  /* top row: badge + chip */
+  .card-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 14px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: #dffaff;
+    background: linear-gradient(135deg, rgba(0, 240, 255, 0.16), rgba(139, 92, 246, 0.16));
+    border: 1px solid rgba(0, 240, 255, 0.35);
+    box-shadow: 0 0 18px rgba(0, 240, 255, 0.25), inset 0 1px 0 rgba(255,255,255,0.15);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+  }
+  .badge .dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--accent-cyan);
+    box-shadow: 0 0 8px 2px rgba(0, 240, 255, 0.8);
+    animation: pulse-dot 2.2s ease-in-out infinite;
+  }
+  @keyframes pulse-dot {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50%      { transform: scale(1.5); opacity: 0.6; }
+  }
+
+  .chip {
+    width: 44px; height: 30px;
+    border-radius: 6px;
+    background: linear-gradient(135deg, #ffd166 0%, #ff9e5e 45%, #ffd166 100%);
+    position: relative;
+    box-shadow: 0 2px 8px rgba(255, 180, 80, 0.4), inset 0 1px 0 rgba(255,255,255,0.5);
+  }
+  .chip::before {
+    content: "";
+    position: absolute;
+    inset: 5px 8px;
+    border: 1.5px solid rgba(90, 50, 0, 0.45);
+    border-radius: 3px;
+  }
+  .chip::after {
+    content: "";
+    position: absolute;
+    left: 50%; top: 5px; bottom: 5px;
+    width: 1.5px;
+    background: rgba(90, 50, 0, 0.45);
+    transform: translateX(-50%);
+  }
+
+  /* middle: title, description, features */
+  .card-mid {
+    display: flex;
+    flex-direction: column;
+    gap: clamp(10px, 2.2vh, 18px);
+  }
+
+  .title {
+    font-size: clamp(28px, 6.5vw, 40px);
+    font-weight: 800;
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    background: linear-gradient(100deg, #ffffff 0%, #9be8ff 30%, #c9a8ff 55%, #ffb3ef 80%, #ffe9a8 100%);
+    background-size: 220% auto;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+    animation: title-shift 8s ease-in-out infinite alternate;
+    text-shadow: 0 0 40px rgba(139, 92, 246, 0.35);
+  }
+  @keyframes title-shift {
+    0%   { background-position: 0% center; }
+    100% { background-position: 100% center; }
+  }
+
+  .subtitle {
+    font-size: clamp(12px, 2.6vw, 14px);
+    line-height: 1.65;
+    color: rgba(214, 224, 255, 0.72);
+    max-width: 34ch;
+  }
+
+  .features {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+    margin-top: 4px;
+  }
+  .features li {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    font-size: clamp(12px, 2.6vw, 13.5px);
+    color: rgba(226, 234, 255, 0.88);
+    font-weight: 500;
+  }
+  .features .check {
+    flex: 0 0 auto;
+    width: 19px; height: 19px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    background: linear-gradient(135deg, rgba(0, 240, 255, 0.25), rgba(139, 92, 246, 0.25));
+    border: 1px solid rgba(0, 240, 255, 0.5);
+    box-shadow: 0 0 10px rgba(0, 240, 255, 0.3);
+  }
+  .features .check svg {
+    width: 10px; height: 10px;
+    stroke: #7df9ff;
+    stroke-width: 2.6;
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  /* bottom: price + CTA */
+  .card-bottom {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .price-row {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+  }
+  .price {
+    font-size: clamp(30px, 7vw, 42px);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    background: linear-gradient(120deg, #fff, #a5f3ff 40%, #d4b8ff 75%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+  }
+  .price-period {
+    font-size: 13px;
+    color: rgba(200, 212, 245, 0.55);
+    font-weight: 500;
+  }
+  .price-note {
+    margin-left: auto;
+    font-size: 11px;
+    color: rgba(200, 212, 245, 0.45);
+    letter-spacing: 0.04em;
+  }
+
+  .cta {
+    position: relative;
+    display: block;
+    width: 100%;
+    padding: 15px 20px;
+    border: none;
+    border-radius: 14px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #060814;
+    background: linear-gradient(100deg, #00f0ff, #8b5cf6 45%, #ff2ec4 90%);
+    background-size: 200% auto;
+    box-shadow:
+      0 8px 24px -6px rgba(0, 240, 255, 0.55),
+      0 4px 14px -4px rgba(255, 46, 196, 0.45),
+      inset 0 1px 0 rgba(255, 255, 255, 0.4);
+    transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
+                box-shadow 0.25s ease,
+                background-position 0.5s ease;
+    overflow: hidden;
+  }
+  .cta::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(100deg, transparent 30%, rgba(255,255,255,0.5) 50%, transparent 70%);
+    background-size: 250% 100%;
+    background-position: -100% 0;
+    transition: background-position 0.7s ease;
+    pointer-events: none;
+  }
+  .cta:hover {
+    transform: scale(1.035) translateY(-2px);
+    background-position: 100% center;
+    box-shadow:
+      0 14px 34px -6px rgba(0, 240, 255, 0.7),
+      0 8px 20px -4px rgba(255, 46, 196, 0.6),
+      inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  }
+  .cta:hover::before { background-position: 100% 0; }
+  .cta:active { transform: scale(0.99) translateY(0); }
+  .cta:focus-visible {
+    outline: 2px solid var(--accent-cyan);
+    outline-offset: 3px;
+  }
+
+  /* small footer line */
+  .fine-print {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    color: rgba(180, 195, 235, 0.4);
+    text-transform: uppercase;
+  }
+
+  /* ============ Responsive ============ */
+  @media (max-width: 480px) {
+    :root {
+      --card-w: calc(100vw - 32px);
+      --card-h: min(600px, calc(100vh - 48px));
+    }
+    .card-content { padding: 22px 20px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .holo-card, .holo-card::before, .holo-card::after,
+    .shimmer, .light-band, .hologram-film, .aurora, .particle,
+    .badge .dot, .title {
+      animation: none !important;
+    }
+  }
+</style>
+</head>
+<body>
+
+  <!-- ambient background -->
+  <div class="scene-bg" aria-hidden="true">
+    <div class="aurora aurora--a"></div>
+    <div class="aurora aurora--b"></div>
+    <div class="aurora aurora--c"></div>
+    <div id="particles"></div>
+  </div>
+
+  <main class="stage">
+    <article class="holo-card" id="holoCard" aria-label="Nebula Elite membership card">
+      <div class="card-face">
+        <div class="shimmer" aria-hidden="true"></div>
+        <div class="hologram-film" aria-hidden="true"></div>
+        <div class="grid-tex" aria-hidden="true"></div>
+        <div class="light-band" aria-hidden="true"></div>
+        <div class="specular" aria-hidden="true"></div>
+
+        <div class="card-content">
+          <!-- top -->
+          <header class="card-top">
+            <span class="badge"><span class="dot"></span>Limited Edition</span>
+            <span class="chip" aria-hidden="true"></span>
+          </header>
+
+          <!-- middle -->
+          <section class="card-mid">
+            <h1 class="title">NEBULA&nbsp;ELITE</h1>
+            <p class="subtitle">
+              A holographic membership forged for creators who build beyond the horizon.
+              Unrestricted access, priority compute, and zero friction.
+            </p>
+            <ul class="features">
+              <li>
+                <span class="check" aria-hidden="true">
+                  <svg viewBox="0 0 12 12"><polyline points="1.5 6.5 4.5 9.5 10.5 2.5"/></svg>
+                </span>
+                Unlimited generation credits
+              </li>
+              <li>
+                <span class="check" aria-hidden="true">
+                  <svg viewBox="0 0 12 12"><polyline points="1.5 6.5 4.5 9.5 10.5 2.5"/></svg>
+                </span>
+                Priority GPU queue &amp; 4× faster renders
+              </li>
+              <li>
+                <span class="check" aria-hidden="true">
+                  <svg viewBox="0 0 12 12"><polyline points="1.5 6.5 4.5 9.5 10.5 2.5"/></svg>
+                </span>
+                Early access to every new model
+              </li>
+              <li>
+                <span class="check" aria-hidden="true">
+                  <svg viewBox="0 0 12 12"><polyline points="1.5 6.5 4.5 9.5 10.5 2.5"/></svg>
+                </span>
+                Dedicated support &amp; custom pipelines
+              </li>
+            </ul>
+          </section>
+
+          <!-- bottom -->
+          <footer class="card-bottom">
+            <div class="price-row">
+              <span class="price">$29</span>
+              <span class="price-period">/ month</span>
+              <span class="price-note">billed annually</span>
+            </div>
+            <button class="cta" type="button">Claim Your Card</button>
+            <div class="fine-print">
+              <span>NBL ···· 4291</span>
+              <span>Est. 2026</span>
+            </div>
+          </footer>
+        </div>
+      </div>
+    </article>
+  </main>
+
+<script>
+(function () {
+  "use strict";
+
+  var card = document.getElementById("holoCard");
+  var TILT_MAX = 14; // degrees
+
+  /* ---------- 3D tilt following the cursor ---------- */
+  function onPointerMove(e) {
+    var rect = card.getBoundingClientRect();
+    var x = e.clientX - rect.left;
+    var y = e.clientY - rect.top;
+    var px = (x / rect.width) - 0.5;   // -0.5 .. 0.5
+    var py = (y / rect.height) - 0.5;  // -0.5 .. 0.5
+
+    var rotY = px * TILT_MAX * 2;      // horizontal -> rotateY
+    var rotX = -py * TILT_MAX * 2;     // vertical   -> rotateX
+
+    card.style.transform =
+      "rotateX(" + rotX.toFixed(2) + "deg) " +
+      "rotateY(" + rotY.toFixed(2) + "deg) " +
+      "translateZ(24px) scale(1.02)";
+
+    // conic border angle follows the cursor
+    var angle = Math.atan2(py, px) * (180 / Math.PI) + 90;
+    card.style.setProperty("--border-angle", angle.toFixed(1) + "deg");
+
+    // specular highlight position (percent within card)
+    card.querySelector(".specular").style.setProperty("--mx", (px * 100 + 50).toFixed(1) + "%");
+    card.querySelector(".specular").style.setProperty("--my", (py * 100 + 50).toFixed(1) + "%");
+  }
+
+  function onEnter() {
+    card.classList.add("is-hovering");
+  }
+
+  function onLeave() {
+    card.classList.remove("is-hovering");
+    card.style.transform = "";
+    card.style.removeProperty("--border-angle");
+  }
+
+  card.addEventListener("pointermove", onPointerMove);
+  card.addEventListener("pointerenter", onEnter);
+  card.addEventListener("pointerleave", onLeave);
+
+  /* ---------- Floating particles in the background ---------- */
+  var container = document.getElementById("particles");
+  var COUNT = 26;
+  for (var i = 0; i < COUNT; i++) {
+    var p = document.createElement("span");
+    p.className = "particle";
+    var size = 2 + Math.random() * 3;
+    p.style.width = size + "px";
+    p.style.height = size + "px";
+    p.style.left = (Math.random() * 100) + "vw";
+    p.style.top = (80 + Math.random() * 40) + "vh";
+    p.style.setProperty("--sway", (Math.random() * 80 - 40).toFixed(0) + "px");
+    var dur = 14 + Math.random() * 22;
+    p.style.animationDuration = dur + "s";
+    p.style.animationDelay = (-Math.random() * dur) + "s";
+    container.appendChild(p);
+  }
+})();
+</script>
+</body>
+</html>

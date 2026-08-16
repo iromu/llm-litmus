@@ -1,0 +1,16 @@
+Creative Prompt:
+Create a generative mandala pattern with 16-fold radial symmetry and 12 concentric layers. Each layer has petal shapes, dots, and arc details that rotate at different speeds, creating a complex, evolving pattern. Concentric circles connect the layers. The center has a lotus-like cluster of dots and a subtle glow. Colors cycle through the spectrum over time. Clicking shifts the hue. The background trails for smooth animation. The overall aesthetic is spiritual, symmetrical, and hypnotic — like a dynamic rangoli or sacred geometry.
+
+Model: Qwen3.8-27B-instruct
+Thinking effort: high
+
+Techniques used:
+- Canvas 2D rendering with devicePixelRatio-aware sizing for crisp output on any screen
+- 16-segment radial symmetry; each of the 12 concentric layers carries petals (quadratic Bézier curves), dot rings, and arc segments, all rotating at unique per-layer speeds (alternating direction) so the composition never repeats
+- Structural concentric circles with breathing alpha as layer connectors
+- Center lotus cluster: multi-ring dot arrangement plus a pulsing radial-gradient glow
+- HSL color cycling driven by time + per-layer hue offsets; click adds an irrational-ish hue step (47°) eased smoothly via lerp
+- Trailing background fade via semi-transparent dark wash each frame, combined with 'lighter' additive blending for luminous overlaps
+- Responsive radius derived from min(viewport width, height); resize handler repaints cleanly
+
+Wall time: N/A | Tokens: N/A

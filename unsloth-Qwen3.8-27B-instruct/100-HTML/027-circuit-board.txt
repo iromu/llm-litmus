@@ -1,0 +1,16 @@
+Creative prompt: Create a glowing green circuit board visualization on a dark green background. Nodes are arranged in a semi-random grid connected by traces (lines) with pulsing signal dots traveling along them. Traces glow with a green neon color and fade in and out with pulse animation. Nodes have a similar glow and pulse. The scene has a trailing fade for smooth animation. The title "Circuit Board" appears faintly at the bottom in green. The overall aesthetic is cybernetic, technological, and neon-green — like a living PCB.
+
+Model: Qwen3.8-27B-instruct
+Thinking effort: high
+
+Techniques used:
+- Canvas trace rendering with pulse-driven alpha modulation (sinusoidal pulse function per trace with unique phase/speed for organic signal feel)
+- Traveling pulse dots along 3-segment right-angle PCB-style paths (node → elbow → node), with parametric position interpolation and bidirectional motion
+- Grid-based node placement (~62% occupancy) with random positional perturbation; distance-threshold connection logic capped at max degree 3 to avoid hairball density
+- Radial gradient node glow with breathing animation; mixed round and square (SMD-pad) node shapes
+- Exponential background fade (low-alpha fill each frame) combined with 'lighter' composite blending for motion trails and neon glow accumulation
+- Dual-pass trace rendering (core line + wide soft glow pass when hot)
+- DPR-aware canvas sizing; scene regenerated fresh on resize
+- Faint monospace title at bottom with CSS breathing keyframes
+
+Wall time: N/A | Tokens: N/A

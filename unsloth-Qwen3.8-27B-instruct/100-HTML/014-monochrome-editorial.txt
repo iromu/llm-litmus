@@ -1,0 +1,23 @@
+# 014 — Monochrome Editorial
+
+## Creative Prompt
+Create a black-and-white magazine editorial layout that celebrates monochrome design. The page features a bold hero section with a large "Monochrome Editorial" headline, a highlighted black box word, italic subtext, and metadata. A diamond divider separates sections. Content is organized in 2-column and 3-column grids with numbered cards, each with a bold stat header and italic description. A centered blockquote with citation adds editorial gravitas. A stats row shows four metrics. The footer contains publication details. The design is minimal, typography-focused, and high-contrast — like a premium print magazine.
+
+## Model
+Qwen3.8-27B-instruct
+
+## Thinking Effort
+high
+
+## Techniques Used
+- CSS grid for 2-column and 3-column editorial card layouts with border-based separation (nth-child rules reset right/bottom borders per row)
+- Bold typography hierarchy: 900-weight uppercase headlines with tight letter-spacing, serif italic body copy, uppercase small-caps labels with wide tracking
+- Strict black/white/gray palette via CSS custom properties; inverted (black-bg) cards for rhythm
+- Diamond divider built with a rotated span between flex-stretched rule lines
+- Highlighted inline word using a black background box with slight rotation
+- Responsive breakpoints: 3-col → 2-col at 900px, all single-column stacking at 620px, with border logic adjusted per breakpoint
+- Semantic HTML: header, section, article, blockquote/cite, dl/dt/dd for metadata, footer
+- Purely static — no JavaScript, reads like a print magazine spread
+
+## Stats
+Wall time: N/A | Tokens: N/A

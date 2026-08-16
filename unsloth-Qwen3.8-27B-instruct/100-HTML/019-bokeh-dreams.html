@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bokeh Dreams</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #0a0a14;
+  }
+
+  canvas {
+    display: block;
+    width: 100vw;
+    height: 100vh;
+    cursor: crosshair;
+  }
+
+  .overlay {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: center;
+    padding: 3rem 2rem;
+  }
+
+  .title {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: clamp(2rem, 5vw, 4.5rem);
+    font-weight: 300;
+    letter-spacing: 0.35em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.12);
+    text-shadow: 0 0 40px rgba(255, 255, 255, 0.06), 0 0 80px rgba(180, 160, 255, 0.04);
+    user-select: none;
+    animation: titleBreath 8s ease-in-out infinite;
+  }
+
+  @keyframes titleBreath {
+    0%, 100% { opacity: 0.7; }
+    50% { opacity: 1; }
+  }
+
+  .subtitle {
+    font-family: system-ui, -apple-system, sans-serif;
+    font-size: 0.75rem;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.08);
+    user-select: none;
+  }
+
+  .stats {
+    font-family: system-ui, -apple-system, monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.15em;
+    color: rgba(255, 255, 255, 0.1);
+    user-select: none;
+  }
+
+  /* Subtle vignette for photographic depth */
+  .vignette {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 5;
+    background: radial-gradient(ellipse at center, transparent 50%, rgba(5, 5, 15, 0.4) 100%);
+  }
+
+  /* Film grain overlay for photographic texture */
+  .grain {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 6;
+    opacity: 0.03;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-size: 256px 256px;
+  }
+</style>
+</head>
+<body>
+<canvas id="bokeh"></canvas>
+<div class="vignette"></div>
+<div class="grain"></div>
+<header class="overlay">
+  <h1 class="title">Bokeh Dreams</h1>
+  <div class="subtitle">click to scatter light</div>
+  <span class="stats" id="stats">0 orbs</span>
+</header>
+
+<script>
+(() => {
+  'use strict';
+
+  const canvas = document.getElementById('bokeh');
+  const ctx = canvas.getContext('2d');
+  const statsEl = document.getElementById('stats');
+
+  let W, H, dpr;
+  const MAX_CIRCLES = 200;
+  const BURST_COUNT = 12;
+
+  // Hue palette — warm and cool bokeh tones (street photography feel)
+  const HUE_RANGES = [
+    [30, 55],   // warm amber / gold
+    [340, 370], // soft red / pink
+    [180, 220], // cool blue / cyan
+    [270, 310], // violet / magenta
+    [45, 70],   // yellow / chartreuse
+    [100, 140], // green accent
+  ];
+
+  function resize() {
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  window.addEventListener('resize', resize);
+  resize();
+
+  function rand(a, b) { return a + Math.random() * (b - a); }
+  function pickHue() {
+    const range = HUE_RANGES[Math.floor(Math.random() * HUE_RANGES.length)];
+    return rand(range[0], range[1]) % 360;
+  }
+
+  class BokehCircle {
+    constructor(x, y, burst = false) {
+      this.x = x;
+      this.y = y;
+
+      if (burst) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = rand(1.5, 5);
+        this.vx = Math.cos(angle) * speed;
+        this.vy = Math.sin(angle) * speed;
+        this.radius = rand(8, 40);
+        this.alpha = rand(0.3, 0.7);
+        this.blur = rand(4, 18);
+        this.hue = pickHue();
+        this.saturation = rand(50, 90);
+        this.phase = Math.random() * Math.PI * 2;
+        this.freq = rand(0.003, 0.012);
+        this.amp = rand(0.2, 0.8);
+        this.life = 1;
+        this.decay = rand(0.001, 0.004);
+      } else {
+        this.vx = rand(-0.3, 0.3);
+        this.vy = rand(-0.3, 0.3);
+        this.radius = rand(15, 90);
+        this.alpha = rand(0.08, 0.45);
+        this.blur = rand(2, 25);
+        this.hue = pickHue();
+        this.saturation = rand(40, 95);
+        this.phase = Math.random() * Math.PI * 2;
+        this.freq = rand(0.002, 0.008);
+        this.amp = rand(0.1, 0.5);
+        this.life = 1;
+        this.decay = 0;
+      }
+    }
+
+    update(t) {
+      // Sine-wave phase-based drift acceleration
+      const ax = Math.sin(t * this.freq + this.phase) * this.amp * 0.02;
+      const ay = Math.cos(t * this.freq * 0.7 + this.phase * 1.3) * this.amp * 0.015;
+      this.vx += ax;
+      this.vy += ay;
+
+      // Damping for burst circles
+      if (this.decay > 0) {
+        this.vx *= 0.985;
+        this.vy *= 0.985;
+        this.life -= this.decay;
+      }
+
+      this.x += this.vx;
+      this.y += this.vy;
+
+      // Screen wrapping with margin
+      const m = this.radius + this.blur;
+      if (this.x < -m) this.x = W + m;
+      if (this.x > W + m) this.x = -m;
+      if (this.y < -m) this.y = H + m;
+      if (this.y > H + m) this.y = -m;
+
+      return this.life > 0;
+    }
+
+    draw(ctx) {
+      const r = this.radius;
+      const a = this.alpha * this.life;
+      if (a <= 0.003) return;
+
+      // Multi-stop radial gradient simulating lens bokeh falloff
+      const g = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, r);
+      const h = this.hue;
+      const s = this.saturation;
+
+      // Bright inner core
+      g.addColorStop(0, `hsla(${h}, ${s}%, 85%, ${a * 0.9})`);
+      g.addColorStop(0.15, `hsla(${h}, ${s}%, 70%, ${a * 0.7})`);
+      g.addColorStop(0.4, `hsla(${h}, ${s * 0.8}%, 55%, ${a * 0.4})`);
+      g.addColorStop(0.7, `hsla(${h}, ${s * 0.6}%, 40%, ${a * 0.15})`);
+      g.addColorStop(0.9, `hsla(${h}, ${s * 0.5}%, 30%, ${a * 0.04})`);
+      g.addColorStop(1, `hsla(${h}, ${s * 0.4}%, 20%, 0)`);
+
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, r, 0, Math.PI * 2);
+      ctx.fillStyle = g;
+      ctx.fill();
+
+      // Inner bright spot (lens highlight)
+      const innerR = r * 0.25;
+      const ig = ctx.createRadialGradient(
+        this.x - r * 0.1, this.y - r * 0.1, 0,
+        this.x - r * 0.1, this.y - r * 0.1, innerR
+      );
+      ig.addColorStop(0, `hsla(${h}, ${s * 0.5}%, 95%, ${a * 0.5})`);
+      ig.addColorStop(1, `hsla(${h}, ${s * 0.5}%, 95%, 0)`);
+      ctx.beginPath();
+      ctx.arc(this.x - r * 0.1, this.y - r * 0.1, innerR, 0, Math.PI * 2);
+      ctx.fillStyle = ig;
+      ctx.fill();
+    }
+  }
+
+  // Initialize ambient circles
+  const circles = [];
+  function initAmbient(count) {
+    for (let i = 0; i < count; i++) {
+      circles.push(new BokehCircle(rand(0, W), rand(0, H)));
+    }
+  }
+  initAmbient(60);
+
+  // Background gradient that slowly shifts
+  let bgPhase = 0;
+  function drawBackground() {
+    bgPhase += 0.0003;
+    const hueShift = Math.sin(bgPhase) * 15;
+
+    const g = ctx.createLinearGradient(0, 0, W * 0.3, H);
+    g.addColorStop(0, `hsl(${240 + hueShift}, 30%, 6%)`);
+    g.addColorStop(0.5, `hsl(${260 + hueShift}, 25%, 9%)`);
+    g.addColorStop(1, `hsl(${220 + hueShift}, 35%, 5%)`);
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  // Click/tap burst
+  function spawnBurst(x, y) {
+    for (let i = 0; i < BURST_COUNT; i++) {
+      if (circles.length >= MAX_CIRCLES) {
+        // Replace oldest non-burst circle
+        const idx = circles.findIndex(c => c.decay === 0);
+        if (idx !== -1) circles.splice(idx, 1);
+        else break;
+      }
+      circles.push(new BokehCircle(x, y, true));
+    }
+  }
+
+  canvas.addEventListener('pointerdown', (e) => {
+    spawnBurst(e.clientX, e.clientY);
+  });
+
+  // Main loop
+  let time = 0;
+  function frame() {
+    time++;
+    drawBackground();
+
+    // Apply blur filter based on average circle blur for performance
+    // We use ctx.filter for the bokeh glow effect
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter'; // additive blending for light overlap
+
+    for (let i = circles.length - 1; i >= 0; i--) {
+      const alive = circles[i].update(time);
+      if (!alive) {
+        circles.splice(i, 1);
+        continue;
+      }
+      circles[i].draw(ctx);
+    }
+
+    ctx.restore();
+
+    // Update stats
+    statsEl.textContent = `${circles.length} orbs`;
+
+    requestAnimationFrame(frame);
+  }
+
+  frame();
+})();
+</script>
+</body>
+</html>

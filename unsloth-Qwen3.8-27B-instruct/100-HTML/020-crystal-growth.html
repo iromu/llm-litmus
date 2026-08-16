@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Crystal Growth — Generative Crystallography</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #050510;
+  }
+
+  canvas {
+    display: block;
+    width: 100vw;
+    height: 100vh;
+    cursor: crosshair;
+  }
+
+  .hud {
+    position: fixed;
+    bottom: 16px;
+    left: 16px;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 11px;
+    color: rgba(160, 140, 255, 0.45);
+    letter-spacing: 0.08em;
+    pointer-events: none;
+    user-select: none;
+    line-height: 1.6;
+  }
+
+  .hud .title {
+    font-size: 13px;
+    color: rgba(190, 170, 255, 0.6);
+    margin-bottom: 2px;
+  }
+</style>
+</head>
+<body>
+<canvas id="crystal-canvas"></canvas>
+<div class="hud" aria-hidden="true">
+  <div class="title">CRYSTAL GROWTH</div>
+  <div id="hud-stats">facets: 0 &middot; crystals: 0 / 120</div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  // ── Configuration ────────────────────────────────────────────────
+  const MAX_CRYSTALS   = 120;
+  const MAX_FACETS     = 28;        // per crystal (generation limit)
+  const TRAIL_ALPHA    = 0.045;     // background fade per frame
+  const MOUSE_SPAWN_EVERY = 3;      // frames between mouse spawns
+  const CLICK_CLUSTER   = 5;        // crystals per click
+  const HUE_BASE       = 230;      // blue
+  const HUE_SPREAD     = 60;       // toward purple/violet
+  const DPR            = Math.min(window.devicePixelRatio || 1, 2);
+
+  // ── Canvas setup ─────────────────────────────────────────────────
+  const canvas = document.getElementById('crystal-canvas');
+  const ctx    = canvas.getContext('2d');
+  let W, H;
+
+  function resize() {
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width  = W * DPR;
+    canvas.height = H * H === undefined ? H * DPR : H * DPR;
+    canvas.height = H * DPR;
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    // repaint background on resize so we don't get a white flash
+    ctx.fillStyle = '#050510';
+    ctx.fillRect(0, 0, W, H);
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  // ── Utility ──────────────────────────────────────────────────────
+  const rand  = (a, b) => a + Math.random() * (b - a);
+  const TAU   = Math.PI * 2;
+  const lerp  = (a, b, t) => a + (b - a) * t;
+
+  // ── Facet ────────────────────────────────────────────────────────
+  // A facet is a quadrilateral radiating from the crystal center.
+  // It has an inner radius and outer radius, plus two angular bounds.
+  class Facet {
+    constructor(cx, cy, angle, spread, innerR, outerR, hue, alpha) {
+      this.cx     = cx;
+      this.cy     = cy;
+      this.angle  = angle;          // center angle of the facet
+      this.spread = spread;         // half-angle width
+      this.innerR = innerR;
+      this.outerR = outerR;
+      this.hue    = hue;
+      this.alpha  = alpha;
+      this.grown  = false;          // whether it has already grown once
+      this.pulse  = Math.random() * TAU; // phase for subtle shimmer
+    }
+
+    grow() {
+      if (this.grown) return;
+      this.grown  = true;
+      this.outerR *= rand(1.15, 1.45);
+      this.spread *= rand(1.05, 1.15);
+      this.alpha  = Math.min(this.alpha + rand(0.02, 0.06), 0.85);
+    }
+
+    draw(ctx, time) {
+      const shimmer = 0.92 + 0.08 * Math.sin(time * 0.001 + this.pulse);
+      const a  = this.angle - this.spread;
+      const b  = this.angle + this.spread;
+      const r1 = this.innerR;
+      const r2 = this.outerR;
+
+      const x1 = this.cx + Math.cos(a)  * r1;
+      const y1 = this.cy + Math.sin(a)  * r1;
+      const x2 = this.cx + Math.cos(b)  * r1;
+      const y2 = this.cy + Math.sin(b)  * r1;
+      const x3 = this.cx + Math.cos(b)  * r2;
+      const y3 = this.cy + Math.sin(b)  * r2;
+      const x4 = this.cx + Math.cos(a)  * r2;
+      const y4 = this.cy + Math.sin(a)  * r2;
+
+      // Fill
+      const fillAlpha = this.alpha * shimmer;
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.lineTo(x3, y3);
+      ctx.lineTo(x4, y4);
+      ctx.closePath();
+      ctx.fillStyle = `hsla(${this.hue}, 75%, 55%, ${fillAlpha})`;
+      ctx.fill();
+
+      // Edge stroke — brighter, thinner
+      ctx.strokeStyle = `hsla(${this.hue + 15}, 90%, 72%, ${fillAlpha * 0.7})`;
+      ctx.lineWidth = 0.6;
+      ctx.stroke();
+
+      // Tip glow at the outer edge midpoint
+      const midA = this.angle;
+      const tipX = this.cx + Math.cos(midA) * r2;
+      const tipY = this.cy + Math.sin(midA) * r2;
+      const glowR = Math.max(r2 * 0.35, 6);
+      const grad = ctx.createRadialGradient(tipX, tipY, 0, tipX, tipY, glowR);
+      grad.addColorStop(0,   `hsla(${this.hue + 20}, 100%, 85%, ${fillAlpha * 0.55})`);
+      grad.addColorStop(0.4, `hsla(${this.hue + 10}, 90%,  65%, ${fillAlpha * 0.2})`);
+      grad.addColorStop(1,   `hsla(${this.hue},       80%,  50%, 0)`);
+      ctx.beginPath();
+      ctx.arc(tipX, tipY, glowR, 0, TAU);
+      ctx.fillStyle = grad;
+      ctx.fill();
+    }
+  }
+
+  // ── Crystal ──────────────────────────────────────────────────────
+  class Crystal {
+    constructor(x, y) {
+      this.x      = x;
+      this.y      = y;
+      this.facets = [];
+      this.baseHue = HUE_BASE + rand(-10, HUE_SPREAD);
+      this.age    = 0;
+      this.dead   = false;
+
+      // Seed with 3–5 initial facets
+      const seedCount = 3 + Math.floor(Math.random() * 3);
+      const baseAngle = Math.random() * TAU;
+      for (let i = 0; i < seedCount; i++) {
+        const angle  = baseAngle + (i / seedCount) * TAU + rand(-0.3, 0.3);
+        const spread = rand(0.12, 0.28);
+        const innerR = rand(2, 5);
+        const outerR = rand(12, 30);
+        const hue    = this.baseHue + rand(-15, 25);
+        const alpha  = rand(0.15, 0.45);
+        this.facets.push(new Facet(x, y, angle, spread, innerR, outerR, hue, alpha));
+      }
+    }
+
+    update(dt) {
+      this.age += dt;
+
+      // Grow new facets over time (organic growth with generation limit)
+      if (this.facets.length < MAX_FACETS && Math.random() < 0.008 * dt) {
+        // Pick an existing facet and spawn a child adjacent to it
+        const parent = this.facets[Math.floor(Math.random() * this.facets.length)];
+        const side   = Math.random() < 0.5 ? -1 : 1;
+        const angle  = parent.angle + side * (parent.spread + rand(0.05, 0.15));
+        const innerR = parent.outerR * rand(0.3, 0.6);
+        const outerR = parent.outerR * rand(0.8, 1.3);
+        const hue    = this.baseHue + rand(-20, 30);
+        const alpha  = rand(0.1, 0.35);
+        this.facets.push(new Facet(this.x, this.y, angle, rand(0.1, 0.25), innerR, outerR, hue, alpha));
+      }
+
+      // Occasionally grow an existing facet outward
+      if (Math.random() < 0.015 * dt) {
+        const f = this.facets[Math.floor(Math.random() * this.facets.length)];
+        f.grow();
+      }
+
+      // Fade out after a long life
+      if (this.age > 25000) {
+        this.fadeOut(dt);
+      }
+    }
+
+    fadeOut(dt) {
+      for (const f of this.facets) {
+        f.alpha -= 0.001 * dt;
+        if (f.alpha <= 0) f.alpha = 0;
+      }
+      if (this.facets.every(f => f.alpha <= 0)) this.dead = true;
+    }
+
+    draw(ctx, time) {
+      for (const f of this.facets) {
+        f.draw(ctx, time);
+      }
+    }
+  }
+
+  // ── Scene state ──────────────────────────────────────────────────
+  let crystals = [];
+  let lastTime = performance.now();
+  let mouseSpawnTimer = 0;
+  let mouseX = W / 2, mouseY = H / 2;
+  let mouseDown = false;
+
+  // ── Spawning ─────────────────────────────────────────────────────
+  function spawnCrystal(x, y) {
+    if (crystals.length >= MAX_CRYSTALS) {
+      // Remove oldest non-dead crystal to make room
+      const idx = crystals.findIndex(c => !c.dead);
+      if (idx !== -1) crystals.splice(idx, 1);
+    }
+    crystals.push(new Crystal(x, y));
+  }
+
+  function spawnCluster(x, y, count) {
+    for (let i = 0; i < count; i++) {
+      const ox = rand(-30, 30);
+      const oy = rand(-30, 30);
+      spawnCrystal(x + ox, y + oy);
+    }
+  }
+
+  // ── Input ────────────────────────────────────────────────────────
+  canvas.addEventListener('click', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    spawnCluster(x, y, CLICK_CLUSTER);
+  });
+
+  canvas.addEventListener('mousemove', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    mouseX = e.clientX - rect.left;
+    mouseY = e.clientY - rect.top;
+  });
+
+  // Touch support
+  canvas.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    const t = e.touches[0];
+    const rect = canvas.getBoundingClientRect();
+    mouseX = t.clientX - rect.left;
+    mouseY = t.clientY - rect.top;
+    spawnCluster(mouseX, mouseY, CLICK_CLUSTER);
+  }, { passive: false });
+
+  canvas.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    const t = e.touches[0];
+    const rect = canvas.getBoundingClientRect();
+    mouseX = t.clientX - rect.left;
+    mouseY = t.clientY - rect.top;
+  }, { passive: false });
+
+  // ── HUD ──────────────────────────────────────────────────────────
+  const hudStats = document.getElementById('hud-stats');
+  let hudTimer = 0;
+
+  function updateHUD() {
+    let totalFacets = 0;
+    for (const c of crystals) totalFacets += c.facets.length;
+    hudStats.textContent = `facets: ${totalFacets} \u00B7 crystals: ${crystals.length} / ${MAX_CRYSTALS}`;
+  }
+
+  // ── Main loop ────────────────────────────────────────────────────
+  function frame(now) {
+    const dt = Math.min((now - lastTime) / 16.67, 3); // normalized to ~60fps units
+    lastTime = now;
+
+    // Trailing background fade
+    ctx.fillStyle = `rgba(5, 5, 16, ${TRAIL_ALPHA})`;
+    ctx.fillRect(0, 0, W, H);
+
+    // Mouse-following crystal generation
+    mouseSpawnTimer += dt;
+    if (mouseSpawnTimer >= MOUSE_SPAWN_EVERY) {
+      mouseSpawnTimer = 0;
+      // Only spawn if mouse moved recently (check via a small random offset)
+      spawnCrystal(
+        mouseX + rand(-15, 15),
+        mouseY + rand(-15, 15)
+      );
+    }
+
+    // Update crystals
+    for (let i = crystals.length - 1; i >= 0; i--) {
+      const c = crystals[i];
+      c.update(dt);
+      if (c.dead) {
+        crystals.splice(i, 1);
+      }
+    }
+
+    // Draw crystals (oldest first so newer ones layer on top)
+    for (const c of crystals) {
+      c.draw(ctx, now);
+    }
+
+    // Subtle vignette
+    const vg = ctx.createRadialGradient(W/2, H/2, Math.min(W,H)*0.3, W/2, H/2, Math.max(W,H)*0.75);
+    vg.addColorStop(0, 'rgba(5,5,16,0)');
+    vg.addColorStop(1, 'rgba(5,5,16,0.35)');
+    ctx.fillStyle = vg;
+    ctx.fillRect(0, 0, W, H);
+
+    // HUD update (throttled)
+    hudTimer += dt;
+    if (hudTimer >= 10) {
+      hudTimer = 0;
+      updateHUD();
+    }
+
+    requestAnimationFrame(frame);
+  }
+
+  // ── Initial seeding ──────────────────────────────────────────────
+  // Scatter a few starter crystals so the scene isn't empty
+  for (let i = 0; i < 8; i++) {
+    spawnCrystal(rand(W * 0.15, W * 0.85), rand(H * 0.15, H * 0.85));
+  }
+
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Orbit</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 100%; height: 100%; overflow: hidden; }
+body { background: #050510; }
+canvas { display: block; width: 100%; height: 100%; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let W, H, cx, cy;
+const particles = [];
+
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+  cx = W / 2;
+  cy = H / 2;
+}
+window.addEventListener('resize', resize);
+resize();
+
+class OrbitalParticle {
+  constructor() {
+    this.reset();
+  }
+  reset() {
+    this.orbitRadius = 40 + Math.random() * (Math.min(W, H) * 0.4);
+    this.angle = Math.random() * Math.PI * 2;
+    this.speed = (0.2 + Math.random() * 0.8) * (Math.random() > 0.5 ? 1 : -1);
+    this.size = 1.5 + Math.random() * 3;
+    this.hue = Math.random() * 360;
+    this.glowSize = this.size * (3 + Math.random() * 4);
+  }
+  update(dt) {
+    this.angle += this.speed * dt;
+  }
+  draw(ctx) {
+    const x = cx + Math.cos(this.angle) * this.orbitRadius;
+    const y = cy + Math.sin(this.angle) * this.orbitRadius;
+
+    // Glow
+    const grad = ctx.createRadialGradient(x, y, 0, x, y, this.glowSize);
+    grad.addColorStop(0, `hsla(${this.hue}, 90%, 60%, 0.6)`);
+    grad.addColorStop(0.4, `hsla(${this.hue}, 80%, 50%, 0.2)`);
+    grad.addColorStop(1, `hsla(${this.hue}, 70%, 40%, 0)`);
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(x, y, this.glowSize, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Core
+    ctx.fillStyle = `hsla(${this.hue}, 95%, 75%, 0.9)`;
+    ctx.beginPath();
+    ctx.arc(x, y, this.size, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+// Create particles
+for (let i = 0; i < 80; i++) {
+  particles.push(new OrbitalParticle());
+}
+
+let lastTime = performance.now();
+function animate(now) {
+  const dt = (now - lastTime) / 1000;
+  lastTime = now;
+
+  // Trailing fade
+  ctx.fillStyle = 'rgba(5, 5, 16, 0.12)';
+  ctx.fillRect(0, 0, W, H);
+
+  // Center nucleus
+  const nucleusGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, 12);
+  nucleusGrad.addColorStop(0, 'rgba(255, 255, 255, 0.9)');
+  nucleusGrad.addColorStop(0.3, 'rgba(200, 220, 255, 0.4)');
+  nucleusGrad.addColorStop(1, 'rgba(150, 180, 255, 0)');
+  ctx.fillStyle = nucleusGrad;
+  ctx.beginPath();
+  ctx.arc(cx, cy, 12, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Particles
+  for (const p of particles) {
+    p.update(dt);
+    p.draw(ctx);
+  }
+
+  requestAnimationFrame(animate);
+}
+
+ctx.fillStyle = '#050510';
+ctx.fillRect(0, 0, W, H);
+requestAnimationFrame(animate);
+</script>
+</body>
+</html>

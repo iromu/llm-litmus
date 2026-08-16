@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Neon Butterfly</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    width: 100%; height: 100%;
+    overflow: hidden;
+    background: #05060f;
+  }
+  canvas { display: block; cursor: none; }
+  .hint {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    font-family: system-ui, -apple-system, sans-serif;
+    font-size: 13px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: rgba(255,255,255,0.35); pointer-events: none;
+    animation: fadeHint 4s ease 2.5s forwards;
+    user-select: none;
+  }
+  @keyframes fadeHint { to { opacity: 0; } }
+</style>
+</head>
+<body>
+<canvas id="scene"></canvas>
+<p class="hint">move your cursor &mdash; the butterfly follows</p>
+<script>
+(() => {
+'use strict';
+
+const canvas = document.getElementById('scene');
+const ctx = canvas.getContext('2d');
+let W = 0, H = 0, DPR = 1;
+
+function resize() {
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  W = window.innerWidth; H = window.innerHeight;
+  canvas.width = W * DPR; canvas.height = H * DPR;
+  canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
+window.addEventListener('resize', resize);
+resize();
+
+/* ---------- HSV -> RGB (h in [0,360), s/v in [0,1]) ---------- */
+function hsvToRgb(h, s, v) {
+  h = ((h % 360) + 360) % 360 / 60;
+  const i = Math.floor(h), f = h - i;
+  const p = v * (1 - s), q = v * (1 - f * s), t = v * (1 - (1 - f) * s);
+  let r, g, b;
+  switch (i % 6) {
+    case 0: r = v; g = t; b = p; break;
+    case 1: r = q; g = v; b = p; break;
+    case 2: r = p; g = v; b = t; break;
+    case 3: r = p; g = q; b = v; break;
+    case 4: r = t; g = p; b = v; break;
+    default: r = v; g = p; b = q; break;
+  }
+  return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
+}
+const rgba = (h, s, v, a) => {
+  const [r, g, b] = hsvToRgb(h, s, v);
+  return `rgba(${r},${g},${b},${a})`;
+};
+
+/* ---------- Input state ---------- */
+const mouse = { x: W / 2, y: H / 2, active: false, lastMove: 0 };
+function setPointer(x, y) {
+  mouse.x = x; mouse.y = y;
+  mouse.active = true;
+  mouse.lastMove = performance.now();
+}
+window.addEventListener('mousemove', e => setPointer(e.clientX, e.clientY));
+window.addEventListener('touchstart', e => {
+  const t = e.touches[0]; if (t) setPointer(t.clientX, t.clientY);
+}, { passive: true });
+window.addEventListener('touchmove', e => {
+  const t = e.touches[0]; if (t) setPointer(t.clientX, t.clientY);
+}, { passive: true });
+
+/* ---------- Butterfly state ---------- */
+const bf = {
+  x: W / 2, y: H / 2,
+  vx: 0, vy: 0,
+  angle: -Math.PI / 2,      // heading (direction of travel)
+  flapPhase: 0,
+  flapSpeed: 4.2,           // rad/s baseline
+  wanderT: 0,
+  size: Math.min(W, H) * 0.055 + 14
+};
+
+/* Trail: array of {x, y, hue, life} */
+const trail = [];
+const TRAIL_MAX = 90;
+
+/* Sparkle particles emitted along the trail */
+const sparks = [];
+
+let lastTime = performance.now();
+
+function lerpAngle(a, b, t) {
+  let d = (b - a) % (Math.PI * 2);
+  if (d > Math.PI) d -= Math.PI * 2;
+  if (d < -Math.PI) d += Math.PI * 2;
+  return a + d * t;
+}
+
+function update(dt, now) {
+  const idle = !mouse.active || (now - mouse.lastMove > 1400);
+
+  /* --- Steering target --- */
+  let tx, ty;
+  if (!idle) {
+    tx = mouse.x; ty = mouse.y;
+  } else {
+    /* gentle noise-based wandering around screen center */
+    bf.wanderT += dt;
+    const cx = W / 2, cy = H / 2;
+    const rx = W * 0.32, ry = H * 0.32;
+    tx = cx + Math.sin(bf.wanderT * 0.31) * rx + Math.sin(bf.wanderT * 0.73 + 1.7) * rx * 0.35;
+    ty = cy + Math.cos(bf.wanderT * 0.23 + 0.9) * ry + Math.cos(bf.wanderT * 0.57 + 2.3) * ry * 0.35;
+  }
+
+  const dx = tx - bf.x, dy = ty - bf.y;
+  const dist = Math.hypot(dx, dy);
+
+  /* Desired velocity: proportional steering with soft cap */
+  const maxSpeed = idle ? 70 : 340;
+  const desired = Math.min(dist * 3.2, maxSpeed);
+  const dirX = dist > 0.5 ? dx / dist : 0;
+  const dirY = dist > 0.5 ? dy / dist : 0;
+
+  /* Exponential smoothing toward desired velocity */
+  const k = 1 - Math.exp(-dt * 3.4);
+  bf.vx += (dirX * desired - bf.vx) * k;
+  bf.vy += (dirY * desired - bf.vy) * k;
+
+  bf.x += bf.vx * dt;
+  bf.y += bf.vy * dt;
+
+  /* Heading angle follows velocity direction when moving */
+  const speed = Math.hypot(bf.vx, bf.vy);
+  if (speed > 4) {
+    const target = Math.atan2(bf.vy, bf.vx);
+    bf.angle = lerpAngle(bf.angle, target, 1 - Math.exp(-dt * 6));
+  }
+
+  /* Flap speed scales with movement (fast flight = fast wings) */
+  const targetFlap = idle ? 3.2 : 4.5 + Math.min(speed / 60, 1) * 6.5;
+  bf.flapSpeed += (targetFlap - bf.flapSpeed) * (1 - Math.exp(-dt * 2.5));
+  bf.flapPhase += bf.flapSpeed * dt;
+
+  /* --- Trail emission --- */
+  if (speed > 12 && trail.length < TRAIL_MAX) {
+    const hue = (now * 0.06 + trail.length * 2.4) % 360;
+    trail.push({ x: bf.x, y: bf.y, hue, life: 1 });
+    /* occasional sparkle */
+    if (Math.random() < 0.35 && sparks.length < 140) {
+      sparks.push({
+        x: bf.x + (Math.random() - 0.5) * 18,
+        y: bf.y + (Math.random() - 0.5) * 18,
+        vx: (Math.random() - 0.5) * 40,
+        vy: (Math.random() - 0.5) * 40 - 12,
+        life: 1,
+        hue: hue + Math.random() * 40
+      });
+    }
+  }
+  for (let i = trail.length - 1; i >= 0; i--) {
+    trail[i].life -= dt * 0.9;
+    if (trail[i].life <= 0) trail.splice(i, 1);
+  }
+  for (let i = sparks.length - 1; i >= 0; i--) {
+    const s = sparks[i];
+    s.life -= dt * 1.4;
+    s.x += s.vx * dt; s.y += s.vy * dt;
+    s.vy += 14 * dt;
+    if (s.life <= 0) sparks.splice(i, 1);
+  }
+}
+
+/* ---------- Wing drawing ----------
+   Draws ONE side (right) of the butterfly centered at origin,
+   pointing up (+x axis after rotation). Mirrored via scale(-1,1). */
+function drawWingSide(flap, hueBase, size) {
+  /* flap in [-1, 1]: wing foreshortening factor */
+  const fold = 0.25 + 0.75 * (0.5 + 0.5 * flap); // 0.25..1
+  const spread = 0.55 + 0.45 * (0.5 + 0.5 * flap);
+
+  /* Upper wing */
+  ctx.save();
+  ctx.scale(spread, fold);
+  let grad = ctx.createRadialGradient(size * 0.55, 0, size * 0.05, size * 0.55, 0, size * 1.05);
+  grad.addColorStop(0,    rgba(hueBase, 0.25, 1, 0.95));
+  grad.addColorStop(0.35, rgba(hueBase + 30, 0.85, 1, 0.85));
+  grad.addColorStop(0.7,  rgba(hueBase + 70, 0.95, 0.9, 0.55));
+  grad.addColorStop(1,    rgba(hueBase + 110, 1, 0.75, 0.12));
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.bezierCurveTo(size * 0.15, -size * 0.95, size * 1.15, -size * 1.05, size * 1.25, -size * 0.35);
+  ctx.bezierCurveTo(size * 1.3, size * 0.05, size * 0.7, size * 0.28, 0, size * 0.12);
+  ctx.closePath();
+  ctx.fill();
+  /* neon rim on upper wing */
+  ctx.strokeStyle = rgba(hueBase + 40, 0.6, 1, 0.9);
+  ctx.lineWidth = size * 0.045;
+  ctx.stroke();
+  /* inner vein detail */
+  ctx.strokeStyle = rgba(hueBase + 90, 0.5, 1, 0.45);
+  ctx.lineWidth = size * 0.02;
+  ctx.beginPath();
+  ctx.moveTo(size * 0.1, -size * 0.05);
+  ctx.quadraticCurveTo(size * 0.6, -size * 0.5, size * 1.05, -size * 0.42);
+  ctx.moveTo(size * 0.1, size * 0.02);
+  ctx.quadraticCurveTo(size * 0.55, -size * 0.1, size * 0.95, -size * 0.05);
+  ctx.stroke();
+  ctx.restore();
+
+  /* Lower wing */
+  ctx.save();
+  ctx.translate(0, size * 0.1);
+  ctx.scale(spread * 0.85, fold * 0.8);
+  grad = ctx.createRadialGradient(size * 0.4, size * 0.1, size * 0.04, size * 0.4, size * 0.1, size * 0.85);
+  grad.addColorStop(0,    rgba(hueBase + 160, 0.3, 1, 0.9));
+  grad.addColorStop(0.4,  rgba(hueBase + 200, 0.9, 1, 0.7));
+  grad.addColorStop(0.75, rgba(hueBase + 250, 0.95, 0.85, 0.4));
+  grad.addColorStop(1,    rgba(hueBase + 300, 1, 0.7, 0.08));
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.bezierCurveTo(size * 0.5, -size * 0.1, size * 0.95, size * 0.15, size * 0.85, size * 0.6);
+  ctx.bezierCurveTo(size * 0.75, size * 0.95, size * 0.25, size * 0.95, size * 0.05, size * 0.5);
+  ctx.bezierCurveTo(-size * 0.05, size * 0.3, -size * 0.05, size * 0.1, 0, 0);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = rgba(hueBase + 210, 0.6, 1, 0.8);
+  ctx.lineWidth = size * 0.04;
+  ctx.stroke();
+  ctx.strokeStyle = rgba(hueBase + 260, 0.5, 1, 0.4);
+  ctx.lineWidth = size * 0.018;
+  ctx.beginPath();
+  ctx.moveTo(size * 0.08, size * 0.12);
+  ctx.quadraticCurveTo(size * 0.45, size * 0.3, size * 0.62, size * 0.62);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawButterfly(now) {
+  const size = bf.size;
+  const flap = Math.sin(bf.flapPhase);
+  const hueBase = (now * 0.05) % 360;
+
+  ctx.save();
+  ctx.translate(bf.x, bf.y);
+  ctx.rotate(bf.angle + Math.PI / 2); // heading up
+
+  /* ambient glow behind the whole butterfly */
+  const glow = ctx.createRadialGradient(0, 0, 0, 0, 0, size * 2.6);
+  glow.addColorStop(0, rgba(hueBase + 60, 0.7, 1, 0.28));
+  glow.addColorStop(0.5, rgba(hueBase + 120, 0.8, 1, 0.1));
+  glow.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.arc(0, 0, size * 2.6, 0, Math.PI * 2);
+  ctx.fill();
+
+  /* right-side wings */
+  drawWingSide(flap, hueBase, size);
+  /* mirrored left-side wings */
+  ctx.save();
+  ctx.scale(-1, 1);
+  drawWingSide(flap, hueBase + 18, size);
+  ctx.restore();
+
+  /* body */
+  const bodyGrad = ctx.createLinearGradient(0, -size * 0.75, 0, size * 0.75);
+  bodyGrad.addColorStop(0, rgba(hueBase + 300, 0.4, 1, 0.95));
+  bodyGrad.addColorStop(0.5, rgba(hueBase + 260, 0.7, 0.95, 0.95));
+  bodyGrad.addColorStop(1, rgba(hueBase + 220, 0.8, 0.85, 0.9));
+  ctx.fillStyle = bodyGrad;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, size * 0.09, size * 0.72, 0, 0, Math.PI * 2);
+  ctx.fill();
+  /* abdomen segments */
+  ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+  ctx.lineWidth = size * 0.015;
+  for (let i = -2; i <= 2; i++) {
+    const yy = i * size * 0.13;
+    const w = size * 0.075 * (1 - Math.abs(i) * 0.15);
+    ctx.beginPath();
+    ctx.moveTo(-w, yy);
+    ctx.lineTo(w, yy);
+    ctx.stroke();
+  }
+  /* head */
+  ctx.fillStyle = rgba(hueBase + 300, 0.3, 1, 0.95);
+  ctx.beginPath();
+  ctx.arc(0, -size * 0.78, size * 0.11, 0, Math.PI * 2);
+  ctx.fill();
+
+  /* antennae — curved, swaying slightly with the flap */
+  const sway = Math.sin(bf.flapPhase * 0.5) * size * 0.06;
+  ctx.strokeStyle = rgba(hueBase + 320, 0.4, 1, 0.85);
+  ctx.lineWidth = size * 0.028;
+  ctx.lineCap = 'round';
+  for (const side of [-1, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(side * size * 0.04, -size * 0.85);
+    ctx.quadraticCurveTo(
+      side * size * 0.3 + sway, -size * 1.25,
+      side * size * 0.42 + sway, -size * 1.45
+    );
+    ctx.stroke();
+    /* antenna tip dot */
+    ctx.fillStyle = rgba(hueBase + 40, 0.3, 1, 0.95);
+    ctx.beginPath();
+    ctx.arc(side * size * 0.42 + sway, -size * 1.45, size * 0.045, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  ctx.restore();
+}
+
+function drawTrail() {
+  if (trail.length < 2) return;
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.lineCap = 'round';
+  for (let i = 1; i < trail.length; i++) {
+    const a = trail[i - 1], b = trail[i];
+    const t = b.life;
+    ctx.strokeStyle = rgba(b.hue, 0.9, 1, t * 0.55);
+    ctx.lineWidth = 1 + t * 7;
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
+    ctx.stroke();
+  }
+  /* sparkles */
+  for (const s of sparks) {
+    ctx.fillStyle = rgba(s.hue, 0.8, 1, s.life * 0.8);
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, 0.6 + s.life * 2.2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+function frame(now) {
+  const dt = Math.min((now - lastTime) / 1000, 0.05);
+  lastTime = now;
+
+  /* exponential trailing fade — translucent dark wash instead of clearRect */
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.fillStyle = 'rgba(5, 6, 15, 0.16)';
+  ctx.fillRect(0, 0, W, H);
+
+  update(dt, now);
+  drawTrail();
+  drawButterfly(now);
+
+  requestAnimationFrame(frame);
+}
+
+requestAnimationFrame(t => { lastTime = t; frame(t); });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,19 @@
+Creative Prompt:
+Create a network data flow visualization with nodes connected by edges, and data packets traveling between nodes. Nodes are arranged in layered clusters with labels, glowing with cyan/blue light. Packets travel along connections as bright projectiles with trailing glow and hue variety. The background has a trailing fade effect for smooth motion. Mouse proximity makes nodes glow brighter. New packets spawn randomly. The scene feels like a dynamic network topology visualization — futuristic, data-driven, and alive.
+
+Model: Qwen3.8-27B-instruct
+Thinking effort: high
+
+Techniques used:
+- Canvas 2D network graph rendering with 4-layer node placement (Ingress / Processing / Compute Grid / Egress) and per-node jitter
+- Distance-based edge generation with layer-adjacency bias; connection alpha scales inversely with distance
+- Packet system using progress-based interpolation (t: 0→1) along edges, with multi-hop continuation (~40% chance to chain onto an outgoing edge)
+- Projectile rendering: radial-gradient glow halo + hot white core + fading trail buffer (last 14 positions), hue varied ±30° around cyan base
+- Mouse proximity influence: eased intensity per node within a radius, boosting halo size, edge brightness, and label opacity
+- Background trailing fade via semi-transparent dark fill (alpha 0.16) instead of full clear, producing smooth motion trails
+- Spawn-rate control: interval-gated spawning with occasional bursts, capped at 60 concurrent packets
+- Subtle depth grid, breathing node animation (per-node phase), packet-arrival pulse flash on destination nodes
+- DPR-aware canvas scaling (capped at 2x), responsive rebuild on resize, touch support
+- Live stats footer (nodes / links / packets) and minimal HUD typography
+
+Wall time: N/A | Tokens: N/A

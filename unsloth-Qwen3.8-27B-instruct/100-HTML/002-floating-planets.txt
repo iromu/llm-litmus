@@ -1,0 +1,30 @@
+Creative prompt artifact
+========================
+
+Model: Qwen3.8-27B-instruct
+Thinking effort: high
+
+Creative prompt
+---------------
+Create a cosmic visualization with orbiting planets around a central typography piece. Five planets of varying sizes and colors orbit at different speeds and radii, some reversing direction. Each planet has a realistic radial gradient sphere with shadow and glow. Two semi-transparent rings rotate slowly. A canvas starfield with twinkling stars forms the background. The title "Cosmos" is centered with wide letter-spacing and a soft purple glow. The overall feel is meditative, vast, and celestial.
+
+Interaction model
+-----------------
+Passive observation — all elements animate continuously. The viewer watches the orbital dance. Resize adjusts starfield and planet positions proportionally.
+
+Techniques used
+---------------
+- CSS orbit animation via transform: rotateZ + translateX on zero-size "orbiter" arms, with counter-rotation on each planet so it stays upright while its arm spins
+- CSS custom properties drive every per-orbit parameter (--radius, --dur, --delay, --size, --glow, float timings), including negative animation-delay values to desynchronize starting phases
+- Reverse-direction orbits implemented with mirrored keyframe pairs (orbit-reverse / counter-orbit-reverse)
+- Planets rendered as pure-CSS spheres: multi-stop radial gradients offset toward the light source, inset shadows for terminator shading, and an outer colored glow via box-shadow
+- Gentle vertical float animation layered on top of the counter-rotation (independent durations for organic motion)
+- Canvas 2D starfield: density scaled to viewport area, per-star twinkle phase/speed/depth, tinted palette (white/blue/violet/warm), halos on bright stars, plus a faint radial nebula wash; DPR-aware and resize-responsive
+- 3D perspective scene (perspective + preserve-3d) with a slight rotateX tilt; two tilted, slowly rotating semi-transparent rings
+- Centered "COSMOS" title with clamp()-scaled font size and letter-spacing, layered purple text-shadow glow, and a slow breathing opacity/brightness animation
+- Vignette overlay for depth; prefers-reduced-motion fallback freezes animations
+- Fully self-contained single HTML file — no external dependencies, works offline
+
+Stats
+-----
+Wall time: N/A | Tokens: N/A

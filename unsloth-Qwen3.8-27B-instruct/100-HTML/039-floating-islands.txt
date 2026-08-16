@@ -1,0 +1,21 @@
+Creative Prompt:
+Create a fantasy landscape of floating islands suspended in a misty sky. Each island has a grassy top, rocky bottom with hanging roots, trees (trunk + foliage clusters), and optional small water features. Islands float at different heights and drift gently with sinusoidal vertical motion. A fog layer adds atmospheric depth. The color palette is earthy greens, browns, and cool blues. Clicking regenerates the island configuration. The overall aesthetic is dreamy, fantastical, and atmospheric — like a scene from a Studio Ghibli film.
+
+Model: Qwen3.8-27B-instruct
+Thinking effort: high
+
+Techniques used:
+- Canvas elliptical island shapes with radial gradient coloring (grass top, rocky underside)
+- Tree rendering with quadratic-curve trunks and multi-cluster foliage circles with per-cluster radial gradients
+- Sinusoidal floating animation with per-island phase/speed/amplitude for independent bobbing
+- Hanging root lines via quadratic bezier curves
+- Shadow ellipses below each island for grounding
+- Depth sorting by Y position (far-to-near draw order)
+- Layered fog bands using radial gradients plus horizontal mist strips
+- Drifting procedural clouds (puff-based ellipses) split into far/near layers
+- Floating pollen/firefly particles with flicker
+- Soft sun glow via large radial gradient
+- Click-based full-scene regeneration with seeded RNG (mulberry32) and fade-in transition
+- DPR-aware canvas sizing for crisp rendering on retina displays
+
+Wall time: N/A | Tokens: N/A

@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BRUTAL TYPE — Raw Typography Showcase</title>
+<style>
+  /* ============================================================
+     BRUTAL TYPE — a confrontational typographic showcase
+     Impact + monospace, glitch, noise, scanlines, raw grid.
+     ============================================================ */
+
+  :root {
+    --red: #e52b1f;
+    --white: #f2efe9;
+    --blue: #1440c8;
+    --black: #0a0a0a;
+    --grey: #1a1a1a;
+    --dim: #6b6b6b;
+    --mono: "Courier New", Courier, monospace;
+    --impact: Impact, Haettenschweiler, "Arial Narrow Bold", sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--black);
+    color: var(--white);
+    font-family: var(--mono);
+    overflow-x: hidden;
+    cursor: crosshair;
+    min-height: 100vh;
+  }
+
+  ::selection { background: var(--red); color: var(--black); }
+
+  /* ---------- SVG noise texture (feTurbulence) as animated bg ---- */
+  .noise-layer {
+    position: fixed;
+    inset: -50%;
+    width: 200%;
+    height: 200%;
+    pointer-events: none;
+    z-index: 50;
+    opacity: 0.07;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    animation: noise-shift 0.4s steps(4) infinite;
+  }
+  @keyframes noise-shift {
+    0%   { transform: translate(0, 0); }
+    25%  { transform: translate(-2%, 1%); }
+    50%  { transform: translate(1%, -2%); }
+    75%  { transform: translate(-1%, 2%); }
+    100% { transform: translate(2%, -1%); }
+  }
+
+  /* ---------- Scanning scanline ---------------------------------- */
+  .scanline {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 3px;
+    background: linear-gradient(90deg, transparent, rgba(229,43,31,0.55), rgba(242,239,233,0.35), transparent);
+    box-shadow: 0 0 18px 4px rgba(229,43,31,0.25);
+    pointer-events: none;
+    z-index: 60;
+    animation: scan 5.5s linear infinite;
+  }
+  @keyframes scan {
+    0%   { top: -2%; }
+    100% { top: 102%; }
+  }
+
+  /* subtle static horizontal lines over everything */
+  .scanlines-static {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 55;
+    background: repeating-linear-gradient(
+      to bottom,
+      transparent 0px,
+      transparent 3px,
+      rgba(0,0,0,0.14) 3px,
+      rgba(0,0,0,0.14) 4px
+    );
+  }
+
+  /* ============================================================
+     LAYOUT
+     ============================================================ */
+  .page {
+    position: relative;
+    z-index: 10;
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: clamp(1rem, 3vw, 3rem);
+  }
+
+  /* ---------- Top bar ------------------------------------------- */
+  header.topbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    border-bottom: 3px solid var(--white);
+    padding-bottom: 0.75rem;
+    margin-bottom: clamp(1.5rem, 4vw, 3.5rem);
+    flex-wrap: wrap;
+  }
+  .topbar .tag {
+    font-size: 0.7rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--dim);
+  }
+  .topbar .tag strong { color: var(--red); font-weight: 700; }
+  .topbar .coords {
+    font-size: 0.7rem;
+    letter-spacing: 0.15em;
+    color: var(--dim);
+    white-space: nowrap;
+  }
+
+  /* ---------- Massive staggered title ---------------------------- */
+  .hero {
+    position: relative;
+    margin-bottom: clamp(2rem, 6vw, 5rem);
+  }
+  .hero-line {
+    font-family: var(--impact);
+    font-size: clamp(3.2rem, 13.5vw, 12.5rem);
+    line-height: 0.92;
+    text-transform: uppercase;
+    letter-spacing: -0.01em;
+    position: relative;
+    display: block;
+    width: fit-content;
+    max-width: 100%;
+  }
+  .hero-line:nth-child(1) { margin-left: 0; }
+  .hero-line:nth-child(2) { margin-left: clamp(1rem, 8vw, 7rem); }
+  .hero-line:nth-child(3) { margin-left: clamp(0.5rem, 4vw, 3.5rem); }
+
+  .fill-red  { color: var(--red); }
+  .stroke-white {
+    color: transparent;
+    -webkit-text-stroke: 2.5px var(--white);
+  }
+  .fill-blue { color: var(--blue); }
+
+  /* Glitch: layered pseudo-elements with clip slices + RGB split */
+  .glitch {
+    position: relative;
+    animation: glitch-jitter 2.4s infinite;
+  }
+  .glitch::before,
+  .glitch::after {
+    content: attr(data-text);
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+  }
+  .glitch::before {
+    color: inherit;
+    -webkit-text-stroke: inherit;
+    animation: glitch-slice-a 2.4s infinite steps(1);
+  }
+  .glitch::after {
+    color: inherit;
+    -webkit-text-stroke: inherit;
+    animation: glitch-slice-b 2.4s infinite steps(1);
+  }
+  /* colored ghost copies for the stroke line so ghosts stay visible */
+  .stroke-white.glitch::before { color: rgba(229,43,31,0.85); -webkit-text-stroke: 0; }
+  .stroke-white.glitch::after  { color: rgba(20,64,200,0.85); -webkit-text-stroke: 0; }
+  .fill-red.glitch::before  { color: rgba(242,239,233,0.9); }
+  .fill-red.glitch::after   { color: rgba(20,64,200,0.9); }
+  .fill-blue.glitch::before { color: rgba(242,239,233,0.9); }
+  .fill-blue.glitch::after  { color: rgba(229,43,31,0.9); }
+
+  @keyframes glitch-jitter {
+    0%, 86%, 100% { transform: translate(0, 0); }
+    87% { transform: translate(-4px, 2px) skewX(-2deg); }
+    89% { transform: translate(5px, -3px) skewX(1.5deg); }
+    91% { transform: translate(-2px, 1px); }
+    93% { transform: translate(0, 0); }
+  }
+  @keyframes glitch-slice-a {
+    0%, 84%, 100% { clip-path: inset(0 0 100% 0); transform: translate(0); opacity: 0; }
+    85% { clip-path: inset(12% 0 62% 0); transform: translate(-10px, -3px); opacity: 1; }
+    88% { clip-path: inset(48% 0 30% 0); transform: translate(8px, 2px); opacity: 1; }
+    91% { clip-path: inset(70% 0 8% 0);  transform: translate(-6px, 1px); opacity: 1; }
+    94% { clip-path: inset(0 0 100% 0); opacity: 0; }
+  }
+  @keyframes glitch-slice-b {
+    0%, 85%, 100% { clip-path: inset(100% 0 0 0); transform: translate(0); opacity: 0; }
+    86% { clip-path: inset(60% 0 15% 0); transform: translate(9px, 3px); opacity: 1; }
+    89% { clip-path: inset(25% 0 55% 0); transform: translate(-8px, -2px); opacity: 1; }
+    92% { clip-path: inset(5% 0 80% 0);  transform: translate(5px, -1px); opacity: 1; }
+    95% { clip-path: inset(100% 0 0 0); opacity: 0; }
+  }
+
+  /* intensified state after click */
+  .hero.intense .glitch { animation-duration: 0.9s; }
+  .hero.intense .glitch::before { animation-duration: 0.9s; }
+  .hero.intense .glitch::after  { animation-duration: 0.9s; }
+
+  /* hero footnote strip */
+  .hero-foot {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 1rem;
+    margin-top: 1.25rem;
+    flex-wrap: wrap;
+  }
+  .hero-foot .note {
+    font-size: 0.72rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--dim);
+    max-width: 34ch;
+    line-height: 1.7;
+  }
+  .hero-foot .blink {
+    font-size: 0.72rem;
+    letter-spacing: 0.2em;
+    color: var(--red);
+    animation: blink 1.1s steps(2, start) infinite;
+    white-space: nowrap;
+  }
+  @keyframes blink { to { visibility: hidden; } }
+
+  /* ---------- Section rule --------------------------------------- */
+  .rule {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin: clamp(2rem, 5vw, 4rem) 0 1.5rem;
+  }
+  .rule::before, .rule::after {
+    content: "";
+    flex: 1;
+    height: 2px;
+    background: var(--white);
+  }
+  .rule span {
+    font-size: 0.7rem;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--dim);
+    white-space: nowrap;
+  }
+
+  /* ---------- Stats grid ------------------------------------------ */
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 0;
+    border: 2px solid var(--white);
+  }
+  .stat {
+    padding: 1.25rem 1.25rem 1.5rem;
+    border-right: 2px solid var(--white);
+    border-bottom: 2px solid var(--white);
+    background: var(--black);
+    position: relative;
+  }
+  .stat:last-child { border-right: none; }
+  @media (max-width: 900px) {
+    .stat:nth-last-child(-n+2) { border-bottom: none; }
+    .stat:nth-child(even) { border-right: none; }
+  }
+  @media (min-width: 901px) and (max-width: 1200px) {
+    .stat:nth-last-child(-n+2) { border-bottom: none; }
+  }
+  @media (min-width: 1201px) {
+    .stat:nth-last-child(-n+4) { border-bottom: none; }
+    .stat:nth-child(4n) { border-right: none; }
+  }
+  .stat .label {
+    font-size: 0.65rem;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--dim);
+    margin-bottom: 0.5rem;
+  }
+  .stat .value {
+    font-family: var(--impact);
+    font-size: clamp(1.8rem, 4vw, 3rem);
+    line-height: 1;
+    margin-bottom: 0.9rem;
+  }
+  .stat .value em {
+    font-style: normal;
+    font-size: 0.45em;
+    color: var(--dim);
+    letter-spacing: 0.1em;
+  }
+  .bar-track {
+    height: 10px;
+    background: var(--grey);
+    position: relative;
+    overflow: hidden;
+  }
+  .bar-fill {
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 0;
+    animation: fill-bar 1.4s cubic-bezier(0.2, 0.8, 0.2, 1) forwards,
+               bar-pulse 2.2s ease-in-out 1.4s infinite;
+  }
+  .bar-fill.red   { background: var(--red); }
+  .bar-fill.white { background: var(--white); }
+  .bar-fill.blue  { background: var(--blue); }
+  @keyframes fill-bar { from { width: 0; } to { width: var(--w); } }
+  @keyframes bar-pulse {
+    0%, 100% { filter: brightness(1); }
+    50%      { filter: brightness(1.6); }
+  }
+  .stat .pct {
+    position: absolute;
+    right: 1.25rem;
+    bottom: 1.25rem;
+    font-size: 0.65rem;
+    letter-spacing: 0.15em;
+    color: var(--dim);
+  }
+
+  /* ---------- Quote ------------------------------------------------ */
+  .quote-block {
+    margin: clamp(2.5rem, 6vw, 5rem) 0;
+    padding-left: clamp(1rem, 3vw, 2.5rem);
+    border-left: 6px solid var(--red);
+  }
+  .quote-block blockquote {
+    font-family: Georgia, "Times New Roman", serif;
+    font-style: italic;
+    font-weight: 400;
+    font-size: clamp(1.4rem, 3.4vw, 2.6rem);
+    line-height: 1.35;
+    color: var(--white);
+    max-width: 46ch;
+  }
+  .quote-block blockquote strong {
+    color: var(--red);
+    font-style: italic;
+  }
+  .quote-block cite {
+    display: block;
+    margin-top: 1.1rem;
+    font-family: var(--mono);
+    font-style: normal;
+    font-size: 0.72rem;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--dim);
+  }
+  .quote-block cite b { color: var(--white); font-weight: 700; }
+
+  /* ---------- Two-column description ------------------------------- */
+  .columns {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: clamp(1.5rem, 4vw, 3rem);
+    border-top: 3px solid var(--white);
+    padding-top: 1.5rem;
+  }
+  @media (max-width: 720px) {
+    .columns { grid-template-columns: 1fr; }
+  }
+  .col h3 {
+    font-family: var(--impact);
+    font-size: clamp(1.4rem, 3vw, 2.2rem);
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    margin-bottom: 0.9rem;
+    line-height: 1;
+  }
+  .col:first-child h3 { color: var(--red); }
+  .col:last-child h3  { color: var(--blue); }
+  .col p {
+    font-size: 0.85rem;
+    line-height: 1.85;
+    color: #c9c6bf;
+    margin-bottom: 0.9rem;
+  }
+  .col p + p { margin-top: 0; }
+  .col .idx {
+    display: inline-block;
+    font-size: 0.62rem;
+    letter-spacing: 0.3em;
+    color: var(--black);
+    background: var(--white);
+    padding: 0.15rem 0.5rem;
+    margin-bottom: 0.8rem;
+    text-transform: uppercase;
+  }
+  .col ul {
+    list-style: none;
+    margin-top: 1rem;
+    border-top: 1px dashed var(--dim);
+  }
+  .col li {
+    font-size: 0.75rem;
+    letter-spacing: 0.08em;
+    padding: 0.55rem 0;
+    border-bottom: 1px dashed var(--dim);
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    color: #c9c6bf;
+  }
+  .col li span:last-child { color: var(--dim); white-space: nowrap; }
+
+  /* ---------- Footer ---------------------------------------------- */
+  footer {
+    margin-top: clamp(2.5rem, 6vw, 5rem);
+    border-top: 3px solid var(--white);
+    padding-top: 1rem;
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+    font-size: 0.68rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--dim);
+  }
+  footer .hot { color: var(--red); }
+
+  /* ---------- Click flash feedback --------------------------------- */
+  .flash {
+    position: fixed;
+    inset: 0;
+    background: var(--white);
+    opacity: 0;
+    pointer-events: none;
+    z-index: 70;
+  }
+  .flash.go { animation: flashout 0.25s steps(3); }
+  @keyframes flashout {
+    0%   { opacity: 0.55; }
+    100% { opacity: 0; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .noise-layer, .scanline, .glitch, .glitch::before, .glitch::after,
+    .bar-fill, .blink { animation: none !important; }
+    .bar-fill { width: var(--w); }
+  }
+</style>
+</head>
+<body>
+
+<div class="noise-layer" aria-hidden="true"></div>
+<div class="scanline" aria-hidden="true"></div>
+<div class="scanlines-static" aria-hidden="true"></div>
+<div class="flash" id="flash" aria-hidden="true"></div>
+
+<div class="page">
+
+  <header class="topbar">
+    <span class="tag"><strong>RAW / UNPOLISHED / LOUD</strong> — SPECIMEN NO. 007</span>
+    <span class="coords">TYPE.SYS // IMPACT-HEAVY // GRID: MINIMAL-GAP</span>
+  </header>
+
+  <!-- ==================== HERO TITLE ==================== -->
+  <section class="hero" id="hero" aria-label="Main title">
+    <span class="hero-line fill-red glitch" data-text="BRUTAL">BRUTAL</span>
+    <span class="hero-line stroke-white glitch" data-text="TYPEFACE">TYPEFACE</span>
+    <span class="hero-line fill-blue glitch" data-text="NO APOLOGY">NO APOLOGY</span>
+
+    <div class="hero-foot">
+      <p class="note">Concrete, rebar, ink. Set at maximum weight, zero decoration. This page does not ask for your attention — it takes it.</p>
+      <span class="blink">[ CLICK ANYWHERE TO RE-ARM GLITCH ]</span>
+    </div>
+  </section>
+
+  <!-- ==================== STATS GRID ==================== -->
+  <div class="rule"><span>Typographic Metrics</span></div>
+
+  <section class="stats" aria-label="Typographic metrics">
+    <article class="stat">
+      <div class="label">Max Weight</div>
+      <div class="value">900<em>/1000</em></div>
+      <div class="bar-track"><div class="bar-fill red" style="--w: 90%; animation-delay: 0.1s, 1.5s;"></div></div>
+      <span class="pct">90%</span>
+    </article>
+    <article class="stat">
+      <div class="label">X-Height Ratio</div>
+      <div class="value">0.72<em>EM</em></div>
+      <div class="bar-track"><div class="bar-fill white" style="--w: 72%; animation-delay: 0.3s, 1.7s;"></div></div>
+      <span class="pct">72%</span>
+    </article>
+    <article class="stat">
+      <div class="label">Tracking</div>
+      <div class="value">-10<em>&permil;</em></div>
+      <div class="bar-track"><div class="bar-fill blue" style="--w: 55%; animation-delay: 0.5s, 1.9s;"></div></div>
+      <span class="pct">55%</span>
+    </article>
+    <article class="stat">
+      <div class="label">Contrast Index</div>
+      <div class="value">MAX</div>
+      <div class="bar-track"><div class="bar-fill red" style="--w: 98%; animation-delay: 0.7s, 2.1s;"></div></div>
+      <span class="pct">98%</span>
+    </article>
+    <article class="stat">
+      <div class="label">Serif Content</div>
+      <div class="value">0.0<em>%</em></div>
+      <div class="bar-track"><div class="bar-fill white" style="--w: 4%; animation-delay: 0.9s, 2.3s;"></div></div>
+      <span class="pct">4%</span>
+    </article>
+    <article class="stat">
+      <div class="label">Grid Rigidity</div>
+      <div class="value">HARD</div>
+      <div class="bar-track"><div class="bar-fill blue" style="--w: 88%; animation-delay: 1.1s, 2.5s;"></div></div>
+      <span class="pct">88%</span>
+    </article>
+    <article class="stat">
+      <div class="label">Line Density</div>
+      <div class="value">0.92<em>LH</em></div>
+      <div class="bar-track"><div class="bar-fill red" style="--w: 92%; animation-delay: 1.3s, 2.7s;"></div></div>
+      <span class="pct">92%</span>
+    </article>
+    <article class="stat">
+      <div class="label">Aesthetic Apology</div>
+      <div class="value">NONE</div>
+      <div class="bar-track"><div class="bar-fill white" style="--w: 2%; animation-delay: 1.5s, 2.9s;"></div></div>
+      <span class="pct">2%</span>
+    </article>
+  </section>
+
+  <!-- ==================== QUOTE ==================== -->
+  <section class="quote-block" aria-label="Quote">
+    <blockquote>
+      &ldquo;Typography is the craft of endowing the human language with
+      a durable visual form. Make that form <strong>heavy enough to be
+      felt through the screen.</strong>&rdquo;
+    </blockquote>
+    <cite>— <b>Adapted from Robert Bringhurst</b>, The Elements of Typographic Style, 1992</cite>
+  </section>
+
+  <!-- ==================== TWO-COLUMN DESCRIPTION ==================== -->
+  <div class="rule"><span>The Philosophy</span></div>
+
+  <section class="columns" aria-label="Brutalist philosophy">
+    <div class="col">
+      <span class="idx">01 / MANIFESTO</span>
+      <h3>Raw Material First</h3>
+      <p>
+        Brutalism rejects ornament the way concrete rejects polish. Every element
+        on this page exists because it has a structural job: the grid carries the
+        layout, the weight carries the voice, the noise carries the grain of the
+        machine that rendered it. Nothing here is decorative. Nothing here is soft.
+      </p>
+      <p>
+        The three title lines are set in descending confidence — filled, hollow,
+        filled again — a rhythm of assertion and outline that mirrors how brutalist
+        architecture alternates mass and void. The glitch is not an effect; it is
+        the signal degrading honestly in front of you.
+      </p>
+      <ul>
+        <li><span>Material</span><span>CONCRETE / INK</span></li>
+        <li><span>Ornament</span><span>ZERO</span></li>
+        <li><span>Decoration Budget</span><span>$0.00</span></li>
+      </ul>
+    </div>
+    <div class="col">
+      <span class="idx">02 / METHOD</span>
+      <h3>Confrontation by Design</h3>
+      <p>
+        A brutalist page does not guide the eye gently. It slams scale against
+        whitespace, pits red against blue, and lets monospace labels do the
+        accounting work while display faces shout. The stats grid below the title
+        is deliberately mechanical — bars that fill, pulse, and report numbers
+        like instruments on a control panel.
+      </p>
+      <p>
+        The noise overlay and the scanning line keep the surface alive in the way
+        CRT phosphor stayed alive: imperfectly, continuously, analogically.
+        Click anywhere and the glitch re-arms. The page prefers intensity to
+        comfort, and it will keep asking for yours.
+      </p>
+      <ul>
+        <li><span>Display Face</span><span>IMPACT / HEAVY</span></li>
+        <li><span>Label Face</span><span>COURIER / MONO</span></li>
+        <li><span>Comfort Level</span><span>NOT OFFERED</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <footer>
+    <span>SPECIMEN 007 — <span class="hot">BRUTAL TYPE</span></span>
+    <span>SELF-CONTAINED / NO DEPENDENCIES / WORKS OFFLINE</span>
+    <span>EST. NOW // RENDERED RAW</span>
+  </footer>
+
+</div>
+
+<script>
+  (function () {
+    "use strict";
+
+    var hero = document.getElementById("hero");
+    var flash = document.getElementById("flash");
+    var glitchLines = Array.prototype.slice.call(hero.querySelectorAll(".glitch"));
+    var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    function restart(el) {
+      el.style.animation = "none";
+      // force reflow so the animation can restart
+      void el.offsetWidth;
+      el.style.animation = "";
+    }
+
+    function rearmGlitch() {
+      if (reduced) return;
+      // brief intense phase, then settle back to normal duration
+      hero.classList.add("intense");
+      glitchLines.forEach(restart);
+      window.clearTimeout(rearmGlitch._t);
+      rearmGlitch._t = window.setTimeout(function () {
+        hero.classList.remove("intense");
+      }, 1800);
+    }
+
+    function triggerFlash() {
+      flash.classList.remove("go");
+      void flash.offsetWidth;
+      flash.classList.add("go");
+    }
+
+    var armed = false;
+    document.addEventListener("click", function () {
+      if (armed) return;
+      armed = true;
+      triggerFlash();
+      rearmGlitch();
+      window.setTimeout(function () { armed = false; }, 250);
+    });
+
+    // Initial entrance: restart glitch once on load so animations begin fresh
+    window.addEventListener("load", function () {
+      if (!reduced) glitchLines.forEach(restart);
+    });
+  })();
+</script>
+
+</body>
+</html>

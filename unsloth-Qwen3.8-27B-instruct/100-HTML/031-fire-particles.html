@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fire Particles — Living Flame</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #0a0402;
+  }
+
+  canvas {
+    display: block;
+    width: 100vw;
+    height: 100vh;
+    cursor: crosshair;
+  }
+
+  .hint {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: rgba(255, 160, 80, 0.45);
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    font-size: 13px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    pointer-events: none;
+    user-select: none;
+    animation: fadeHint 4s ease-out 3s forwards;
+    white-space: nowrap;
+  }
+
+  @keyframes fadeHint {
+    to { opacity: 0; }
+  }
+</style>
+</head>
+<body>
+<canvas id="fire"></canvas>
+<p class="hint">move to ignite &middot; click for a burst</p>
+
+<script>
+(() => {
+  'use strict';
+
+  const canvas = document.getElementById('fire');
+  const ctx = canvas.getContext('2d');
+
+  let W = 0, H = 0, dpr = 1;
+
+  function resize() {
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  /* ---------- particle pool ---------- */
+
+  const MAX_PARTICLES = 900;
+  const particles = new Array(MAX_PARTICLES).fill(null);
+  let aliveCount = 0;
+
+  // Pre-rendered glow sprites (offscreen canvases) for performance.
+  // Each sprite is a radial gradient: bright core → warm mid → transparent edge.
+  const SPRITE_COUNT = 24;
+  const sprites = [];
+
+  function makeSprite(hue) {
+    const size = 64;
+    const c = document.createElement('canvas');
+    c.width = size;
+    c.height = size;
+    const g = c.getContext('2d');
+    const half = size / 2;
+    const grad = g.createRadialGradient(half, half, 0, half, half, half);
+    grad.addColorStop(0.0, `hsla(${hue + 30}, 100%, 92%, 1)`);
+    grad.addColorStop(0.15, `hsla(${hue + 15}, 100%, 70%, 0.9)`);
+    grad.addColorStop(0.4, `hsla(${hue}, 100%, 50%, 0.5)`);
+    grad.addColorStop(0.7, `hsla(${hue - 5}, 90%, 30%, 0.15)`);
+    grad.addColorStop(1.0, `hsla(${hue - 10}, 80%, 15%, 0)`);
+    g.fillStyle = grad;
+    g.fillRect(0, 0, size, size);
+    return c;
+  }
+
+  for (let i = 0; i < SPRITE_COUNT; i++) {
+    // Hue range 10–50: deep red-orange through yellow
+    sprites.push(makeSprite(10 + (i / (SPRITE_COUNT - 1)) * 40));
+  }
+
+  function spawn(x, y, opts = {}) {
+    if (aliveCount >= MAX_PARTICLES) return null;
+    let p;
+    // Find a free slot (reuse dead slots first)
+    for (let i = 0; i < MAX_PARTICLES; i++) {
+      if (!particles[i]) { p = particles[i]; break; }
+    }
+    if (!p) {
+      p = {};
+      particles[aliveCount] = p;
+    } else {
+      aliveCount++;
+    }
+    const life = opts.life ?? (0.6 + Math.random() * 1.2);
+    p.x = x + (Math.random() - 0.5) * (opts.spread ?? 6);
+    p.y = y + (Math.random() - 0.5) * (opts.spread ?? 6);
+    p.vx = (Math.random() - 0.5) * (opts.vxSpread ?? 0.8);
+    p.vy = -(opts.vyBase ?? 1.2) - Math.random() * (opts.vyRand ?? 1.5);
+    p.life = life;
+    p.maxLife = life;
+    p.size = (opts.sizeBase ?? 3) + Math.random() * (opts.sizeRand ?? 5);
+    p.wobblePhase = Math.random() * Math.PI * 2;
+    p.wobbleSpeed = 2 + Math.random() * 4;
+    p.wobbleAmp = 0.3 + Math.random() * 0.7;
+    p.hueIdx = Math.floor(Math.random() * SPRITE_COUNT);
+    p.decay = 1 / (life * 60); // per-frame life decay
+    return p;
+  }
+
+  function killParticle(i) {
+    particles[i] = null;
+    aliveCount--;
+  }
+
+  /* ---------- input ---------- */
+
+  let mouseX = W / 2, mouseY = H / 2;
+  let mouseActive = false;
+  let lastSpawnTime = 0;
+
+  function onMove(x, y) {
+    mouseX = x;
+    mouseY = y;
+    mouseActive = true;
+  }
+
+  window.addEventListener('mousemove', e => onMove(e.clientX, e.clientY));
+  window.addEventListener('touchmove', e => {
+    e.preventDefault();
+    const t = e.touches[0];
+    onMove(t.clientX, t.clientY);
+  }, { passive: false });
+
+  window.addEventListener('mousedown', e => burst(e.clientX, e.clientY));
+  window.addEventListener('touchstart', e => {
+    const t = e.touches[0];
+    onMove(t.clientX, t.clientY);
+    burst(t.clientX, t.clientY);
+  });
+
+  window.addEventListener('mouseleave', () => { mouseActive = false; });
+  window.addEventListener('touchend', () => { mouseActive = false; });
+
+  function burst(x, y) {
+    const count = 60 + Math.floor(Math.random() * 30);
+    for (let i = 0; i < count; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 1 + Math.random() * 4;
+      const p = spawn(x, y, {
+        spread: 4,
+        vyBase: 0.5,
+        vyRand: 2,
+        vxSpread: 2,
+        sizeBase: 4,
+        sizeRand: 8,
+        life: 0.8 + Math.random() * 1.6,
+      });
+      if (p) {
+        p.vx = Math.cos(angle) * speed;
+        p.vy = Math.sin(angle) * speed - 1.5;
+      }
+    }
+  }
+
+  /* ---------- update & render ---------- */
+
+  let time = 0;
+
+  function frame(now) {
+    const dt = Math.min((now - (frame.last || now)) / 1000, 0.05);
+    frame.last = now;
+    time += dt;
+
+    // Trailing fade: semi-transparent dark fill over previous frame
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = 'rgba(10, 4, 2, 0.18)';
+    ctx.fillRect(0, 0, W, H);
+
+    // Additive blending for fire glow
+    ctx.globalCompositeOperation = 'lighter';
+
+    // --- Mouse-follow spawning ---
+    if (mouseActive) {
+      const rate = 12; // particles per frame while moving
+      for (let i = 0; i < rate; i++) {
+        spawn(mouseX, mouseY, {
+          spread: 10,
+          vyBase: 1.5,
+          vyRand: 2,
+          vxSpread: 1.2,
+          sizeBase: 2.5,
+          sizeRand: 5,
+          life: 0.5 + Math.random() * 1.0,
+        });
+      }
+    }
+
+    // --- Ambient fire at the bottom ---
+    const ambientRate = Math.max(2, Math.floor(W / 150));
+    for (let i = 0; i < ambientRate; i++) {
+      const ax = Math.random() * W;
+      const ay = H - 10 - Math.random() * 30;
+      spawn(ax, ay, {
+        spread: 14,
+        vyBase: 1.0,
+        vyRand: 1.5,
+        vxSpread: 0.6,
+        sizeBase: 3,
+        sizeRand: 6,
+        life: 0.8 + Math.random() * 1.4,
+      });
+    }
+
+    // --- Update & draw particles ---
+    for (let i = 0; i < MAX_PARTICLES; i++) {
+      const p = particles[i];
+      if (!p) continue;
+
+      p.life -= p.decay;
+      if (p.life <= 0) {
+        killParticle(i);
+        continue;
+      }
+
+      const lifeRatio = p.life / p.maxLife; // 1 → 0
+
+      // Upward acceleration (buoyancy)
+      p.vy -= 0.06;
+
+      // Wobble via sine
+      p.wobblePhase += p.wobbleSpeed * dt;
+      p.x += Math.sin(p.wobblePhase) * p.wobbleAmp;
+
+      // Velocity damping
+      p.vx *= 0.98;
+      p.vy *= 0.995;
+
+      p.x += p.vx;
+      p.y += p.vy;
+
+      // Size shrinks as life decays
+      const size = p.size * (0.3 + 0.7 * lifeRatio);
+      const alpha = lifeRatio * lifeRatio; // quadratic fade
+
+      // Hue shifts toward red as particle dies (hot→cool)
+      const hueShift = Math.floor((1 - lifeRatio) * 6); // shift toward lower hues
+      const idx = Math.max(0, Math.min(SPRITE_COUNT - 1, p.hueIdx - hueShift));
+      const sprite = sprites[idx];
+
+      ctx.globalAlpha = alpha;
+      ctx.drawImage(sprite, p.x - size, p.y - size, size * 2, size * 2);
+    }
+
+    ctx.globalAlpha = 1;
+    requestAnimationFrame(frame);
+  }
+
+  // Initial paint
+  ctx.fillStyle = '#0a0402';
+  ctx.fillRect(0, 0, W, H);
+
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

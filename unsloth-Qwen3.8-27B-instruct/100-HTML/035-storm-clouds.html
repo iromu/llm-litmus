@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Storm Clouds — Thunderstorm Visualization</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #0a0c14;
+    cursor: crosshair;
+  }
+
+  canvas {
+    display: block;
+    width: 100vw;
+    height: 100vh;
+  }
+
+  .hint {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: 'Georgia', serif;
+    font-size: 13px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: rgba(160, 175, 210, 0.35);
+    pointer-events: none;
+    user-select: none;
+    transition: opacity 2s ease;
+  }
+  .hint.hidden { opacity: 0; }
+</style>
+</head>
+<body>
+<canvas id="storm"></canvas>
+<div class="hint" id="hint">click anywhere to summon the storm</div>
+
+<script>
+(() => {
+'use strict';
+
+const canvas = document.getElementById('storm');
+const ctx = canvas.getContext('2d');
+const hint = document.getElementById('hint');
+
+let W = 0, H = 0, DPR = 1;
+
+/* ------------------------------------------------------------------ */
+/*  Configuration                                                      */
+/* ------------------------------------------------------------------ */
+
+const CFG = {
+  cloudCount: 14,          // number of cloud clusters
+  puffsPerCloud: [7, 12],  // min/max puffs per cluster
+  trailAlpha: 0.14,        // exponential fade (lower = longer trails)
+  flashDecay: 0.90,        // flash overlay alpha multiplier per frame
+  boltLife: 0.45,          // seconds a bolt stays visible
+  boltBranchChance: 0.35,  // chance a segment spawns a branch
+  autoStrikeInterval: [2.5, 6.0], // random interval between auto strikes (s)
+  clickBolts: [3, 6],      // bolts on click burst
+  driftBase: 8,            // base horizontal drift px/s
+};
+
+/* ------------------------------------------------------------------ */
+/*  Utility                                                            */
+/* ------------------------------------------------------------------ */
+
+const rand = (a, b) => a + Math.random() * (b - a);
+const randInt = (a, b) => Math.floor(rand(a, b + 1));
+const lerp = (a, b, t) => a + (b - a) * t;
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+/* ------------------------------------------------------------------ */
+/*  Cloud puff                                                         */
+/* ------------------------------------------------------------------ */
+
+class Puff {
+  constructor(cx, cy) {
+    this.baseX = cx + rand(-60, 60);
+    this.baseY = cy + rand(-30, 30);
+    this.r = rand(40, 110);
+    this.phase = rand(0, Math.PI * 2);
+    this.wobbleAmp = rand(2, 7);
+    this.wobbleSpeed = rand(0.15, 0.45);
+    this.driftSpeed = rand(CFG.driftBase * 0.3, CFG.driftBase * 1.4);
+    this.tone = rand(0.55, 0.95);   // brightness multiplier
+    this.alpha = rand(0.25, 0.55);
+  }
+
+  draw(ctx, t, flashBoost) {
+    const x = this.baseX + Math.sin(t * this.wobbleSpeed + this.phase) * this.wobbleAmp;
+    const y = this.baseY + Math.cos(t * this.wobbleSpeed * 0.7 + this.phase) * this.wobbleAmp * 0.6;
+    const r = this.r * (1 + 0.04 * Math.sin(t * 0.3 + this.phase));
+
+    const bright = this.tone * (1 + flashBoost * 2.5);
+    const cr = Math.min(255, 40 * bright | 0);
+    const cg = Math.min(255, 44 * bright | 0);
+    const cb = Math.min(255, 58 * bright | 0);
+
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, `rgba(${cr},${cg},${cb},${this.alpha})`);
+    g.addColorStop(0.55, `rgba(${cr * 0.7 | 0},${cg * 0.7 | 0},${cb * 0.7 | 0},${this.alpha * 0.5})`);
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Cloud cluster                                                      */
+/* ------------------------------------------------------------------ */
+
+class Cloud {
+  constructor(x, y) {
+    this.x = x;
+    this.y = y;
+    this.puffs = [];
+    const n = randInt(CFG.puffsPerCloud[0], CFG.puffsPerCloud[1]);
+    for (let i = 0; i < n; i++) this.puffs.push(new Puff(x, y));
+    this.drift = rand(4, 18);
+    this.flashTimer = 0;
+  }
+
+  update(dt) {
+    this.x += this.drift * dt;
+    if (this.x > W + 200) this.x = -200;
+  }
+
+  draw(ctx, t, globalFlash) {
+    const boost = globalFlash + this.flashTimer;
+    for (const p of this.puffs) p.draw(ctx, t, boost);
+    if (this.flashTimer > 0) this.flashTimer = Math.max(0, this.flashTimer - dt * 2.5);
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Lightning bolt                                                     */
+/* ------------------------------------------------------------------ */
+
+class Bolt {
+  constructor(x, y, targetY) {
+    this.segments = [];
+    this.branches = [];
+    this.life = CFG.boltLife;
+    this.maxLife = CFG.boltLife;
+    this.build(x, y, targetY);
+  }
+
+  build(x, y, targetY) {
+    const segLen = rand(18, 38);
+    let cx = x, cy = y;
+    let angle = Math.PI / 2 + rand(-0.15, 0.15);
+
+    while (cy < targetY) {
+      const nx = cx + Math.cos(angle) * segLen;
+      const ny = cy + Math.sin(angle) * segLen;
+      this.segments.push({ x1: cx, y1: cy, x2: nx, y2: ny, w: rand(1.5, 3.5) });
+
+      // occasional branch
+      if (Math.random() < CFG.boltBranchChance && cy < targetY - 80) {
+        const ba = angle + rand(-0.8, 0.8);
+        let bx = nx, by = ny;
+        const blen = rand(30, 90);
+        const steps = Math.ceil(blen / 14);
+        for (let s = 0; s < steps; s++) {
+          const nnx = bx + Math.cos(ba + rand(-0.3, 0.3)) * 14;
+          const nny = by + Math.sin(ba + rand(-0.3, 0.3)) * 14;
+          this.branches.push({ x1: bx, y1: by, x2: nnx, y2: nny, w: rand(0.8, 1.8) });
+          bx = nnx; by = nny;
+        }
+      }
+
+      cx = nx; cy = ny;
+      angle += rand(-0.35, 0.35);
+    }
+  }
+
+  update(dt) {
+    this.life -= dt;
+  }
+
+  draw(ctx) {
+    const t = clamp(this.life / this.maxLife, 0, 1);
+    const flicker = 0.6 + 0.4 * Math.sin(this.life * 40);
+    const alpha = t * flicker;
+
+    // glow pass
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = `rgba(120, 140, 255, ${alpha * 0.25})`;
+    ctx.lineWidth = 10;
+    ctx.beginPath();
+    for (const s of this.segments) { ctx.moveTo(s.x1, s.y1); ctx.lineTo(s.x2, s.y2); }
+    ctx.stroke();
+
+    // core pass
+    ctx.strokeStyle = `rgba(220, 230, 255, ${alpha * 0.9})`;
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    for (const s of this.segments) { ctx.moveTo(s.x1, s.y1); ctx.lineTo(s.x2, s.y2); }
+    ctx.stroke();
+
+    // branches
+    ctx.strokeStyle = `rgba(160, 180, 255, ${alpha * 0.5})`;
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    for (const b of this.branches) { ctx.moveTo(b.x1, b.y1); ctx.lineTo(b.x2, b.y2); }
+    ctx.stroke();
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  State                                                              */
+/* ------------------------------------------------------------------ */
+
+let clouds = [];
+let bolts = [];
+let flash = 0;           // global screen flash 0..1
+let time = 0;
+let lastTime = 0;
+let nextAutoStrike = rand(1.5, 4);
+let rafId = null;
+
+function resize() {
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  W = window.innerWidth;
+  H = window.innerHeight;
+  canvas.width = W * DPR;
+  canvas.height = H * DPR;
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  initClouds();
+}
+
+function initClouds() {
+  clouds = [];
+  const count = CFG.cloudCount;
+  for (let i = 0; i < count; i++) {
+    const x = rand(-100, W + 100);
+    const y = rand(H * 0.05, H * 0.45);
+    clouds.push(new Cloud(x, y));
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Strike logic                                                       */
+/* ------------------------------------------------------------------ */
+
+function strike(x) {
+  const sx = x !== undefined ? x : rand(W * 0.1, W * 0.9);
+  const sy = rand(H * 0.15, H * 0.4);
+  const ty = rand(H * 0.6, H * 0.95);
+  bolts.push(new Bolt(sx, sy, ty));
+  flash = Math.max(flash, rand(0.5, 0.85));
+
+  // light up nearest cloud
+  let best = null, bd = Infinity;
+  for (const c of clouds) {
+    const d = Math.hypot(c.x - sx, c.y - sy);
+    if (d < bd) { bd = d; best = c; }
+  }
+  if (best) best.flashTimer = 1;
+}
+
+function burst(n) {
+  for (let i = 0; i < n; i++) {
+    setTimeout(() => strike(), i * rand(40, 120));
+  }
+  flash = 1;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Render loop                                                        */
+/* ------------------------------------------------------------------ */
+
+function frame(now) {
+  rafId = requestAnimationFrame(frame);
+  const dt = Math.min((now - lastTime) / 1000, 0.1);
+  lastTime = now;
+  time += dt;
+
+  /* --- background with trailing fade --- */
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.fillStyle = `rgba(8, 10, 20, ${CFG.trailAlpha})`;
+  ctx.fillRect(0, 0, W, H);
+
+  /* --- subtle sky gradient underlay --- */
+  const skyG = ctx.createLinearGradient(0, 0, 0, H);
+  skyG.addColorStop(0, 'rgba(12, 14, 28, 0.03)');
+  skyG.addColorStop(0.5, 'rgba(18, 20, 38, 0.02)');
+  skyG.addColorStop(1, 'rgba(6, 8, 16, 0.04)');
+  ctx.fillStyle = skyG;
+  ctx.fillRect(0, 0, W, H);
+
+  /* --- update & draw clouds --- */
+  for (const c of clouds) {
+    c.update(dt);
+    c.draw(ctx, time, flash);
+  }
+
+  /* --- auto strikes --- */
+  nextAutoStrike -= dt;
+  if (nextAutoStrike <= 0) {
+    strike();
+    nextAutoStrike = rand(CFG.autoStrikeInterval[0], CFG.autoStrikeInterval[1]);
+  }
+
+  /* --- bolts --- */
+  ctx.globalCompositeOperation = 'lighter';
+  for (let i = bolts.length - 1; i >= 0; i--) {
+    bolts[i].update(dt);
+    if (bolts[i].life <= 0) { bolts.splice(i, 1); continue; }
+    bolts[i].draw(ctx);
+  }
+
+  /* --- flash overlay --- */
+  if (flash > 0.005) {
+    ctx.globalCompositeOperation = 'source-over';
+    const fa = flash * 0.35;
+    const fg = ctx.createRadialGradient(W / 2, H * 0.3, 0, W / 2, H * 0.3, Math.max(W, H) * 0.8);
+    fg.addColorStop(0, `rgba(180, 195, 255, ${fa})`);
+    fg.addColorStop(0.5, `rgba(100, 115, 200, ${fa * 0.4})`);
+    fg.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = fg;
+    ctx.fillRect(0, 0, W, H);
+    flash *= CFG.flashDecay;
+  } else {
+    flash = 0;
+  }
+
+  /* --- rain streaks during flash --- */
+  if (flash > 0.15) {
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.strokeStyle = `rgba(140, 160, 220, ${flash * 0.08})`;
+    ctx.lineWidth = 1;
+    const n = 40;
+    for (let i = 0; i < n; i++) {
+      const rx = ((i * 137.5 + time * 200) % (W + 100)) - 50;
+      const ry = ((i * 89.3 + time * 600) % (H + 100)) - 50;
+      ctx.beginPath();
+      ctx.moveTo(rx, ry);
+      ctx.lineTo(rx - 3, ry + 18);
+      ctx.stroke();
+    }
+  }
+
+  ctx.globalCompositeOperation = 'source-over';
+}
+
+/* ------------------------------------------------------------------ */
+/*  Events                                                             */
+/* ------------------------------------------------------------------ */
+
+window.addEventListener('resize', resize);
+
+canvas.addEventListener('pointerdown', (e) => {
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+  const n = randInt(CFG.clickBolts[0], CFG.clickBolts[1]);
+  // first bolt at click point, rest scattered
+  strike(x);
+  for (let i = 1; i < n; i++) {
+    setTimeout(() => strike(rand(W * 0.05, W * 0.95)), i * rand(60, 150));
+  }
+  flash = 1;
+  hint.classList.add('hidden');
+});
+
+/* ------------------------------------------------------------------ */
+/*  Init                                                               */
+/* ------------------------------------------------------------------ */
+
+resize();
+// paint initial dark background fully
+ctx.fillStyle = '#0a0c14';
+ctx.fillRect(0, 0, W, H);
+lastTime = performance.now();
+rafId = requestAnimationFrame(frame);
+
+})();
+</script>
+</body>
+</html>

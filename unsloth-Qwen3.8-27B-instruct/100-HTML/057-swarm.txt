@@ -1,0 +1,21 @@
+Creative Prompt:
+Create a boids flocking simulation with 80 agents that exhibit emergent swarm behavior. Each boid follows three rules: alignment (match velocity with neighbors), cohesion (move toward center of neighbors), and separation (avoid crowding). The mouse cursor repels boids. Boids leave faint trails and are connected to nearby neighbors with thin lines. Each boid has a unique hue and is drawn as a small triangle oriented in its movement direction. Clicking regenerates the swarm. The background is very dark with trailing fade. The overall aesthetic is dynamic, biological, and hypnotic — like watching a starling murmuration.
+
+Model: Qwen3.8-27B-instruct
+Thinking effort: high
+
+Techniques:
+- Canvas 2D boid flocking with spatial hash grid for O(n) neighbor queries
+- Three-rule physics: alignment, cohesion, separation with inverse-square falloff
+- Mouse repulsion force field with radial falloff
+- Speed clamping (min/max) for stable flock dynamics
+- Edge wrapping with margin
+- Triangular boid rendering oriented by velocity vector via atan2
+- Inter-boid connection lines with distance-based alpha falloff
+- Trailing fade via semi-transparent background fill each frame
+- Per-boid HSL hue distribution across full spectrum
+- Soft glow circles behind each boid for depth
+- Vignette overlay via CSS radial-gradient
+- Touch support for mobile interaction
+
+Wall time: N/A | Tokens: N/A

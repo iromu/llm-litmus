@@ -1,0 +1,22 @@
+Creative prompt artifact
+========================
+
+Creative prompt
+---------------
+Create a topographic map visualization with contour lines showing elevation. Multiple sine waves combine to create complex terrain. Contour lines at different elevations are drawn as paths connecting points of equal height. The terrain subtly shifts over time. The color palette uses warm earth tones (browns/tans). The background is cream paper. The overall aesthetic is cartographic, organic, and detailed — like a vintage topographic map brought to life.
+
+Model: Qwen3.8-27B-instruct
+Thinking effort: high
+
+Techniques used
+---------------
+- Canvas 2D rendering with devicePixelRatio-aware sizing for crisp lines on retina displays.
+- Multi-frequency sine-wave height field: six incommensurate sin/cos wave pairs with per-wave amplitude, phase, and slow drift velocities produce complex, non-repeating terrain that undulates over time.
+- Marching-squares contour extraction on a coarse grid (14 px cells) across 14 elevation levels, including saddle-case disambiguation; edge crossings are linearly interpolated for smooth contours.
+- Nearest-neighbor path construction: raw marching-squares segments are clustered into long polylines by greedily joining endpoints within a tolerance, growing both forward and backward; quadratic-curve midpoint smoothing gives an organic hand-drawn quality.
+- Elevation-based styling: every 4th contour rendered as a heavier "index" line; alpha and stroke width scale with elevation; ink color interpolates from pale tan to deep sienna.
+- Hypsometric tint: a low-alpha per-cell elevation wash layered under the lines simulates aged-paper shading.
+- Cartographic framing: double-rule border frame, corner sheet annotations (datum, scale, contour interval), and a live survey clock stamp.
+- Warm earth-tone palette on cream paper (#f4ead5) with a soft radial vignette.
+
+Wall time: N/A | Tokens: N/A

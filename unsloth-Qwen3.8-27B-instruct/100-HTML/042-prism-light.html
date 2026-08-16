@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Prism Light — Refraction Study</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #05060a;
+    cursor: crosshair;
+    font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', Consolas, monospace;
+  }
+
+  canvas {
+    display: block;
+    position: fixed;
+    inset: 0;
+  }
+
+  .hud {
+    position: fixed;
+    top: 24px;
+    left: 28px;
+    z-index: 10;
+    pointer-events: none;
+    color: rgba(255, 255, 255, 0.55);
+    user-select: none;
+  }
+
+  .hud h1 {
+    font-size: 13px;
+    font-weight: 400;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+
+  .hud p {
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    line-height: 1.7;
+    opacity: 0.6;
+  }
+
+  .hud .formula {
+    margin-top: 10px;
+    font-size: 10px;
+    opacity: 0.35;
+    letter-spacing: 0.05em;
+  }
+
+  .corner-mark {
+    position: fixed;
+    bottom: 20px;
+    right: 24px;
+    z-index: 10;
+    pointer-events: none;
+    color: rgba(255, 255, 255, 0.25);
+    font-size: 9px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    user-select: none;
+  }
+</style>
+</head>
+<body>
+
+<header class="hud" aria-hidden="true">
+  <h1>Prism &mdash; Light Refraction</h1>
+  <p>Move to steer the prism &middot; Click to scatter beams</p>
+  <div class="formula">n&#8322; sin&#8321;&#8321; = n&#8322; sin&#8322;&#8321;</div>
+</header>
+
+<span class="corner-mark" aria-hidden="true">fig. 042 &mdash; dispersion study</span>
+
+<canvas id="scene"></canvas>
+
+<script>
+(() => {
+  'use strict';
+
+  // ─── Canvas setup ──────────────────────────────────────────────
+  const canvas = document.getElementById('scene');
+  const ctx = canvas.getContext('2d');
+  let W, H, dpr;
+
+  function resize() {
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  // ─── State ─────────────────────────────────────────────────────
+  const BEAM_COUNT = 12;
+  const SEGMENTS_PER_BEAM = 7;
+
+  let mouse = { x: W / 2, y: H / 2 };
+  let prism = { x: W / 2, y: H / 2, vx: 0, vy: 0 };
+  let hueOffset = 0;
+  let time = 0;
+  let clickPulse = 0;
+
+  // Each beam: array of segment angles (perturbed), base angle, speed
+  let beams = [];
+
+  function generateBeams(cx, cy) {
+    beams = [];
+    for (let i = 0; i < BEAM_COUNT; i++) {
+      // Distribute 12 beams around a fan (~200° spread, biased rightward from entry point)
+      const baseAngle = -Math.PI * 0.42 + (i / (BEAM_COUNT - 1)) * Math.PI * 0.84;
+      const segments = [];
+      let angle = baseAngle;
+      for (let s = 0; s < SEGMENTS_PER_BEAM; s++) {
+        // Angle perturbation increases along the beam → scattered rainbow
+        const wobble = (Math.random() - 0.5) * (0.12 + s * 0.09);
+        angle += wobble;
+        segments.push({
+          angle,
+          length: 60 + Math.random() * 90 + s * 18,
+          phase: Math.random() * Math.PI * 2,
+          freq: 0.3 + Math.random() * 0.5,
+          amp: 0.02 + Math.random() * 0.04
+        });
+      }
+      beams.push({
+        baseAngle,
+        segments,
+        speed: 0.85 + Math.random() * 0.3,
+        hueShift: (i / BEAM_COUNT) * 360,
+        thickness: 1.2 + Math.random() * 1.4
+      });
+    }
+  }
+
+  generateBeams(prism.x, prism.y);
+
+  // ─── Input ─────────────────────────────────────────────────────
+  window.addEventListener('mousemove', e => {
+    mouse.x = e.clientX;
+    mouse.y = e.clientY;
+  });
+
+  window.addEventListener('touchmove', e => {
+    if (e.touches.length) {
+      mouse.x = e.touches[0].clientX;
+      mouse.y = e.touches[0].clientY;
+    }
+  }, { passive: true });
+
+  window.addEventListener('click', e => {
+    generateBeams(e.clientX, e.clientY);
+    clickPulse = 1;
+  });
+
+  window.addEventListener('touchstart', e => {
+    if (e.touches.length) {
+      mouse.x = e.touches[0].clientX;
+      mouse.y = e.touches[0].clientY;
+      generateBeams(mouse.x, mouse.y);
+      clickPulse = 1;
+    }
+  }, { passive: true });
+
+  // ─── Prism geometry ────────────────────────────────────────────
+  const PRISM_SIZE = 34;
+
+  function prismVertices(px, py) {
+    const r = PRISM_SIZE;
+    const pts = [];
+    for (let i = 0; i < 3; i++) {
+      const a = -Math.PI / 2 + (i * 2 * Math.PI) / 3;
+      pts.push({ x: px + Math.cos(a) * r, y: py + Math.sin(a) * r });
+    }
+    return pts;
+  }
+
+  // Entry point: midpoint of the left-facing edge
+  function entryPoint(px, py) {
+    const v = prismVertices(px, py);
+    // Leftmost vertex is index 1 (bottom-left in our orientation)
+    // Use midpoint between vertex 1 and vertex 2 (the left edge)
+    return {
+      x: (v[1].x + v[2].x) / 2,
+      y: (v[1].y + v[2].y) / 2
+    };
+  }
+
+  // ─── Drawing helpers ───────────────────────────────────────────
+  function drawTrailingFade() {
+    // Dark translucent overlay → trailing fade effect
+    ctx.fillStyle = 'rgba(5, 6, 10, 0.18)';
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  function drawPrism(px, py) {
+    const v = prismVertices(px, py);
+    const pulse = 1 + clickPulse * 0.25;
+    const size = PRISM_SIZE * pulse;
+
+    ctx.save();
+    ctx.translate(px, py);
+    ctx.scale(pulse, pulse);
+    ctx.translate(-px, -py);
+
+    // Outer glow
+    const glowR = size * 2.2;
+    const glow = ctx.createRadialGradient(px, py, size * 0.3, px, py, glowR);
+    glow.addColorStop(0, 'rgba(255, 255, 255, 0.12)');
+    glow.addColorStop(0.4, 'rgba(180, 200, 255, 0.05)');
+    glow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(px, py, glowR, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Glass body
+    ctx.beginPath();
+    ctx.moveTo(v[0].x, v[0].y);
+    ctx.lineTo(v[1].x, v[1].y);
+    ctx.lineTo(v[2].x, v[2].y);
+    ctx.closePath();
+
+    const grad = ctx.createLinearGradient(px - size, py - size, px + size, py + size);
+    grad.addColorStop(0, 'rgba(200, 220, 255, 0.08)');
+    grad.addColorStop(0.5, 'rgba(255, 255, 255, 0.15)');
+    grad.addColorStop(1, 'rgba(160, 180, 255, 0.06)');
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    // Edge stroke
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Inner facet lines (subtle)
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+    ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    ctx.moveTo(px, py);
+    ctx.lineTo(v[0].x, v[0].y);
+    ctx.moveTo(px, py);
+    ctx.lineTo(v[1].x, v[1].y);
+    ctx.moveTo(px, py);
+    ctx.lineTo(v[2].x, v[2].y);
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
+  function drawIncomingLight(px, py) {
+    // White light beam entering from the left toward the prism
+    const ep = entryPoint(px, py);
+    const startX = ep.x - 220;
+    const startY = ep.y - 40;
+
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+
+    // Beam core
+    const grad = ctx.createLinearGradient(startX, startY, ep.x, ep.y);
+    grad.addColorStop(0, 'rgba(255, 255, 255, 0)');
+    grad.addColorStop(0.6, 'rgba(255, 255, 255, 0.25)');
+    grad.addColorStop(1, 'rgba(255, 255, 255, 0.7)');
+    ctx.strokeStyle = grad;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(startX, startY);
+    ctx.lineTo(ep.x, ep.y);
+    ctx.stroke();
+
+    // Wide soft halo
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.06)';
+    ctx.lineWidth = 14;
+    ctx.beginPath();
+    ctx.moveTo(startX, startY);
+    ctx.lineTo(ep.x, ep.y);
+    ctx.stroke();
+
+    // Source glow
+    const srcGlow = ctx.createRadialGradient(startX, startY, 0, startX, startY, 30);
+    srcGlow.addColorStop(0, 'rgba(255, 255, 255, 0.5)');
+    srcGlow.addColorStop(1, 'rgba(255, 255, 255, 0)');
+    ctx.fillStyle = srcGlow;
+    ctx.beginPath();
+    ctx.arc(startX, startY, 30, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+  }
+
+  function drawBeams(px, py) {
+    const ep = entryPoint(px, py);
+
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+
+    for (let b = 0; b < beams.length; b++) {
+      const beam = beams[b];
+      const hue = (beam.hueShift + hueOffset) % 360;
+
+      let x = ep.x;
+      let y = ep.y;
+
+      for (let s = 0; s < beam.segments.length; s++) {
+        const seg = beam.segments[s];
+        // Animated wobble on top of static perturbation
+        const wobble = Math.sin(time * seg.freq + seg.phase) * seg.amp;
+        const a = seg.angle + wobble;
+        const len = seg.length;
+
+        const nx = x + Math.cos(a) * len;
+        const ny = y + Math.sin(a) * len;
+
+        // Segment brightness fades along the beam
+        const t = (s + 1) / beam.segments.length;
+        const alpha = 0.85 * (1 - t * 0.55);
+        const sat = 95;
+        const lit = 55 + (1 - t) * 15;
+
+        // Core line
+        ctx.strokeStyle = `hsla(${hue}, ${sat}%, ${lit}%, ${alpha})`;
+        ctx.lineWidth = beam.thickness * (1 - t * 0.4);
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(nx, ny);
+        ctx.stroke();
+
+        // Soft outer glow per segment
+        ctx.strokeStyle = `hsla(${hue}, ${sat}%, ${lit + 10}%, ${alpha * 0.2})`;
+        ctx.lineWidth = beam.thickness * 4 * (1 - t * 0.3);
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(nx, ny);
+        ctx.stroke();
+
+        x = nx;
+        y = ny;
+      }
+
+      // Endpoint glow (radial gradient)
+      const glowSize = 18 + Math.sin(time * 1.5 + b) * 4;
+      const eg = ctx.createRadialGradient(x, y, 0, x, y, glowSize);
+      eg.addColorStop(0, `hsla(${hue}, 100%, 75%, 0.9)`);
+      eg.addColorStop(0.3, `hsla(${hue}, 95%, 60%, 0.4)`);
+      eg.addColorStop(1, `hsla(${hue}, 90%, 50%, 0)`);
+      ctx.fillStyle = eg;
+      ctx.beginPath();
+      ctx.arc(x, y, glowSize, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Tiny bright dot at endpoint
+      ctx.fillStyle = `hsla(${hue}, 100%, 90%, 0.95)`;
+      ctx.beginPath();
+      ctx.arc(x, y, 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.restore();
+  }
+
+  function drawClickPulse(cx, cy) {
+    if (clickPulse <= 0.01) return;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const r = (1 - clickPulse) * 120 + 10;
+    const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+    g.addColorStop(0, `rgba(255, 255, 255, ${clickPulse * 0.4})`);
+    g.addColorStop(1, 'rgba(255, 255, 255, 0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Subtle ambient dust particles
+  const DUST_COUNT = 40;
+  const dust = Array.from({ length: DUST_COUNT }, () => ({
+    x: Math.random() * 2000,
+    y: Math.random() * 2000,
+    r: 0.5 + Math.random() * 1.2,
+    vx: (Math.random() - 0.5) * 0.15,
+    vy: (Math.random() - 0.5) * 0.1,
+    alpha: 0.08 + Math.random() * 0.15
+  }));
+
+  function drawDust() {
+    ctx.save();
+    for (const p of dust) {
+      p.x += p.vx;
+      p.y += p.vy;
+      if (p.x < 0) p.x = W;
+      if (p.x > W) p.x = 0;
+      if (p.y < 0) p.y = H;
+      if (p.y > H) p.y = 0;
+      ctx.fillStyle = `rgba(200, 210, 255, ${p.alpha})`;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  // ─── Main loop ─────────────────────────────────────────────────
+  let lastTime = performance.now();
+
+  function frame(now) {
+    const dt = Math.min((now - lastTime) / 1000, 0.05);
+    lastTime = now;
+    time += dt;
+
+    // Hue cycles continuously
+    hueOffset = (time * 25) % 360;
+
+    // Prism follows mouse with smooth easing
+    const ease = 1 - Math.pow(0.001, dt);
+    const prevX = prism.x;
+    const prevY = prism.y;
+    prism.x += (mouse.x - prism.x) * ease;
+    prism.y += (mouse.y - prism.y) * ease;
+    prism.vx = (prism.x - prevX) / Math.max(dt, 0.001);
+    prism.vy = (prism.y - prevY) / Math.max(dt, 0.001);
+
+    // Click pulse decay
+    clickPulse *= Math.pow(0.03, dt);
+    if (clickPulse < 0.01) clickPulse = 0;
+
+    // Render
+    drawTrailingFade();
+    drawDust();
+    drawIncomingLight(prism.x, prism.y);
+    drawBeams(prism.x, prism.y);
+    drawPrism(prism.x, prism.y);
+    drawClickPulse(prism.x, prism.y);
+
+    requestAnimationFrame(frame);
+  }
+
+  // Initial full clear
+  ctx.fillStyle = '#05060a';
+  ctx.fillRect(0, 0, W, H);
+
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

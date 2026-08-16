@@ -1,0 +1,21 @@
+Isometric City — Creative Prompt Artifact
+==========================================
+
+Creative Prompt:
+Create a 3D isometric cityscape with procedurally generated buildings. Each building has front, side, and top faces with distinct colors and lit windows generated via JavaScript. The buildings are arranged in a loose grid with random variation in size, height, and color palette (blues, purples, teals, warm browns, magentas). A subtle grid ground plane anchors the scene. The entire city slowly rotates in 3D via CSS transforms. The title "Isometric City" is displayed at the bottom with minimal, elegant typography. The aesthetic is architectural, geometric, and slightly futuristic.
+
+Model name: Qwen3.8-27B-instruct
+Thinking effort: high
+
+Techniques used:
+- CSS 3D transforms with preserve-3d; isometric projection via rotateX(60deg) rotateZ(45deg) on the city pivot
+- Seeded mulberry32 RNG for stable-but-varied procedural generation
+- DOM-based building construction: each building gets front/side/top face divs positioned with translate3d + rotateY/rotateX extrusion
+- Randomized window placement with per-window opacity/glow variation and occasional flicker animations
+- Gradient-shaded face colors from 8 curated palettes (blues, purples, teals, warm browns, magentas)
+- Subtle grid ground plane with radial glow anchor
+- Slow seesaw rotation animation on the city container (ease-in-out alternate)
+- Responsive scaling via media queries; ambient vignette overlay
+- Minimal uppercase letter-spaced title typography
+
+Wall time: N/A | Tokens: N/A

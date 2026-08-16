@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rose in the Dark</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #0a0203;
+  }
+
+  canvas {
+    display: block;
+    width: 100vw;
+    height: 100vh;
+    cursor: pointer;
+  }
+
+  .hint {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: rgba(255, 190, 190, 0.35);
+    font-family: Georgia, 'Times New Roman', serif;
+    font-style: italic;
+    font-size: 14px;
+    letter-spacing: 0.08em;
+    pointer-events: none;
+    user-select: none;
+    transition: opacity 2s ease;
+  }
+  .hint.hidden { opacity: 0; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<p class="hint" id="hint">click to grow a new rose</p>
+
+<script>
+(() => {
+'use strict';
+
+/* ============================================================
+   Rose in the Dark — a living rose rendered on canvas
+   - Layered elliptical petals, depth-sorted outer → inner
+   - Radial-gradient petal shading with per-petal hue drift
+   - Sine-based breathing bloom (petals open/close gently)
+   - Stem + leaves drawn with quadratic curves
+   - Falling-petal particles drifting down
+   - Trailing-fade dark-red background
+   - Click anywhere to regenerate a new rose configuration
+   ============================================================ */
+
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const hint = document.getElementById('hint');
+
+let W = 0, H = 0, DPR = 1;
+
+function resize() {
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  W = window.innerWidth;
+  H = window.innerHeight;
+  canvas.width = W * DPR;
+  canvas.height = H * DPR;
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
+window.addEventListener('resize', resize);
+resize();
+
+/* ---------- small math helpers ---------- */
+const TAU = Math.PI * 2;
+const rand = (a, b) => a + Math.random() * (b - a);
+const lerp = (a, b, t) => a + (b - a) * t;
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+/* ---------- rose configuration (regenerated on click) ---------- */
+let rose = null;
+
+function makeRose() {
+  const cx = W / 2;
+  const cy = H * 0.42;                       // flower head centre
+  const baseR = Math.min(W, H) * 0.16;       // full-bloom outer radius
+
+  // how many petal layers (rings) from outside to inside
+  const layerCount = Math.round(rand(5, 7));
+
+  // build layers outer → inner
+  const layers = [];
+  for (let i = 0; i < layerCount; i++) {
+    const t = i / (layerCount - 1);          // 0 = outermost, 1 = innermost
+    const count = Math.round(lerp(11, 5, t)) + (Math.random() < 0.5 ? 1 : 0);
+    const petals = [];
+    const phase = rand(0, TAU);              // angular offset of this ring
+    for (let j = 0; j < count; j++) {
+      petals.push({
+        angle: phase + (j / count) * TAU + rand(-0.09, 0.09),
+        // radial size of the petal ellipse (fraction of baseR)
+        len:  lerp(1.0, 0.55, t) * rand(0.92, 1.08),
+        wid:  lerp(0.62, 0.42, t) * rand(0.9, 1.1),
+        // hue drift around crimson
+        hue:  rand(348, 358) + t * rand(0, 6),
+        sat:  rand(62, 78) - t * 10,
+        light: lerp(30, 46, t) * rand(0.9, 1.05),
+        // per-petal wobble so the bloom feels organic
+        wobPhase: rand(0, TAU),
+        wobAmp:   rand(0.03, 0.09),
+        // slight tilt of each petal
+        tilt:     rand(-0.12, 0.12),
+      });
+    }
+    layers.push({ t, petals });
+  }
+
+  return {
+    cx, cy, baseR,
+    layers,
+    stemBaseY: cy + baseR * 0.55,            // where stem starts under the head
+    stemSway:  rand(0, TAU),
+    leaves: [
+      { side: -1, at: rand(0.35, 0.5), size: rand(0.8, 1.1), curl: rand(0.3, 0.6) },
+      { side:  1, at: rand(0.55, 0.7), size: rand(0.8, 1.1), curl: rand(0.3, 0.6) },
+      { side: -1, at: rand(0.75, 0.88), size: rand(0.6, 0.9), curl: rand(0.3, 0.6) },
+    ],
+    born: performance.now(),                 // for the opening animation
+  };
+}
+
+/* ---------- falling petal particles ---------- */
+let fallers = [];
+
+function spawnFaller() {
+  if (!rose) return;
+  const r = rose.baseR;
+  const a = rand(0, TAU);
+  fallers.push({
+    x: rose.cx + Math.cos(a) * r * rand(0.3, 1.0),
+    y: rose.cy + Math.sin(a) * r * rand(0.3, 1.0),
+    vx: rand(-0.25, 0.25),
+    vy: rand(0.35, 0.8),
+    rot: rand(0, TAU),
+    vr: rand(-0.02, 0.02),
+    len: rand(10, 20),
+    wid: rand(5, 10),
+    hue: rand(350, 359),
+    alpha: rand(0.5, 0.85),
+    life: 1,
+    decay: rand(0.002, 0.004),
+    sway: rand(0, TAU),
+  });
+}
+
+/* ---------- drawing ---------- */
+
+function drawBackground(t) {
+  // trailing fade: translucent dark-red over previous frame
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.fillStyle = 'rgba(10, 2, 3, 0.16)';
+  ctx.fillRect(0, 0, W, H);
+}
+
+function drawStem(r, t) {
+  const topX = r.cx;
+  const topY = r.stemBaseY;
+  const botX = r.cx + Math.sin(t * 0.0004 + r.stemSway) * 14;
+  const botY = H + 40;
+
+  ctx.save();
+  ctx.lineCap = 'round';
+
+  // main stem — a gentle curve
+  const midX = (topX + botX) / 2 + Math.sin(t * 0.0005 + r.stemSway) * 10;
+  const midY = (topY + botY) / 2;
+
+  const grad = ctx.createLinearGradient(topX, topY, botX, botY);
+  grad.addColorStop(0, '#2e4a2a');
+  grad.addColorStop(0.5, '#24391f');
+  grad.addColorStop(1, '#1a2a16');
+
+  ctx.strokeStyle = grad;
+  ctx.lineWidth = Math.max(4, r.baseR * 0.055);
+  ctx.beginPath();
+  ctx.moveTo(topX, topY);
+  ctx.quadraticCurveTo(midX, midY, botX, botY);
+  ctx.stroke();
+
+  // thorns
+  ctx.lineWidth = Math.max(2, r.baseR * 0.02);
+  ctx.strokeStyle = '#3a5530';
+  const thornCount = 4;
+  for (let i = 0; i < thornCount; i++) {
+    const f = 0.25 + (i / thornCount) * 0.55;
+    // point along the quadratic curve
+    const px = (1-f)*(1-f)*topX + 2*(1-f)*f*midX + f*f*botX;
+    const py = (1-f)*(1-f)*topY + 2*(1-f)*f*midY + f*f*botY;
+    const dir = i % 2 === 0 ? 1 : -1;
+    ctx.beginPath();
+    ctx.moveTo(px, py);
+    ctx.quadraticCurveTo(px + dir * 8, py - 4, px + dir * 14, py - 10);
+    ctx.stroke();
+  }
+
+  // leaves
+  for (const leaf of r.leaves) {
+    const f = leaf.at;
+    const lx = (1-f)*(1-f)*topX + 2*(1-f)*f*midX + f*f*botX;
+    const ly = (1-f)*(1-f)*topY + 2*(1-f)*f*midY + f*f*botY;
+    const s = leaf.size * r.baseR * 0.32;
+    const side = leaf.side;
+
+    ctx.save();
+    ctx.translate(lx, ly);
+    ctx.rotate(side * (0.9 + leaf.curl * 0.3) + Math.sin(t * 0.0006 + f * 5) * 0.05);
+
+    const lg = ctx.createLinearGradient(0, 0, s, 0);
+    lg.addColorStop(0, '#3d6b35');
+    lg.addColorStop(0.5, '#2e5228');
+    lg.addColorStop(1, '#1f3a1a');
+    ctx.fillStyle = lg;
+
+    // leaf shape via two quadratic curves
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.quadraticCurveTo(s * 0.5, -s * 0.55, s, 0);
+    ctx.quadraticCurveTo(s * 0.5, s * 0.55, 0, 0);
+    ctx.closePath();
+    ctx.fill();
+
+    // midrib
+    ctx.strokeStyle = 'rgba(90, 140, 80, 0.5)';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(s * 0.92, 0);
+    ctx.stroke();
+
+    // side veins
+    ctx.lineWidth = 0.8;
+    ctx.strokeStyle = 'rgba(90, 140, 80, 0.3)';
+    for (let v = 1; v <= 3; v++) {
+      const vx = s * v / 4.5;
+      ctx.beginPath();
+      ctx.moveTo(vx, 0);
+      ctx.quadraticCurveTo(vx + s * 0.1, -s * 0.18, vx + s * 0.18, -s * 0.3);
+      ctx.moveTo(vx, 0);
+      ctx.quadraticCurveTo(vx + s * 0.1, s * 0.18, vx + s * 0.18, s * 0.3);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  ctx.restore();
+}
+
+function drawPetal(p, cx, cy, R, openT, t) {
+  // openT: 0 = closed (petals folded inward), 1 = fully open
+  const breathe = 0.5 + 0.5 * Math.sin(t * 0.0012 + p.wobPhase);   // 0..1 slow breath
+  const wob = 1 + p.wobAmp * Math.sin(t * 0.001 + p.wobPhase * 2);
+
+  // how far this petal opens: outer layers open more
+  const layerOpen = lerp(0.35, 1.0, openT);
+  const openness = clamp(layerOpen * (0.85 + 0.15 * breathe) * wob, 0.1, 1.15);
+
+  // petal tip position — radiates outward from centre
+  const dist = R * p.len * openness;
+  const px = cx + Math.cos(p.angle) * dist;
+  const py = cy + Math.sin(p.angle) * dist * 0.92;   // slightly squashed vertically
+
+  // petal ellipse dimensions
+  const plen = R * p.len * 0.62 * (0.7 + 0.3 * openness);
+  const pwid = R * p.wid * 0.5 * (0.55 + 0.45 * openness);
+
+  ctx.save();
+  ctx.translate(px, py);
+  ctx.rotate(p.angle + Math.PI / 2 + p.tilt * Math.sin(t * 0.0008 + p.wobPhase));
+
+  // radial gradient: darker at the edge (outer), lighter toward the throat
+  const g = ctx.createRadialGradient(0, plen * 0.35, plen * 0.05, 0, plen * 0.1, plen * 1.15);
+  const L = p.light;
+  g.addColorStop(0,   `hsl(${p.hue}, ${p.sat}%, ${L + 14}%)`);
+  g.addColorStop(0.45,`hsl(${p.hue}, ${p.sat}%, ${L}%)`);
+  g.addColorStop(0.8, `hsl(${p.hue - 4}, ${p.sat + 6}%, ${L - 10}%)`);
+  g.addColorStop(1,   `hsl(${p.hue - 8}, ${p.sat + 10}%, ${L - 18}%)`);
+  ctx.fillStyle = g;
+
+  // petal as an ellipse
+  ctx.beginPath();
+  ctx.ellipse(0, 0, pwid, plen, 0, 0, TAU);
+  ctx.fill();
+
+  // subtle central vein highlight
+  ctx.strokeStyle = `hsla(${p.hue + 4}, ${p.sat}%, ${L + 20}%, 0.18)`;
+  ctx.lineWidth = Math.max(1, plen * 0.03);
+  ctx.beginPath();
+  ctx.moveTo(0, -plen * 0.85);
+  ctx.quadraticCurveTo(plen * 0.08, 0, 0, plen * 0.85);
+  ctx.stroke();
+
+  // soft rim shadow on the outer half for depth
+  const rg = ctx.createRadialGradient(0, plen * 0.5, plen * 0.2, 0, plen * 0.5, plen);
+  rg.addColorStop(0, 'rgba(0,0,0,0)');
+  rg.addColorStop(1, 'rgba(20,0,4,0.35)');
+  ctx.fillStyle = rg;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, pwid, plen, 0, 0, TAU);
+  ctx.fill();
+
+  ctx.restore();
+}
+
+function drawFlowerHead(r, t) {
+  // opening animation: eases in over ~2.5s after birth
+  const age = (t - r.born) / 1000;
+  const openT = clamp(age / 2.5, 0, 1);
+  const eased = 1 - Math.pow(1 - openT, 3);   // ease-out cubic
+
+  // global breathing scale
+  const breath = 1 + 0.025 * Math.sin(t * 0.0012);
+  const R = r.baseR * breath;
+
+  // glow behind the bloom
+  const glow = ctx.createRadialGradient(r.cx, r.cy, 0, r.cx, r.cy, R * 1.6);
+  glow.addColorStop(0, 'rgba(120, 10, 25, 0.28)');
+  glow.addColorStop(0.5, 'rgba(80, 5, 15, 0.12)');
+  glow.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.arc(r.cx, r.cy, R * 1.6, 0, TAU);
+  ctx.fill();
+
+  // draw layers outer → inner (depth sort)
+  for (const layer of r.layers) {
+    for (const p of layer.petals) {
+      drawPetal(p, r.cx, r.cy, R, eased, t);
+    }
+  }
+
+  // tight inner bud core
+  const coreR = R * 0.16 * (0.6 + 0.4 * eased);
+  const cg = ctx.createRadialGradient(r.cx - coreR * 0.2, r.cy - coreR * 0.3, 0, r.cx, r.cy, coreR * 1.4);
+  cg.addColorStop(0, 'hsl(355, 70%, 55%)');
+  cg.addColorStop(0.5, 'hsl(350, 75%, 38%)');
+  cg.addColorStop(1, 'hsl(345, 80%, 22%)');
+  ctx.fillStyle = cg;
+  ctx.beginPath();
+  ctx.ellipse(r.cx, r.cy, coreR, coreR * 1.15, 0, 0, TAU);
+  ctx.fill();
+
+  // tiny spiral hint in the core
+  ctx.strokeStyle = 'hsla(358, 60%, 60%, 0.35)';
+  ctx.lineWidth = 1.4;
+  ctx.beginPath();
+  for (let a = 0; a < TAU * 1.8; a += 0.15) {
+    const rr = coreR * 0.7 * (a / (TAU * 1.8));
+    const x = r.cx + Math.cos(a + t * 0.0003) * rr;
+    const y = r.cy + Math.sin(a + t * 0.0003) * rr * 0.9;
+    if (a === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+}
+
+function drawFallers(dt) {
+  for (let i = fallers.length - 1; i >= 0; i--) {
+    const f = fallers[i];
+    f.sway += dt * 0.002;
+    f.x += f.vx + Math.sin(f.sway) * 0.4;
+    f.y += f.vy;
+    f.rot += f.vr;
+    f.life -= f.decay;
+
+    if (f.life <= 0 || f.y > H + 40) {
+      fallers.splice(i, 1);
+      continue;
+    }
+
+    ctx.save();
+    ctx.translate(f.x, f.y);
+    ctx.rotate(f.rot);
+    ctx.globalAlpha = f.alpha * clamp(f.life * 2, 0, 1);
+
+    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, f.len);
+    g.addColorStop(0, `hsl(${f.hue}, 70%, 45%)`);
+    g.addColorStop(1, `hsl(${f.hue - 6}, 75%, 25%)`);
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, f.wid, f.len, 0, 0, TAU);
+    ctx.fill();
+
+    ctx.restore();
+  }
+  ctx.globalAlpha = 1;
+}
+
+/* ---------- main loop ---------- */
+let last = performance.now();
+let fellTimer = 0;
+
+function frame(now) {
+  const dt = Math.min(now - last, 50);
+  last = now;
+
+  if (!rose) rose = makeRose();
+
+  drawBackground(now);
+
+  // draw stem first (behind the head)
+  drawStem(rose, now);
+
+  // then the bloom
+  drawFlowerHead(rose, now);
+
+  // occasionally release a petal
+  fellTimer += dt;
+  const interval = rand(1800, 4200);
+  if (fellTimer > interval && fallers.length < 14) {
+    fellTimer = 0;
+    spawnFaller();
+  }
+  drawFallers(dt);
+
+  requestAnimationFrame(frame);
+}
+
+/* ---------- interaction ---------- */
+function regenerate() {
+  rose = makeRose();
+  fallers = [];
+  // clear the trail once so the new rose starts clean
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.fillStyle = '#0a0203';
+  ctx.fillRect(0, 0, W, H);
+  hint.classList.add('hidden');
+}
+
+canvas.addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  regenerate();
+});
+
+// hide the hint after a while regardless
+setTimeout(() => hint.classList.add('hidden'), 6000);
+
+// initial paint
+ctx.fillStyle = '#0a0203';
+ctx.fillRect(0, 0, W, H);
+rose = makeRose();
+requestAnimationFrame(frame);
+
+})();
+</script>
+</body>
+</html>

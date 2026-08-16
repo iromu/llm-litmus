@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Plasma Ball</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 100%; height: 100%; overflow: hidden; }
+body { background: #050508; }
+canvas { display: block; width: 100%; height: 100%; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let W, H, cx, cy;
+
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+  cx = W / 2;
+  cy = H / 2;
+}
+window.addEventListener('resize', resize);
+resize();
+
+const ARC_COUNT = 30;
+const sphereRadius = () => Math.min(W, H) * 0.35;
+
+class PlasmaArc {
+  constructor() {
+    this.reset();
+  }
+  reset() {
+    this.angle = Math.random() * Math.PI * 2;
+    this.hueOffset = Math.random() * 360;
+    this.flickerPhase = Math.random() * Math.PI * 2;
+    this.flickerSpeed = 3 + Math.random() * 5;
+    this.curveAmount = 0.3 + Math.random() * 0.4;
+    this.thickness = 0.5 + Math.random() * 1.5;
+    this.life = 0.5 + Math.random() * 0.5;
+  }
+  update(dt) {
+    this.angle += dt * (0.5 + Math.random() * 0.5);
+    // Occasionally re-target
+    if (Math.random() > 0.98) {
+      this.angle = Math.random() * Math.PI * 2;
+      this.hueOffset = Math.random() * 360;
+    }
+  }
+  draw(ctx, time, radius) {
+    const flicker = 0.4 + 0.6 * Math.abs(Math.sin(time * this.flickerSpeed + this.flickerPhase));
+    const alpha = this.life * flicker;
+    const hue = (this.hueOffset + time * 50) % 360;
+
+    const endX = cx + Math.cos(this.angle) * radius;
+    const endY = cy + Math.sin(this.angle) * radius;
+
+    // Control point for curve
+    const midAngle = this.angle + (Math.random() - 0.5) * this.curveAmount;
+    const midR = radius * (0.4 + Math.random() * 0.3);
+    const cpX = cx + Math.cos(midAngle) * midR;
+    const cpY = cy + Math.sin(midAngle) * midR;
+
+    // Outer glow
+    ctx.strokeStyle = `hsla(${hue}, 90%, 60%, ${alpha * 0.2})`;
+    ctx.lineWidth = this.thickness * 4;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.quadraticCurveTo(cpX, cpY, endX, endY);
+    ctx.stroke();
+
+    // Core arc
+    ctx.strokeStyle = `hsla(${hue}, 100%, 70%, ${alpha * 0.8})`;
+    ctx.lineWidth = this.thickness;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.quadraticCurveTo(cpX, cpY, endX, endY);
+    ctx.stroke();
+
+    // Bright tip at the edge
+    const tipGrad = ctx.createRadialGradient(endX, endY, 0, endX, endY, 8);
+    tipGrad.addColorStop(0, `hsla(${hue}, 100%, 85%, ${alpha})`);
+    tipGrad.addColorStop(1, `hsla(${hue}, 100%, 60%, 0)`);
+    ctx.fillStyle = tipGrad;
+    ctx.beginPath();
+    ctx.arc(endX, endY, 8, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+const arcs = [];
+for (let i = 0; i < ARC_COUNT; i++) {
+  arcs.push(new PlasmaArc());
+}
+
+function drawSphere(radius) {
+  // Glass sphere outer glow
+  const outerGlow = ctx.createRadialGradient(cx, cy, radius * 0.9, cx, cy, radius * 1.3);
+  outerGlow.addColorStop(0, 'rgba(80, 60, 120, 0.1)');
+  outerGlow.addColorStop(1, 'rgba(40, 20, 80, 0)');
+  ctx.fillStyle = outerGlow;
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius * 1.3, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Sphere glass
+  const glassGrad = ctx.createRadialGradient(cx - radius * 0.3, cy - radius * 0.3, 0, cx, cy, radius);
+  glassGrad.addColorStop(0, 'rgba(100, 80, 140, 0.08)');
+  glassGrad.addColorStop(0.7, 'rgba(50, 30, 80, 0.04)');
+  glassGrad.addColorStop(1, 'rgba(30, 20, 60, 0.1)');
+  ctx.fillStyle = glassGrad;
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Sphere rim
+  ctx.strokeStyle = 'rgba(120, 100, 180, 0.2)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Center core glow
+  const coreGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius * 0.2);
+  coreGrad.addColorStop(0, 'rgba(255, 255, 255, 0.8)');
+  coreGrad.addColorStop(0.3, 'rgba(200, 150, 255, 0.4)');
+  coreGrad.addColorStop(1, 'rgba(150, 100, 255, 0)');
+  ctx.fillStyle = coreGrad;
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius * 0.2, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+let lastTime = performance.now();
+function animate(now) {
+  const dt = Math.min((now - lastTime) / 1000, 0.05);
+  lastTime = now;
+  const time = now / 1000;
+
+  // Trailing fade
+  ctx.fillStyle = 'rgba(5, 5, 8, 0.15)';
+  ctx.fillRect(0, 0, W, H);
+
+  const radius = sphereRadius();
+
+  // Draw arcs (clipped to sphere)
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+  ctx.clip();
+
+  for (const arc of arcs) {
+    arc.update(dt);
+    arc.draw(ctx, time, radius);
+  }
+
+  ctx.restore();
+
+  // Draw sphere on top
+  drawSphere(radius);
+
+  requestAnimationFrame(animate);
+}
+
+ctx.fillStyle = '#050508';
+ctx.fillRect(0, 0, W, H);
+requestAnimationFrame(animate);
+</script>
+</body>
+</html>

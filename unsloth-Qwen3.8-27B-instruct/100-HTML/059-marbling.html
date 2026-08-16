@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Marbling — Ink on Water</title>
+<style>
+  :root {
+    --paper: #f5efe3;
+    --ink-dark: #4a3f35;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: var(--paper);
+  }
+
+  canvas {
+    display: block;
+    width: 100vw;
+    height: 100vh;
+    cursor: pointer;
+  }
+
+  .hint {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: Georgia, 'Times New Roman', serif;
+    font-style: italic;
+    font-size: clamp(13px, 1.6vw, 17px);
+    color: rgba(74, 63, 53, 0.45);
+    letter-spacing: 0.06em;
+    pointer-events: none;
+    user-select: none;
+    transition: opacity 1.2s ease;
+    text-align: center;
+    padding: 0 20px;
+  }
+
+  .hint.hidden { opacity: 0; }
+
+  .vignette {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background: radial-gradient(ellipse at center, transparent 55%, rgba(90, 70, 50, 0.10) 100%);
+  }
+</style>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+<div class="vignette" aria-hidden="true"></div>
+<p class="hint" id="hint">click anywhere to marble anew</p>
+
+<script>
+(() => {
+  'use strict';
+
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+  const hint = document.getElementById('hint');
+
+  let W = 0, H = 0, DPR = 1;
+  let lines = [];
+  let time = 0;
+  let lastFrame = performance.now();
+  let hintDismissed = false;
+
+  // ─── Palette system ──────────────────────────────────────────────
+  // Curated ink palettes evoking traditional marbling pigments.
+  const PALETTES = [
+    // Indigo & madder (classic Turkish)
+    ['#1b3a5c', '#2e5077', '#8c2f39', '#c15b4e', '#3d6b5e', '#6b4c8a', '#a8763e'],
+    // Sepia & rust
+    ['#5c3a21', '#8a5a33', '#b5713d', '#7a2e2e', '#3e5c50', '#4a4a6a', '#9c8a5a'],
+    // Deep water
+    ['#0f3443', '#1a5276', '#2980b9', '#6d4c41', '#8e4585', '#1e6b5c', '#c0793a'],
+    // Muted botanical
+    ['#3a5a40', '#588157', '#a3b18a', '#6b4226', '#3d405b', '#815581', '#b56576'],
+    // Royal
+    ['#22223b', '#4a4e69', '#9a8c98', '#c9ada7', '#7b2d43', '#2a6f77', '#b08968'],
+    // Warm earth
+    ['#6f1d1b', '#a83232', '#d4845a', '#7a5c3e', '#2d4a3e', '#5c3a5c', '#c9a227'],
+    // Oceanic
+    ['#0b2e4a', '#155e75', '#0e7490', '#5eead4', '#7c3aed', '#be185d', '#d97706'],
+    // Charcoal & gold
+    ['#2b2b2b', '#4a4a4a', '#6b6b6b', '#b8860b', '#daa520', '#8b4513', '#3d5a80'],
+  ];
+
+  // ─── Utilities ───────────────────────────────────────────────────
+  const rand = (min, max) => min + Math.random() * (max - min);
+  const randInt = (min, max) => Math.floor(rand(min, max + 1));
+  const pick = arr => arr[randInt(0, arr.length - 1)];
+
+  function hexToRgb(hex) {
+    const n = parseInt(hex.slice(1), 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  }
+
+  // Slight hue/lightness jitter for organic variation
+  function jitterColor(hex, amount = 18) {
+    const [r, g, b] = hexToRgb(hex);
+    const j = () => randInt(-amount, amount);
+    const clamp = v => Math.max(0, Math.min(255, v));
+    return `rgb(${clamp(r + j())},${clamp(g + j())},${clamp(b + j())})`;
+  }
+
+  // ─── Line generation ─────────────────────────────────────────────
+  function generateLines() {
+    lines = [];
+    const palette = pick(PALETTES);
+    const count = randInt(14, 26);
+    const baseY = H / count;
+
+    for (let i = 0; i < count; i++) {
+      const t = i / (count - 1); // 0..1 vertical position
+      const yBase = H * (0.06 + 0.88 * t) + rand(-baseY * 0.4, baseY * 0.4);
+
+      const line = {
+        yBase,
+        // Wave parameters
+        amp1: rand(H * 0.015, H * 0.075),   // primary amplitude
+        freq1: rand(0.0018, 0.0055),        // primary frequency (per px)
+        phase1: rand(0, Math.PI * 2),
+        speed1: rand(0.08, 0.35) * (Math.random() < 0.5 ? 1 : -1),
+
+        amp2: rand(H * 0.005, H * 0.03),    // secondary harmonic
+        freq2: rand(0.004, 0.012),
+        phase2: rand(0, Math.PI * 2),
+        speed2: rand(0.1, 0.5) * (Math.random() < 0.5 ? 1 : -1),
+
+        amp3: rand(0, H * 0.012),           // fine ripple
+        freq3: rand(0.01, 0.025),
+        phase3: rand(0, Math.PI * 2),
+        speed3: rand(0.15, 0.6),
+
+        // Vertical drift
+        driftAmp: rand(0, H * 0.012),
+        driftFreq: rand(0.0004, 0.0012),
+        driftPhase: rand(0, Math.PI * 2),
+        driftSpeed: rand(0.05, 0.15),
+
+        // Style
+        color: jitterColor(pick(palette)),
+        alpha: rand(0.35, 0.85),
+        width: rand(1.2, 4.5),
+        // Per-line global undulation
+        swayAmp: rand(0, H * 0.02),
+        swayFreq: rand(0.0003, 0.0008),
+        swayPhase: rand(0, Math.PI * 2),
+        swaySpeed: rand(0.06, 0.2),
+      };
+
+      lines.push(line);
+    }
+
+    // Sort by y so lower lines paint over upper ones (depth illusion)
+    lines.sort((a, b) => a.yBase - b.yBase);
+  }
+
+  // ─── Rendering ───────────────────────────────────────────────────
+  function drawLine(line, t) {
+    const step = Math.max(3, Math.round(W / 320)); // adaptive resolution
+
+    ctx.beginPath();
+
+    for (let x = -step; x <= W + step; x += step) {
+      // Primary wave
+      const w1 = Math.sin(x * line.freq1 + line.phase1 + t * line.speed1) * line.amp1;
+      // Secondary harmonic
+      const w2 = Math.sin(x * line.freq2 + line.phase2 + t * line.speed2) * line.amp2;
+      // Fine ripple
+      const w3 = Math.sin(x * line.freq3 + line.phase3 + t * line.speed3) * line.amp3;
+      // Slow vertical drift of the whole line
+      const drift = Math.sin(t * line.driftSpeed + line.driftPhase) * line.driftAmp;
+      // Global sway (whole line shifts laterally in Y)
+      const sway = Math.sin(x * line.swayFreq + line.swayPhase + t * line.swaySpeed) * line.swayAmp;
+
+      const y = line.yBase + w1 + w2 + w3 + drift + sway;
+
+      if (x === -step) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+
+    ctx.strokeStyle = line.color;
+    ctx.globalAlpha = line.alpha;
+    ctx.lineWidth = line.width;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.stroke();
+  }
+
+  function render(now) {
+    const dt = (now - lastFrame) / 1000;
+    lastFrame = now;
+    time += dt;
+
+    // Trailing fade: translucent paper wash creates smooth motion trails
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = 'rgba(245, 239, 227, 0.08)';
+    ctx.fillRect(0, 0, W, H);
+
+    for (const line of lines) {
+      drawLine(line, time);
+    }
+
+    ctx.globalAlpha = 1;
+    requestAnimationFrame(render);
+  }
+
+  // ─── Setup / resize ──────────────────────────────────────────────
+  function resize() {
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = W * DPR;
+    canvas.height = H * DPR;
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+
+    // Full repaint on resize
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = '#f5efe3';
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  function regenerate() {
+    // Fresh paper
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = '#f5efe3';
+    ctx.fillRect(0, 0, W, H);
+    generateLines();
+    if (!hintDismissed) {
+      hintDismissed = true;
+      hint.classList.add('hidden');
+    }
+  }
+
+  // ─── Events ──────────────────────────────────────────────────────
+  window.addEventListener('resize', () => {
+    resize();
+    generateLines();
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = '#f5efe3';
+    ctx.fillRect(0, 0, W, H);
+  });
+
+  canvas.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    regenerate();
+  }, { passive: false });
+
+  // Keyboard accessibility: Space or Enter also regenerates
+  window.addEventListener('keydown', e => {
+    if (e.key === ' ' || e.key === 'Enter') {
+      e.preventDefault();
+      regenerate();
+    }
+  });
+
+  // ─── Init ────────────────────────────────────────────────────────
+  resize();
+  regenerate();
+  requestAnimationFrame(render);
+})();
+</script>
+</body>
+</html>

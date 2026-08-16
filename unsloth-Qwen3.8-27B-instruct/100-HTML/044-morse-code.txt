@@ -1,0 +1,27 @@
+# 044 — Morse Code Signal Transmission
+
+## Creative Prompt
+Create a Morse code visualization where dots and dashes rise from the bottom of the screen like glowing signals. The word "HELLO WORLD" is encoded into Morse code and transmitted as a sequence of glowing green/cyan dots (short) and dash pills (long). Signals drift upward, fade, and pulse. Ambient random signals add atmosphere. Faint connection lines link nearby signals. The background is a very dark teal with trailing fade. The overall aesthetic is minimalist, cybernetic, and rhythmic — like data transmission visualized as light.
+
+## Model
+Qwen3.8-27B-instruct
+
+## Thinking Effort
+high
+
+## Techniques Used
+- Canvas signal rendering with dot (circle) and dash (ellipse) shapes
+- Morse code encoding lookup table for A–Z / 0–9
+- Sequential transmission with timed emission (morse-unit-based scheduling: dot = 1 unit, dash = 3 units)
+- Upward drift with alpha decay (life-based pool management)
+- Pulse animation via sine wave on each signal's phase
+- Connection lines between nearby active signals (distance-capped, alpha-faded)
+- Ambient random signal generation for atmosphere
+- Signal pool management with hard cap (220 max)
+- Trailing background fade via translucent fill per frame
+- Radial-gradient glow + bright inner highlight per signal
+- DPR-aware canvas sizing (capped at 2x)
+- Passive interaction model — message loops continuously
+
+## Stats
+Wall time: N/A | Tokens: N/A

@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Swarm — Boids Flocking Simulation</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #050508;
+    cursor: crosshair;
+    font-family: 'Courier New', monospace;
+  }
+
+  canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  .hud {
+    position: fixed;
+    bottom: 24px;
+    left: 24px;
+    color: rgba(255, 255, 255, 0.25);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    pointer-events: none;
+    user-select: none;
+    line-height: 1.6;
+  }
+
+  .hud .title {
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.4);
+    margin-bottom: 4px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+  }
+
+  .vignette {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background: radial-gradient(ellipse at center, transparent 55%, rgba(0, 0, 0, 0.5) 100%);
+  }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div class="vignette"></div>
+<div class="hud">
+  <div class="title">Swarm</div>
+  <div>move to repel &middot; click to regenerate</div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d');
+
+  // --- Configuration ---
+  const NUM_BOIDS       = 80;
+  const PERCEPTION      = 120;   // neighbor radius for alignment/cohesion
+  const SEP_RADIUS      = 36;    // separation radius
+  const MAX_SPEED       = 3.2;
+  const MIN_SPEED       = 1.4;
+  const MAX_FORCE       = 0.08;
+  const MOUSE_RADIUS    = 140;
+  const MOUSE_REPEL     = 0.35;
+  const TRAIL_ALPHA     = 0.08;  // lower = longer trails
+  const LINE_DIST       = 90;    // max distance for connection lines
+  const LINE_ALPHA_MAX  = 0.22;
+  const BOID_SIZE       = 5;
+
+  // Weights for the three rules
+  const W_ALIGN   = 0.05;
+  const W_COHESION = 0.004;
+  const W_SEP     = 0.08;
+
+  let W, H, dpr;
+  let boids = [];
+  let mouse = { x: -9999, y: -9999 };
+
+  // --- Spatial grid for O(n) neighbor lookups ---
+  const CELL = PERCEPTION;
+  let gridCols, gridRows;
+  let grid;
+
+  function resize() {
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width  = W * dpr;
+    canvas.height = H * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    gridCols = Math.ceil(W / CELL);
+    gridRows = Math.ceil(H / CELL);
+    // Paint solid background on resize
+    ctx.fillStyle = '#050508';
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  // --- Boid factory ---
+  function makeBoid(i) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = MIN_SPEED + Math.random() * (MAX_SPEED - MIN_SPEED);
+    return {
+      x: Math.random() * W,
+      y: Math.random() * H,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      hue: (i / NUM_BOIDS) * 360 + Math.random() * 20 - 10,
+      size: BOID_SIZE + Math.random() * 1.5
+    };
+  }
+
+  function initSwarm() {
+    boids = [];
+    for (let i = 0; i < NUM_BOIDS; i++) boids.push(makeBoid(i));
+    // Clear canvas fully on regeneration
+    ctx.fillStyle = '#050508';
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  // --- Physics step ---
+  function step() {
+    // Rebuild spatial grid
+    grid = new Array(gridCols * gridRows);
+    for (let i = 0; i < boids.length; i++) {
+      const b = boids[i];
+      const cx = Math.floor(b.x / CELL);
+      const cy = Math.floor(b.y / CELL);
+      if (cx >= 0 && cx < gridCols && cy >= 0 && cy < gridRows) {
+        const idx = cy * gridCols + cx;
+        (grid[idx] || (grid[idx] = [])).push(i);
+      }
+    }
+
+    for (let i = 0; i < boids.length; i++) {
+      const b = boids[i];
+      let ax = 0, ay = 0;       // alignment accumulator
+      let cx = 0, cy = 0;       // cohesion accumulator
+      let sx = 0, sy = 0;       // separation accumulator
+      let count = 0;
+
+      const gx = Math.floor(b.x / CELL);
+      const gy = Math.floor(b.y / CELL);
+
+      for (let ox = -1; ox <= 1; ox++) {
+        for (let oy = -1; oy <= 1; oy++) {
+          const nx = gx + ox;
+          const ny = gy + oy;
+          if (nx < 0 || nx >= gridCols || ny < 0 || ny >= gridRows) continue;
+          const cellArr = grid[ny * gridCols + nx];
+          if (!cellArr) continue;
+          for (let k = 0; k < cellArr.length; k++) {
+            const j = cellArr[k];
+            if (j === i) continue;
+            const o = boids[j];
+            const dx = o.x - b.x;
+            const dy = o.y - b.y;
+            const distSq = dx * dx + dy * dy;
+            if (distSq > PERCEPTION * PERCEPTION) continue;
+            const dist = Math.sqrt(distSq);
+
+            // Alignment
+            ax += o.vx;
+            ay += o.vy;
+            // Cohesion
+            cx += o.x;
+            cy += o.y;
+            // Separation (inverse-square falloff within sep radius)
+            if (dist < SEP_RADIUS && dist > 0.001) {
+              const f = (SEP_RADIUS - dist) / SEP_RADIUS;
+              sx -= (dx / dist) * f;
+              sy -= (dy / dist) * f;
+            }
+            count++;
+          }
+        }
+      }
+
+      if (count > 0) {
+        // Alignment: steer toward average velocity
+        ax /= count; ay /= count;
+        const aMag = Math.hypot(ax, ay);
+        if (aMag > 0.001) {
+          ax = (ax / aMag) * MAX_SPEED - b.vx;
+          ay = (ay / aMag) * MAX_SPEED - b.vy;
+          const aF = Math.hypot(ax, ay);
+          if (aF > MAX_FORCE) { ax = ax / aF * MAX_FORCE; ay = ay / aF * MAX_FORCE; }
+          b.vx += ax * W_ALIGN;
+          b.vy += ay * W_ALIGN;
+        }
+
+        // Cohesion: steer toward center of mass
+        cx = cx / count - b.x;
+        cy = cy / count - b.y;
+        const cMag = Math.hypot(cx, cy);
+        if (cMag > 0.001) {
+          cx = (cx / cMag) * MAX_SPEED - b.vx;
+          cy = (cy / cMag) * MAX_SPEED - b.vy;
+          const cF = Math.hypot(cx, cy);
+          if (cF > MAX_FORCE) { cx = cx / cF * MAX_FORCE; cy = cy / cF * MAX_FORCE; }
+          b.vx += cx * W_COHESION;
+          b.vy += cy * W_COHESION;
+        }
+
+        // Separation
+        const sMag = Math.hypot(sx, sy);
+        if (sMag > 0.001) {
+          sx = (sx / sMag) * MAX_SPEED - b.vx;
+          sy = (sy / sMag) * MAX_SPEED - b.vy;
+          const sF = Math.hypot(sx, sy);
+          if (sF > MAX_FORCE) { sx = sx / sF * MAX_FORCE; sy = sy / sF * MAX_FORCE; }
+          b.vx += sx * W_SEP;
+          b.vy += sy * W_SEP;
+        }
+      }
+
+      // Mouse repulsion
+      const mdx = b.x - mouse.x;
+      const mdy = b.y - mouse.y;
+      const mDist = Math.hypot(mdx, mdy);
+      if (mDist < MOUSE_RADIUS && mDist > 0.001) {
+        const f = (MOUSE_RADIUS - mDist) / MOUSE_RADIUS;
+        b.vx += (mdx / mDist) * f * MOUSE_REPEL;
+        b.vy += (mdy / mDist) * f * MOUSE_REPEL;
+      }
+
+      // Speed limiting
+      const spd = Math.hypot(b.vx, b.vy);
+      if (spd > MAX_SPEED) {
+        b.vx = b.vx / spd * MAX_SPEED;
+        b.vy = b.vy / spd * MAX_SPEED;
+      } else if (spd < MIN_SPEED && spd > 0.001) {
+        b.vx = b.vx / spd * MIN_SPEED;
+        b.vy = b.vy / spd * MIN_SPEED;
+      }
+
+      // Integrate
+      b.x += b.vx;
+      b.y += b.vy;
+
+      // Edge wrapping with margin
+      const M = 10;
+      if (b.x < -M) b.x = W + M;
+      if (b.x > W + M) b.x = -M;
+      if (b.y < -M) b.y = H + M;
+      if (b.y > H + M) b.y = -M;
+    }
+  }
+
+  // --- Rendering ---
+  function draw() {
+    // Trailing fade
+    ctx.fillStyle = `rgba(5, 5, 8, ${TRAIL_ALPHA})`;
+    ctx.fillRect(0, 0, W, H);
+
+    // Connection lines
+    ctx.lineWidth = 0.5;
+    for (let i = 0; i < boids.length; i++) {
+      const a = boids[i];
+      const gx = Math.floor(a.x / CELL);
+      const gy = Math.floor(a.y / CELL);
+      for (let ox = -1; ox <= 1; ox++) {
+        for (let oy = -1; oy <= 1; oy++) {
+          const nx = gx + ox;
+          const ny = gy + oy;
+          if (nx < 0 || nx >= gridCols || ny < 0 || ny >= gridRows) continue;
+          const cellArr = grid[ny * gridCols + nx];
+          if (!cellArr) continue;
+          for (let k = 0; k < cellArr.length; k++) {
+            const j = cellArr[k];
+            if (j <= i) continue; // avoid duplicate pairs
+            const b = boids[j];
+            const dx = b.x - a.x;
+            const dy = b.y - a.y;
+            const distSq = dx * dx + dy * dy;
+            if (distSq > LINE_DIST * LINE_DIST) continue;
+            const dist = Math.sqrt(distSq);
+            const alpha = (1 - dist / LINE_DIST) * LINE_ALPHA_MAX;
+            const midHue = (a.hue + b.hue) / 2;
+            ctx.strokeStyle = `hsla(${midHue}, 70%, 60%, ${alpha})`;
+            ctx.beginPath();
+            ctx.moveTo(a.x, a.y);
+            ctx.lineTo(b.x, b.y);
+            ctx.stroke();
+          }
+        }
+      }
+    }
+
+    // Boids as oriented triangles
+    for (let i = 0; i < boids.length; i++) {
+      const b = boids[i];
+      const angle = Math.atan2(b.vy, b.vx);
+      const s = b.size;
+      const cos = Math.cos(angle);
+      const sin = Math.sin(angle);
+
+      // Triangle vertices: nose, left tail, right tail
+      const nx = b.x + cos * s * 1.8;
+      const ny = b.y + sin * s * 1.8;
+      const lx = b.x - cos * s - sin * s * 0.7;
+      const ly = b.y - sin * s + cos * s * 0.7;
+      const rx = b.x - cos * s + sin * s * 0.7;
+      const ry = b.y - sin * s - cos * s * 0.7;
+
+      // Glow
+      ctx.fillStyle = `hsla(${b.hue}, 80%, 55%, 0.15)`;
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, s * 2.2, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Body
+      ctx.fillStyle = `hsl(${b.hue}, 75%, 62%)`;
+      ctx.beginPath();
+      ctx.moveTo(nx, ny);
+      ctx.lineTo(lx, ly);
+      ctx.lineTo(rx, ry);
+      ctx.closePath();
+      ctx.fill();
+
+      // Bright tip
+      ctx.fillStyle = `hsla(${b.hue}, 90%, 80%, 0.9)`;
+      ctx.beginPath();
+      ctx.arc(nx, ny, 1.2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // --- Animation loop ---
+  function loop() {
+    step();
+    draw();
+    requestAnimationFrame(loop);
+  }
+
+  // --- Events ---
+  window.addEventListener('resize', resize);
+  window.addEventListener('mousemove', e => {
+    mouse.x = e.clientX;
+    mouse.y = e.clientY;
+  });
+  window.addEventListener('mouseleave', () => {
+    mouse.x = -9999;
+    mouse.y = -9999;
+  });
+  window.addEventListener('click', () => {
+    initSwarm();
+  });
+  window.addEventListener('touchmove', e => {
+    e.preventDefault();
+    const t = e.touches[0];
+    mouse.x = t.clientX;
+    mouse.y = t.clientY;
+  }, { passive: false });
+  window.addEventListener('touchend', () => {
+    mouse.x = -9999;
+    mouse.y = -9999;
+  });
+
+  // --- Init ---
+  resize();
+  initSwarm();
+  loop();
+})();
+</script>
+</body>
+</html>

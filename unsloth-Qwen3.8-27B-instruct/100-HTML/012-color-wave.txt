@@ -1,0 +1,26 @@
+# 012 — Chromatic Flow
+
+## Creative Prompt
+Create a generative wave visualization with multiple layered sinusoidal waves in vibrant colors. Each wave has its own amplitude, frequency, speed, phase, and vertical offset, creating a complex, flowing composition. The waves are rendered both as filled semi-transparent areas and as thin stroke lines, producing a rich, layered look. Five color palettes cycle on click, shifting between pink/blue/purple, green/magenta, cyan/hot pink, orange/violet, and pastel combinations. The title "Chromatic Flow" appears in white with overlay blend mode. The overall aesthetic is fluid, vibrant, and hypnotic.
+
+## Model
+Qwen3.8-27B-instruct
+
+## Thinking Effort
+high
+
+## Techniques
+- Canvas 2D sinusoidal wave rendering using dual sine terms (two independent frequencies/speeds/phases per wave) for organic complexity
+- Filled wave shapes with gradient alpha transparency, layered back-to-front by vertical offset
+- Thin stroke lines on select waves for definition against the fills
+- 8 independent waves, each with randomized amplitude, frequency, speed, phase, and vertical offset regenerated per palette
+- Five hand-tuned color palettes cycled on click/tap; background gradient shifts with palette
+- Radial vignette overlay for depth
+- requestAnimationFrame loop with time-based animation (frame-rate independent)
+- Responsive canvas with devicePixelRatio scaling (capped at 2x)
+- Title rendered in HTML with `mix-blend-mode: overlay` over the canvas
+- Pulse indicator dot + fading hint text for interaction feedback
+- No external dependencies — fully self-contained single HTML file
+
+## Stats
+Wall time: N/A | Tokens: N/A

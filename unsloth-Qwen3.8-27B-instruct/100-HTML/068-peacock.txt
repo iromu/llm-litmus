@@ -1,0 +1,24 @@
+# 068 — Peacock (Iridescent Fan)
+
+## Creative Prompt
+Create a peacock with an iridescent fan of feathers. The peacock has a body, neck, head, and eye. The tail fan opens and closes with a breathing motion, revealing dozens of feather "eyes" — colorful spots with surrounding barbs. Feathers have shimmering hues cycling through blue, teal, green, and gold. Each feather eye pulses with its own phase. The overall aesthetic is majestic, ornate, and iridescent — like a peacock displaying its plumage.
+
+## Model
+Qwen3.8-27B-instruct
+
+## Thinking Effort
+high
+
+## Techniques Used
+- Canvas 2D rendering, fully self-contained single HTML file (inline CSS + JS, no external dependencies).
+- Elliptical body with radial-gradient shading; curved quadratic-Bézier neck taper; head circle with beak, eye, and three-stalk crest; breast scallop texture arcs.
+- Trigonometric feather placement across 4 concentric layers (9→30 feathers per layer) for depth, drawn back-to-front with per-layer alpha.
+- Feather "eyes" as stacked radial gradients: outer glow halo → teal ring band → gold-green mid disc → deep-blue core → specular dot, each hue-offset from the base hue.
+- Surrounding barb lines fanning out along the shaft, widening toward the tip with subtle time-based length oscillation.
+- Sine-based fan open/close "breathing" animation mapping angular span (~99° closed to ~180° open); per-feather wobble and independent pulsing phases (sin with per-index frequency/phase offsets).
+- HSL color cycling over time for iridescence (blue/teal/green/gold), seeded via mulberry32 PRNG so click-regeneration produces deterministic new palettes and positions.
+- Twinkling dust motes background, radial vignette, devicePixelRatio-aware canvas sizing, responsive to any screen size.
+- Interaction: click anywhere to regenerate with a new seed (new colors, position, layout).
+
+## Stats
+Wall time: N/A | Tokens: N/A

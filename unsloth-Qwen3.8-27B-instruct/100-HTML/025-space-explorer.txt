@@ -1,0 +1,20 @@
+Creative Prompt
+===============
+Create an interactive 3D space exploration scene with a star field and various space objects (planets with optional rings, asteroids, nebula clouds). The camera moves forward continuously through space at a variable speed controlled by scroll wheel. Mouse drag rotates the view. Stars are distributed in a large volume and regenerate as they pass behind. Planets have radial gradient shading with ring ellipses. The UI shows position coordinates, star count, speed, and object count in a HUD-like overlay. The aesthetic is deep space, immersive, and exploratory.
+
+Model: Qwen3.8-27B-instruct
+Thinking effort: high
+
+Techniques used
+===============
+- Canvas 2D software 3D projection: rotation matrices applied Y (yaw) then X (pitch), perspective scaling s = fov / z, near-plane culling at z <= 20.
+- Star field: 900 stars in a large volume around the camera; depth-based sizing (size * perspective scale), per-star sinusoidal twinkle phase/speed, HSL color variation (blue-white plus warm tints); bright stars get radial-gradient glow halos. Stars that fall behind the camera are recycled ahead of it for infinite forward travel.
+- Planets: radial gradient sphere shading (light offset upper-left), clipped animated surface bands, atmosphere rim glow, and optional Saturn-style rings drawn as half-ellipse annuli (back half behind the sphere, front half on top) with linear-gradient falloff and a faint gap line.
+- Asteroids: irregular 7–11 vertex polygons with per-vertex radius jitter, radial-gradient rock shading, slow tumble rotation; occasionally spawned as clusters.
+- Nebulae: layered semi-transparent radial gradients composited with globalCompositeOperation 'lighter' for additive glow; persistent pool kept at a fixed count, culled behind and respawned ahead.
+- Interaction: mouse/touch drag rotates yaw/pitch with velocity damping (inertial feel); scroll wheel adjusts target forward speed with smooth exponential approach; pitch clamped to avoid gimbal flip.
+- Rendering order: painter's algorithm — all objects sorted far-to-near each frame; background is a deep-space radial vignette.
+- HUD overlay: monospace sci-fi panel with live position (X/Y/Z), star count, object count, velocity readout and a glowing speed bar; corner brackets, crosshair, pulsing status dot, and a fading title splash. Responsive layout (HUD compacts/hides on small screens), devicePixelRatio-aware canvas capped at 2x.
+- Fully self-contained single HTML file: inline CSS + JS, no external dependencies, works offline.
+
+Wall time: N/A | Tokens: N/A

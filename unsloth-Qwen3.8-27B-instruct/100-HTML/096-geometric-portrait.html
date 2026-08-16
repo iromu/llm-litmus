@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Geometric Portrait</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 100%; height: 100%; overflow: hidden; }
+body { background: #0a0a12; }
+canvas { display: block; width: 100%; height: 100%; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let W, H, cx, cy;
+
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+  cx = W / 2;
+  cy = H / 2;
+}
+window.addEventListener('resize', resize);
+resize();
+
+const SCALE = () => Math.min(W, H) * 0.4;
+
+// Face outline points (normalized, will be scaled)
+const facePoints = [
+  [0, -1], [-0.35, -0.9], [-0.5, -0.6], [-0.55, -0.2],
+  [-0.5, 0.2], [-0.35, 0.5], [-0.2, 0.7], [0, 0.8],
+  [0.2, 0.7], [0.35, 0.5], [0.5, 0.2], [0.55, -0.2],
+  [0.5, -0.6], [0.35, -0.9]
+];
+
+// Left eye
+const leftEye = [[-0.3, -0.35], [-0.2, -0.4], [-0.1, -0.35], [-0.1, -0.28], [-0.2, -0.25]];
+// Right eye
+const rightEye = [[0.1, -0.35], [0.2, -0.4], [0.3, -0.35], [0.3, -0.28], [0.2, -0.25]];
+
+// Nose
+const nose = [[0, -0.2], [-0.08, 0.05], [0, 0.1], [0.08, 0.05]];
+
+// Mouth
+const mouth = [[-0.2, 0.4], [-0.1, 0.45], [0, 0.43], [0.1, 0.45], [0.2, 0.4]];
+
+function wobble(x, y, time, seed) {
+  const wx = Math.sin(time * 0.8 + seed * 3.7 + x * 5) * 0.01;
+  const wy = Math.cos(time * 0.6 + seed * 2.3 + y * 5) * 0.01;
+  return { x: x + wx, y: y + wy };
+}
+
+function drawPolygon(points, scale, time, seed, strokeColor, fillColor) {
+  ctx.beginPath();
+  for (let i = 0; i < points.length; i++) {
+    const p = wobble(points[i][0], points[i][1], time, seed + i);
+    const x = cx + p.x * scale;
+    const y = cy + p.y * scale;
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.closePath();
+  if (fillColor) {
+    ctx.fillStyle = fillColor;
+    ctx.fill();
+  }
+  ctx.strokeStyle = strokeColor;
+  ctx.lineWidth = 1;
+  ctx.stroke();
+}
+
+function drawVertexDots(points, scale, time, seed, color) {
+  for (let i = 0; i < points.length; i++) {
+    const p = wobble(points[i][0], points[i][1], time, seed + i);
+    const x = cx + p.x * scale;
+    const y = cy + p.y * scale;
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(x, y, 1.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+function drawEyes(time) {
+  const s = SCALE();
+  // Left iris glow
+  const lx = cx + (-0.2 * s);
+  const ly = cy + (-0.32 * s);
+  const irisGrad = ctx.createRadialGradient(lx, ly, 0, lx, ly, 8);
+  irisGrad.addColorStop(0, 'rgba(100, 200, 255, 0.8)');
+  irisGrad.addColorStop(0.5, 'rgba(80, 150, 255, 0.3)');
+  irisGrad.addColorStop(1, 'rgba(60, 100, 255, 0)');
+  ctx.fillStyle = irisGrad;
+  ctx.beginPath();
+  ctx.arc(lx, ly, 8, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Right iris glow
+  const rx = cx + (0.2 * s);
+  const ry = cy + (-0.32 * s);
+  const irisGrad2 = ctx.createRadialGradient(rx, ry, 0, rx, ry, 8);
+  irisGrad2.addColorStop(0, 'rgba(100, 200, 255, 0.8)');
+  irisGrad2.addColorStop(0.5, 'rgba(80, 150, 255, 0.3)');
+  irisGrad2.addColorStop(1, 'rgba(60, 100, 255, 0)');
+  ctx.fillStyle = irisGrad2;
+  ctx.beginPath();
+  ctx.arc(rx, ry, 8, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+let time = 0;
+function animate() {
+  time += 0.016;
+
+  // Trailing fade
+  ctx.fillStyle = 'rgba(10, 10, 18, 0.1)';
+  ctx.fillRect(0, 0, W, H);
+
+  const s = SCALE();
+  const lineColor = 'rgba(150, 180, 220, 0.5)';
+  const dotColor = 'rgba(180, 210, 255, 0.7)';
+
+  // Face outline
+  drawPolygon(facePoints, s, time, 0, lineColor, 'rgba(30, 40, 60, 0.15)');
+  drawVertexDots(facePoints, s, time, 0, dotColor);
+
+  // Eyes
+  drawPolygon(leftEye, s, time, 10, 'rgba(150, 200, 255, 0.6)', 'rgba(20, 30, 50, 0.3)');
+  drawPolygon(rightEye, s, time, 20, 'rgba(150, 200, 255, 0.6)', 'rgba(20, 30, 50, 0.3)');
+
+  // Nose
+  drawPolygon(nose, s, time, 30, 'rgba(130, 160, 200, 0.4)', null);
+
+  // Mouth
+  drawPolygon(mouth, s, time, 40, 'rgba(180, 140, 160, 0.5)', 'rgba(60, 30, 40, 0.2)');
+
+  // Iris glows
+  drawEyes(time);
+
+  requestAnimationFrame(animate);
+}
+
+ctx.fillStyle = '#0a0a12';
+ctx.fillRect(0, 0, W, H);
+animate();
+</script>
+</body>
+</html>

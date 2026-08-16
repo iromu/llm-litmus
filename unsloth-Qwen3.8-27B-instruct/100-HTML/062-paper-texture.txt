@@ -1,0 +1,15 @@
+Creative Prompt:
+Create a textured paper article page with a realistic paper grain effect. The page has a warm cream background with SVG feTurbulence noise overlay that animates subtly, plus a vignette shadow. The content is a literary essay with serif typography, drop cap, italic subhead, ruled dividers, and a signature. The overall aesthetic is analog, warm, and literary — like a page from a fine press book or a high-end stationery brand.
+
+Model: Qwen3.8-27B-instruct
+Thinking effort: high
+
+Techniques used:
+- Inline SVG feTurbulence (fractalNoise, 4 octaves) as a fixed full-viewport grain layer, blended with mix-blend-mode: multiply and animated via CSS steps(4) keyframes for a subtle "tick" motion mimicking scanned physical paper.
+- Radial-gradient vignette overlay (fixed, pointer-events: none) plus a secondary warm lamp-light radial gradient for depth.
+- Physical page sheet: layered linear-gradient cream background, multi-layer box-shadow stack for depth, pseudo-element deckle edge and faint horizontal fibre lines.
+- Serif typography (Georgia), justified body text with hyphenation, ::first-letter drop cap on the opening paragraph, centered italic subhead, pull quote with oversized opening quotation mark.
+- Ruled dividers built with flexbox + gradient hairlines and a rotated square diamond ornament.
+- Warm cream/ink palette via CSS custom properties; responsive clamp() sizing; prefers-reduced-motion fallback disables grain animation.
+
+Wall time: N/A | Tokens: N/A

@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Neon Signage — After Hours</title>
+<style>
+  /* ============================================================
+     NEON SIGNAGE — a dark alley of vintage neon signs
+     Pure CSS + JS. No external assets. Fully offline.
+     ============================================================ */
+
+  :root {
+    --neon-pink:    #ff2d95;
+    --neon-cyan:    #00e5ff;
+    --neon-yellow:  #ffe600;
+    --neon-green:   #39ff14;
+    --neon-purple:  #b44dff;
+    --bg-deep:      #05060a;
+    --bg-mid:       #0a0c14;
+    --grid-line:    rgba(120, 140, 180, 0.05);
+    --grid-line-2:  rgba(120, 140, 180, 0.03);
+    --text-dim:     rgba(180, 190, 210, 0.35);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body { height: 100%; }
+
+  body {
+    background: var(--bg-deep);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    font-family: 'Courier New', Courier, monospace;
+  }
+
+  /* ---------- City window at night: layered grid backdrop ---------- */
+  .scene {
+    position: fixed;
+    inset: 0;
+    background:
+      /* fine grid (small cells) */
+      linear-gradient(var(--grid-line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-line) 1px, transparent 1px),
+      /* coarse grid (large cells) */
+      linear-gradient(var(--grid-line-2) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-line-2) 1px, transparent 1px),
+      /* ambient vertical gradient — city glow from below */
+      radial-gradient(ellipse 120% 80% at 50% 110%, rgba(40, 20, 60, 0.55) 0%, transparent 60%),
+      radial-gradient(ellipse 90% 60% at 50% -10%, rgba(15, 25, 50, 0.5) 0%, transparent 55%),
+      linear-gradient(180deg, var(--bg-deep) 0%, var(--bg-mid) 50%, #0c0a14 100%);
+    background-size:
+      24px 24px,
+      24px 24px,
+      120px 120px,
+      120px 120px,
+      100% 100%,
+      100% 100%,
+      100% 100%;
+  }
+
+  /* faint horizontal "streetlight" streaks across the glass */
+  .scene::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      linear-gradient(105deg, transparent 30%, rgba(255, 255, 255, 0.012) 32%, transparent 34%),
+      linear-gradient(105deg, transparent 55%, rgba(255, 255, 255, 0.015) 57%, transparent 59%),
+      linear-gradient(105deg, transparent 78%, rgba(255, 255, 255, 0.01) 80%, transparent 82%);
+    pointer-events: none;
+  }
+
+  /* vignette to darken edges like a real alley */
+  .scene::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse 85% 75% at 50% 50%, transparent 55%, rgba(0, 0, 0, 0.55) 100%);
+    pointer-events: none;
+  }
+
+  /* ---------- The sign board ---------- */
+  main {
+    position: relative;
+    z-index: 1;
+    width: min(92vw, 880px);
+    padding: clamp(2rem, 6vh, 4rem) clamp(1rem, 4vw, 3rem);
+    text-align: center;
+  }
+
+  /* subtle backing panel so signs feel mounted on a wall */
+  main::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: rgba(8, 9, 14, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.04);
+    border-radius: 6px;
+    box-shadow:
+      0 0 0 1px rgba(0, 0, 0, 0.6),
+      0 30px 80px rgba(0, 0, 0, 0.7),
+      inset 0 1px 0 rgba(255, 255, 255, 0.03);
+    pointer-events: none;
+  }
+
+  h1 {
+    position: relative;
+    font-size: clamp(0.65rem, 1.6vw, 0.85rem);
+    font-weight: 400;
+    letter-spacing: 0.55em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: clamp(1.5rem, 5vh, 3rem);
+    text-indent: 0.55em; /* balance the letter-spacing */
+  }
+
+  /* ---------- Neon lines ---------- */
+  .signs {
+    display: flex;
+    flex-direction: column;
+    gap: clamp(1.2rem, 4.5vh, 2.6rem);
+  }
+
+  .sign {
+    font-family: 'Arial Black', 'Helvetica Neue', Arial, sans-serif;
+    font-weight: 900;
+    font-size: clamp(1.6rem, 6.5vw, 4.2rem);
+    line-height: 1.15;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    position: relative;
+    display: inline-block;
+  }
+
+  /* Each sign carries its own flicker animation.
+     The base opacity dips are handled by keyframes;
+     the glow itself is pure multi-layered text-shadow. */
+
+  /* ---- PINK ---- */
+  .sign--pink {
+    color: #fff0f7;
+    text-shadow:
+      0 0 2px   #ffffff,
+      0 0 6px   var(--neon-pink),
+      0 0 12px  var(--neon-pink),
+      0 0 24px  var(--neon-pink),
+      0 0 42px  var(--neon-pink),
+      0 0 70px  var(--neon-pink),
+      0 0 110px var(--neon-pink);
+    animation: flicker-pink 7.3s infinite linear;
+  }
+
+  /* ---- CYAN ---- */
+  .sign--cyan {
+    color: #effcff;
+    text-shadow:
+      0 0 2px   #ffffff,
+      0 0 6px   var(--neon-cyan),
+      0 0 12px  var(--neon-cyan),
+      0 0 24px  var(--neon-cyan),
+      0 0 42px  var(--neon-cyan),
+      0 0 70px  var(--neon-cyan),
+      0 0 110px var(--neon-cyan);
+    animation: flicker-cyan 9.1s infinite linear;
+  }
+
+  /* ---- YELLOW ---- */
+  .sign--yellow {
+    color: #fffbe0;
+    text-shadow:
+      0 0 2px   #ffffff,
+      0 0 6px   var(--neon-yellow),
+      0 0 12px  var(--neon-yellow),
+      0 0 24px  var(--neon-yellow),
+      0 0 42px  var(--neon-yellow),
+      0 0 70px  var(--neon-yellow),
+      0 0 110px var(--neon-yellow);
+    animation: flicker-yellow 6.2s infinite linear;
+  }
+
+  /* ---- GREEN ---- */
+  .sign--green {
+    color: #f2ffe9;
+    text-shadow:
+      0 0 2px   #ffffff,
+      0 0 6px   var(--neon-green),
+      0 0 12px  var(--neon-green),
+      0 0 24px  var(--neon-green),
+      0 0 42px  var(--neon-green),
+      0 0 70px  var(--neon-green),
+      0 0 110px var(--neon-green);
+    animation: flicker-green 8.4s infinite linear;
+  }
+
+  /* ---- PURPLE ---- */
+  .sign--purple {
+    color: #f6ecff;
+    text-shadow:
+      0 0 2px   #ffffff,
+      0 0 6px   var(--neon-purple),
+      0 0 12px  var(--neon-purple),
+      0 0 24px  var(--neon-purple),
+      0 0 42px  var(--neon-purple),
+      0 0 70px  var(--neon-purple),
+      0 0 110px var(--neon-purple);
+    animation: flicker-purple 10.7s infinite linear;
+  }
+
+  /* ---------- Flicker keyframes ----------
+     Each one has a different period and a different pattern of
+     opacity pulses / hard dropouts, so no two signs blink in sync.
+     Values were hand-tuned to read as "old tube imperfections":
+     mostly steady with brief stutters and occasional full dropouts. */
+
+  @keyframes flicker-pink {
+    0%   { opacity: 1; }
+    3%   { opacity: 1; }
+    3.5% { opacity: 0.4; }
+    4%   { opacity: 1; }
+    12%  { opacity: 1; }
+    12.5%{ opacity: 0.85; }
+    13%  { opacity: 1; }
+    38%  { opacity: 1; }
+    38.5%{ opacity: 0.2; }
+    39%  { opacity: 0.9; }
+    39.5%{ opacity: 0.3; }
+    40%  { opacity: 1; }
+    64%  { opacity: 1; }
+    64.5%{ opacity: 0.75; }
+    65%  { opacity: 1; }
+    82%  { opacity: 1; }
+    82.5%{ opacity: 0.15; }
+    83%  { opacity: 0.8; }
+    83.5%{ opacity: 0.25; }
+    84%  { opacity: 1; }
+    100% { opacity: 1; }
+  }
+
+  @keyframes flicker-cyan {
+    0%   { opacity: 1; }
+    7%   { opacity: 1; }
+    7.5% { opacity: 0.6; }
+    8%   { opacity: 1; }
+    21%  { opacity: 1; }
+    21.5%{ opacity: 0.9; }
+    22%  { opacity: 1; }
+    47%  { opacity: 1; }
+    47.5%{ opacity: 0.35; }
+    48%  { opacity: 1; }
+    48.5%{ opacity: 0.5; }
+    49%  { opacity: 1; }
+    73%  { opacity: 1; }
+    73.5%{ opacity: 0.8; }
+    74%  { opacity: 1; }
+    91%  { opacity: 1; }
+    91.5%{ opacity: 0.1; }
+    92%  { opacity: 0.7; }
+    92.5%{ opacity: 0.3; }
+    93%  { opacity: 1; }
+    100% { opacity: 1; }
+  }
+
+  @keyframes flicker-yellow {
+    0%   { opacity: 1; }
+    5%   { opacity: 1; }
+    5.5% { opacity: 0.5; }
+    6%   { opacity: 1; }
+    18%  { opacity: 1; }
+    18.5%{ opacity: 0.95; }
+    19%  { opacity: 1; }
+    33%  { opacity: 1; }
+    33.5%{ opacity: 0.25; }
+    34%  { opacity: 0.85; }
+    34.5%{ opacity: 0.4; }
+    35%  { opacity: 1; }
+    58%  { opacity: 1; }
+    58.5%{ opacity: 0.7; }
+    59%  { opacity: 1; }
+    76%  { opacity: 1; }
+    76.5%{ opacity: 0.9; }
+    77%  { opacity: 1; }
+    95%  { opacity: 1; }
+    95.5%{ opacity: 0.3; }
+    96%  { opacity: 0.8; }
+    96.5%{ opacity: 0.45; }
+    97%  { opacity: 1; }
+    100% { opacity: 1; }
+  }
+
+  @keyframes flicker-green {
+    0%   { opacity: 1; }
+    9%   { opacity: 1; }
+    9.5% { opacity: 0.55; }
+    10%  { opacity: 1; }
+    26%  { opacity: 1; }
+    26.5%{ opacity: 0.85; }
+    27%  { opacity: 1; }
+    44%  { opacity: 1; }
+    44.5%{ opacity: 0.3; }
+    45%  { opacity: 0.9; }
+    45.5%{ opacity: 0.4; }
+    46%  { opacity: 1; }
+    67%  { opacity: 1; }
+    67.5%{ opacity: 0.75; }
+    68%  { opacity: 1; }
+    85%  { opacity: 1; }
+    85.5%{ opacity: 0.2; }
+    86%  { opacity: 0.75; }
+    86.5%{ opacity: 0.35; }
+    87%  { opacity: 1; }
+    100% { opacity: 1; }
+  }
+
+  @keyframes flicker-purple {
+    0%   { opacity: 1; }
+    4%   { opacity: 1; }
+    4.5% { opacity: 0.45; }
+    5%   { opacity: 1; }
+    15%  { opacity: 1; }
+    15.5%{ opacity: 0.9; }
+    16%  { opacity: 1; }
+    36%  { opacity: 1; }
+    36.5%{ opacity: 0.3; }
+    37%  { opacity: 0.85; }
+    37.5%{ opacity: 0.4; }
+    38%  { opacity: 1; }
+    55%  { opacity: 1; }
+    55.5%{ opacity: 0.7; }
+    56%  { opacity: 1; }
+    71%  { opacity: 1; }
+    71.5%{ opacity: 0.9; }
+    72%  { opacity: 1; }
+    88%  { opacity: 1; }
+    88.5%{ opacity: 0.15; }
+    89%  { opacity: 0.7; }
+    89.5%{ opacity: 0.3; }
+    90%  { opacity: 1; }
+    100% { opacity: 1; }
+  }
+
+  /* ---------- Monospace subtitle ---------- */
+  footer {
+    position: relative;
+    margin-top: clamp(1.5rem, 5vh, 3rem);
+    font-size: clamp(0.6rem, 1.4vw, 0.78rem);
+    letter-spacing: 0.35em;
+    text-transform: lowercase;
+    color: var(--text-dim);
+    text-indent: 0.35em;
+    line-height: 1.9;
+  }
+
+  footer .dim { color: rgba(180, 190, 210, 0.2); }
+
+  /* ---------- Reduced motion: keep the glow, stop the strobing ---------- */
+  @media (prefers-reduced-motion: reduce) {
+    .sign { animation: none !important; }
+  }
+
+  /* ---------- Small screens: allow wrapping for very long lines ---------- */
+  @media (max-width: 480px) {
+    .sign { white-space: normal; word-break: break-word; }
+  }
+</style>
+</head>
+<body>
+
+  <div class="scene" aria-hidden="true"></div>
+
+  <main>
+    <h1>After Hours</h1>
+
+    <section class="signs" aria-label="Neon sign display">
+      <span class="sign sign--pink"   role="img" aria-label="Pink neon sign reading OPEN ALL NIGHT">Open All Night</span>
+      <span class="sign sign--cyan"   role="img" aria-label="Cyan neon sign reading CITY OF DREAMS">City of Dreams</span>
+      <span class="sign sign--yellow" role="img" aria-label="Yellow neon sign reading BAR &amp; LOUNGE">Bar &amp; Lounge</span>
+      <span class="sign sign--green"  role="img" aria-label="Green neon sign reading GOOD VIBES ONLY">Good Vibes Only</span>
+      <span class="sign sign--purple" role="img" aria-label="Purple neon sign reading MIDNIGHT TALK">Midnight Talk</span>
+    </section>
+
+    <footer>
+      <span class="dim">//</span> est. 1987 &middot; no. 44 alley street<br>
+      <span class="dim">//</span> the tubes remember what the city forgets
+    </footer>
+  </main>
+
+<script>
+  /* ============================================================
+     Ambient life: tiny JS layer that adds organic randomness
+     on top of the CSS flicker. Every few seconds a random sign
+     gets an extra micro-stutter (brief dimming) via a temporary
+     class, so the rhythm never feels looped.
+     ============================================================ */
+  (function () {
+    'use strict';
+
+    const signs = Array.from(document.querySelectorAll('.sign'));
+    if (!signs.length) return;
+
+    // Respect reduced-motion users: skip the JS-driven stutter too.
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduceMotion) return;
+
+    function microStutter() {
+      const sign = signs[Math.floor(Math.random() * signs.length)];
+      const steps = 1 + Math.floor(Math.random() * 3);        // 1–3 quick dips
+      let i = 0;
+
+      (function step() {
+        sign.style.opacity = String(0.25 + Math.random() * 0.4);
+        setTimeout(function () {
+          sign.style.opacity = '';                              // restore (CSS anim takes over)
+          i++;
+          if (i < steps) setTimeout(step, 40 + Math.random() * 60);
+        }, 30 + Math.random() * 50);
+      })();
+    }
+
+    function scheduleNext() {
+      // Random interval between 2.5s and 7s — keeps it unpredictable.
+      const delay = 2500 + Math.random() * 4500;
+      setTimeout(function () {
+        microStutter();
+        scheduleNext();
+      }, delay);
+    }
+
+    // Start after a short beat so the page settles first.
+    setTimeout(scheduleNext, 1200);
+  })();
+</script>
+</body>
+</html>

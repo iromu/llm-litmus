@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Space Explorer — Deep Field Traversal</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    width: 100%; height: 100%; overflow: hidden; background: #000;
+    font-family: 'Courier New', Courier, monospace;
+    -webkit-user-select: none; user-select: none;
+  }
+  #scene { position: fixed; inset: 0; display: block; cursor: grab; }
+  #scene.dragging { cursor: grabbing; }
+  .hud {
+    position: fixed; z-index: 10; pointer-events: none;
+    color: rgba(160, 220, 255, 0.9);
+    text-shadow: 0 0 8px rgba(80, 180, 255, 0.45), 0 0 2px rgba(120, 200, 255, 0.9);
+    letter-spacing: 0.12em;
+  }
+  .hud-panel {
+    background: linear-gradient(135deg, rgba(8, 20, 40, 0.55), rgba(4, 10, 24, 0.35));
+    border: 1px solid rgba(100, 180, 255, 0.22);
+    border-radius: 6px;
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    box-shadow: 0 0 24px rgba(40, 120, 255, 0.10) inset, 0 0 18px rgba(40, 120, 255, 0.08);
+  }
+  #hud-top-left { top: 18px; left: 18px; padding: 12px 16px; min-width: 230px; }
+  #hud-top-left h1 {
+    font-size: 13px; font-weight: 700; letter-spacing: 0.3em;
+    color: rgba(200, 240, 255, 0.95); margin-bottom: 8px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  #hud-top-left h1::before {
+    content: ''; width: 8px; height: 8px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #bff, #28f 70%);
+    box-shadow: 0 0 10px #4af;
+    animation: pulse 2.4s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%      { opacity: 0.5; transform: scale(0.75); }
+  }
+  .stat-row {
+    display: flex; justify-content: space-between; gap: 18px;
+    font-size: 11px; line-height: 1.9; color: rgba(150, 210, 255, 0.85);
+  }
+  .stat-row .label { color: rgba(120, 170, 220, 0.7); }
+  .stat-row .value { color: rgba(220, 245, 255, 0.95); font-weight: 700; }
+  #hud-bottom-right {
+    bottom: 18px; right: 18px; padding: 10px 14px;
+    font-size: 10px; line-height: 1.8; text-align: right;
+    color: rgba(140, 195, 245, 0.75);
+  }
+  #hud-bottom-right .hint { color: rgba(100, 150, 200, 0.55); }
+  #speed-bar-wrap {
+    margin-top: 8px; height: 4px;
+    background: rgba(60, 120, 200, 0.18);
+    border-radius: 2px; overflow: hidden;
+  }
+  #speed-bar {
+    height: 100%; width: 30%;
+    background: linear-gradient(90deg, #1a5fd0, #5ac8ff, #cfeeff);
+    border-radius: 2px; transition: width 0.25s ease;
+    box-shadow: 0 0 8px rgba(90, 200, 255, 0.7);
+  }
+  #crosshair {
+    position: fixed; left: 50%; top: 50%; width: 26px; height: 26px;
+    transform: translate(-50%, -50%); z-index: 9; pointer-events: none; opacity: 0.55;
+  }
+  #crosshair::before, #crosshair::after {
+    content: ''; position: absolute; background: rgba(170, 220, 255, 0.8);
+  }
+  #crosshair::before { left: 50%; top: 0; width: 1px; height: 100%; transform: translateX(-50%); }
+  #crosshair::after  { top: 50%; left: 0; height: 1px; width: 100%; transform: translateY(-50%); }
+  .corner {
+    position: fixed; width: 26px; height: 26px; z-index: 9; pointer-events: none;
+    border-color: rgba(120, 190, 255, 0.4); border-style: solid; border-width: 0;
+  }
+  .corner.tl { top: 10px; left: 10px;   border-top-width: 2px; border-left-width: 2px; }
+  .corner.tr { top: 10px; right: 10px;  border-top-width: 2px; border-right-width: 2px; }
+  .corner.bl { bottom: 10px; left: 10px;  border-bottom-width: 2px; border-left-width: 2px; }
+  .corner.br { bottom: 10px; right: 10px; border-bottom-width: 2px; border-right-width: 2px; }
+  #splash {
+    position: fixed; inset: 0; z-index: 20;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background: radial-gradient(ellipse at center, rgba(5, 12, 30, 0.9), rgba(0, 0, 4, 0.98));
+    transition: opacity 1.6s ease; pointer-events: none;
+  }
+  #splash.hidden { opacity: 0; }
+  #splash h2 {
+    color: rgba(210, 240, 255, 0.95);
+    font-size: clamp(22px, 5vw, 42px);
+    letter-spacing: 0.5em; text-indent: 0.5em;
+    text-shadow: 0 0 30px rgba(90, 180, 255, 0.8);
+    margin-bottom: 14px;
+  }
+  #splash p {
+    color: rgba(130, 180, 230, 0.7);
+    font-size: clamp(10px, 1.6vw, 13px);
+    letter-spacing: 0.35em; text-transform: uppercase;
+  }
+  @media (max-width: 640px) {
+    #hud-top-left { min-width: 180px; padding: 10px 12px; }
+    .stat-row { font-size: 10px; gap: 10px; }
+    #hud-bottom-right { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<canvas id="scene" role="img" aria-label="Interactive 3D space exploration scene"></canvas>
+
+<div class="corner tl"></div>
+<div class="corner tr"></div>
+<div class="corner bl"></div>
+<div class="corner br"></div>
+<div id="crosshair" aria-hidden="true"></div>
+
+<header class="hud hud-panel" id="hud-top-left" aria-live="off">
+  <h1>DEEP FIELD // EXPLORER</h1>
+  <div class="stat-row"><span class="label">POS X</span><span class="value" id="stat-x">+0000.0</span></div>
+  <div class="stat-row"><span class="label">POS Y</span><span class="value" id="stat-y">+0000.0</span></div>
+  <div class="stat-row"><span class="label">POS Z</span><span class="value" id="stat-z">+0000.0</span></div>
+  <div class="stat-row"><span class="label">STARS</span><span class="value" id="stat-stars">0</span></div>
+  <div class="stat-row"><span class="label">OBJECTS</span><span class="value" id="stat-objects">0</span></div>
+  <div class="stat-row"><span class="label">VELOCITY</span><span class="value" id="stat-speed">0.0 u/s</span></div>
+  <div id="speed-bar-wrap" aria-hidden="true"><div id="speed-bar"></div></div>
+</header>
+
+<aside class="hud hud-panel" id="hud-bottom-right">
+  <div>DRAG &mdash; ROTATE VIEW</div>
+  <div>SCROLL &mdash; ADJUST VELOCITY</div>
+  <div class="hint">// all systems nominal</div>
+</aside>
+
+<div id="splash" aria-hidden="true">
+  <h2>SPACE&nbsp;EXPLORER</h2>
+  <p>drag to rotate &middot; scroll to accelerate</p>
+</div>
+
+<script>
+(() => {
+'use strict';
+
+/* ---------- CONFIG ---------- */
+const CFG = {
+  fov: 700,
+  starCount: 900,
+  starVolume: { x: 2600, y: 1600, zFront: 300, zBack: 6000 },
+  objectInterval: 900,
+  objectLateral: 1400,
+  nebulaCount: 14,
+  maxSpeed: 14,
+  minSpeed: 0.15,
+  baseSpeed: 1.6,
+  dragSensitivity: 0.0042,
+  rotDamping: 0.92,
+};
+
+/* ---------- STATE ---------- */
+const canvas = document.getElementById('scene');
+const ctx = canvas.getContext('2d');
+let W = 0, H = 0, DPR = 1;
+
+const cam = {
+  x: 0, y: 0, z: 0,
+  yaw: 0, pitch: 0,
+  vyaw: 0, vpitch: 0,
+  speed: CFG.baseSpeed,
+  targetSpeed: CFG.baseSpeed,
+};
+const input = { dragging: false, lastX: 0, lastY: 0 };
+
+let stars = [], planets = [], asteroids = [], nebulas = [];
+let nextObjectZ = 0;
+let elapsed = 0;
+
+/* ---------- UTILITIES ---------- */
+const rand = (a, b) => a + Math.random() * (b - a);
+const randInt = (a, b) => Math.floor(rand(a, b + 1));
+const pick = arr => arr[randInt(0, arr.length - 1)];
+const clamp = (v, lo, hi) => v < lo ? lo : v > hi ? hi : v;
+
+function resize() {
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  W = window.innerWidth;
+  H = window.innerHeight;
+  canvas.width = W * DPR;
+  canvas.height = H * DPR;
+  canvas.style.width = W + 'px';
+  canvas.style.height = H + 'px';
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
+window.addEventListener('resize', resize);
+resize();
+
+/* ---------- PROJECTION (rotate Y then X, translate, perspective) ---------- */
+function project(wx, wy, wz) {
+  const dx = wx - cam.x, dy = wy - cam.y, dz = wz - cam.z;
+  const cy = Math.cos(cam.yaw), sy = Math.sin(cam.yaw);
+  const x1 = dx * cy - dz * sy;
+  const z1 = dx * sy + dz * cy;
+  const cx = Math.cos(cam.pitch), sx = Math.sin(cam.pitch);
+  const y1 = dy * cx - z1 * sx;
+  const z2 = dy * sx + z1 * cx;
+  if (z2 <= 20) return null;
+  const s = CFG.fov / z2;
+  return { x: W / 2 + x1 * s, y: H / 2 + y1 * s, s, depth: z2 };
+}
+
+/* ---------- STAR FIELD ---------- */
+function makeStar(frontBias) {
+  const v = CFG.starVolume;
+  return {
+    x: cam.x + rand(-v.x, v.x),
+    y: cam.y + rand(-v.y, v.y),
+    z: frontBias ? cam.z + rand(v.zFront, v.zBack * 0.4) : cam.z + rand(v.zFront, v.zBack),
+    size: rand(0.6, 2.4),
+    hue: pick([210, 215, 220, 45, 30, 0]),
+    sat: rand(20, 70),
+    light: rand(60, 95),
+    twinklePhase: rand(0, Math.PI * 2),
+    twinkleSpeed: rand(0.5, 2.5),
+  };
+}
+function initStars() {
+  stars = [];
+  for (let i = 0; i < CFG.starCount; i++) stars.push(makeStar(false));
+}
+function updateStars() {
+  for (let i = 0; i < stars.length; i++) {
+    if (stars[i].z < cam.z - 60) Object.assign(stars[i], makeStar(true));
+  }
+}
+function drawStars(t) {
+  for (let i = 0; i < stars.length; i++) {
+    const st = stars[i];
+    const p = project(st.x, st.y, st.z);
+    if (!p) continue;
+    const twinkle = 0.55 + 0.45 * Math.sin(t * st.twinkleSpeed + st.twinklePhase);
+    const r = Math.max(0.4, st.size * p.s * 14) * twinkle;
+    if (r > 26) continue;
+    const alpha = clamp(0.25 + p.s * 30, 0.25, 1) * twinkle;
+    ctx.globalAlpha = alpha;
+    if (r > 1.6) {
+      const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r * 2.2);
+      g.addColorStop(0, `hsla(${st.hue}, ${st.sat}%, ${st.light}%, 1)`);
+      g.addColorStop(0.4, `hsla(${st.hue}, ${st.sat}%, ${st.light * 0.7}%, 0.5)`);
+      g.addColorStop(1, `hsla(${st.hue}, ${st.sat}%, ${st.light * 0.5}%, 0)`);
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, r * 2.2, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      ctx.fillStyle = `hsl(${st.hue}, ${st.sat}%, ${st.light}%)`;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+/* ---------- PLANETS (radial gradient shading + optional ring ellipse) ---------- */
+const PLANET_PALETTES = [
+  { base: [255, 140, 90],  dark: [60, 20, 40],  bands: true,  ring: false, ringCol: null },
+  { base: [120, 190, 255], dark: [10, 30, 80],  bands: true,  ring: false, ringCol: null },
+  { base: [240, 210, 150], dark: [90, 60, 20],  bands: false, ring: true,  ringCol: [220, 200, 160] },
+  { base: [180, 140, 255], dark: [40, 15, 70],  bands: true,  ring: false, ringCol: null },
+  { base: [140, 255, 200], dark: [10, 70, 50],  bands: false, ring: false, ringCol: null },
+  { base: [255, 120, 160], dark: [70, 15, 40],  bands: true,  ring: true,  ringCol: [255, 180, 200] },
+  { base: [255, 220, 120], dark: [100, 70, 10], bands: false, ring: false, ringCol: null },
+];
+
+function makePlanet(z) {
+  return {
+    kind: 'planet',
+    x: cam.x + rand(-CFG.objectLateral, CFG.objectLateral),
+    y: cam.y + rand(-700, 700),
+    z,
+    radius: rand(90, 320),
+    palette: pick(PLANET_PALETTES),
+    spin: rand(0, Math.PI * 2),
+    spinSpeed: rand(0.05, 0.2) * (Math.random() < 0.5 ? -1 : 1),
+    bandOffset: rand(0, 10),
+    ringTilt: rand(-0.5, 0.5),
+  };
+}
+
+function drawRing(pl, c, r, backHalf) {
+  const tilt = pl.ringTilt + Math.sin(cam.pitch) * 0.3;
+  const squash = clamp(Math.abs(Math.sin(tilt)) * 0.55 + 0.12, 0.12, 0.7);
+  const rc = pl.palette.ringCol;
+  const inner = r * 1.35, outer = r * 2.05;
+  ctx.save();
+  ctx.translate(c.x, c.y);
+  ctx.rotate(tilt * 0.35);
+  const startA = backHalf ? Math.PI : 0;
+  const endA = backHalf ? Math.PI * 2 : Math.PI;
+  ctx.globalAlpha = backHalf ? 0.55 : 0.85;
+  const grad = ctx.createLinearGradient(-outer, 0, outer, 0);
+  grad.addColorStop(0, `rgba(${rc[0]},${rc[1]},${rc[2]},0.15)`);
+  grad.addColorStop(0.5, `rgba(${rc[0]},${rc[1]},${rc[2]},0.75)`);
+  grad.addColorStop(1, `rgba(${rc[0]},${rc[1]},${rc[2]},0.15)`);
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, outer, outer * squash, 0, startA, endA);
+  ctx.ellipse(0, 0, inner, inner * squash, 0, endA, startA, true);
+  ctx.closePath();
+  ctx.fill();
+  ctx.globalAlpha = backHalf ? 0.2 : 0.35;
+  ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+  ctx.lineWidth = Math.max(1, r * 0.02);
+  ctx.beginPath();
+  ctx.ellipse(0, 0, (inner + outer) / 2, ((inner + outer) / 2) * squash, 0, startA, endA);
+  ctx.stroke();
+  ctx.restore();
+  ctx.globalAlpha = 1;
+}
+
+function drawPlanet(pl) {
+  const c = project(pl.x, pl.y, pl.z);
+  if (!c) return;
+  const r = pl.radius * c.s;
+  if (r < 2 || r > 4000) return;
+  const pal = pl.palette;
+  const bx = pal.base[0], by = pal.base[1], bz = pal.base[2];
+  const dx = pal.dark[0], dy = pal.dark[1], dz = pal.dark[2];
+
+  if (pal.ring && r > 8) drawRing(pl, c, r, true);
+
+  const lx = c.x - r * 0.35, ly = c.y - r * 0.4;
+  const g = ctx.createRadialGradient(lx, ly, r * 0.05, c.x, c.y, r);
+  g.addColorStop(0, `rgb(${bx},${by},${bz})`);
+  g.addColorStop(0.55, `rgb(${(bx + dx) >> 1},${(by + dy) >> 1},${(bz + dz) >> 1})`);
+  g.addColorStop(1, `rgb(${dx},${dy},${dz})`);
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.arc(c.x, c.y, r, 0, Math.PI * 2);
+  ctx.fill();
+
+  if (pal.bands && r > 14) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, r, 0, Math.PI * 2);
+    ctx.clip();
+    const nBands = 5;
+    for (let i = 0; i < nBands; i++) {
+      const phase = pl.spin + pl.bandOffset + i * (Math.PI * 2 / nBands);
+      const yy = c.y + Math.sin(phase) * r * 0.85;
+      const bh = r * (0.10 + 0.06 * Math.sin(i * 2.1 + pl.bandOffset));
+      const shade = 0.5 + 0.5 * Math.cos(phase);
+      ctx.globalAlpha = 0.16 * shade;
+      ctx.fillStyle = shade > 0.5
+        ? `rgb(${Math.min(255, bx + 40)},${Math.min(255, by + 40)},${Math.min(255, bz + 40)})`
+        : `rgb(${dx},${dy},${dz})`;
+      ctx.fillRect(c.x - r, yy - bh / 2, r * 2, bh);
+    }
+    ctx.restore();
+    ctx.globalAlpha = 1;
+  }
+
+  if (r > 10) {
+    const rim = ctx.createRadialGradient(c.x, c.y, r * 0.82, c.x, c.y, r * 1.12);
+    rim.addColorStop(0, 'rgba(0,0,0,0)');
+    rim.addColorStop(0.75, `rgba(${bx},${by},${bz},0.10)`);
+    rim.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = rim;
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, r * 1.12, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  if (pal.ring && r > 8) drawRing(pl, c, r, false);
+}
+
+/* ---------- ASTEROIDS (irregular polygons, shaded) ---------- */
+function makeAsteroid(z) {
+  const verts = [];
+  const n = randInt(7, 11);
+  const baseR = rand(18, 60);
+  for (let i = 0; i < n; i++) {
+    verts.push({ a: (i / n) * Math.PI * 2, r: baseR * rand(0.65, 1.25) });
+  }
+  return {
+    kind: 'asteroid',
+    x: cam.x + rand(-CFG.objectLateral, CFG.objectLateral),
+    y: cam.y + rand(-800, 800),
+    z,
+    verts,
+    spin: rand(0, Math.PI * 2),
+    spinSpeed: rand(0.2, 0.9) * (Math.random() < 0.5 ? -1 : 1),
+    tint: pick([[150, 140, 130], [170, 150, 120], [130, 140, 160], [160, 130, 110]]),
+  };
+}
+
+function drawAsteroid(ast) {
+  const c = project(ast.x, ast.y, ast.z);
+  if (!c) return;
+  const scale = c.s * 14;
+  const r = ast.verts[0].r * scale;
+  if (r < 1.5 || r > 1500) return;
+  ctx.save();
+  ctx.translate(c.x, c.y);
+  ctx.rotate(ast.spin);
+  const [tr, tg, tb] = ast.tint;
+  const g = ctx.createRadialGradient(-r * 0.3, -r * 0.3, r * 0.1, 0, 0, r * 1.3);
+  g.addColorStop(0, `rgb(${tr},${tg},${tb})`);
+  g.addColorStop(0.7, `rgb(${tr * 0.45 | 0},${tg * 0.45 | 0},${tb * 0.45 | 0})`);
+  g.addColorStop(1, `rgb(${tr * 0.2 | 0},${tg * 0.2 | 0},${tb * 0.2 | 0})`);
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  for (let i = 0; i < ast.verts.length; i++) {
+    const v = ast.verts[i];
+    const px = Math.cos(v.a) * v.r * scale;
+    const py = Math.sin(v.a) * v.r * scale;
+    if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+/* ---------- NEBULAE (semi-transparent layered radial gradients) ---------- */
+const NEBULA_HUES = [265, 200, 330, 180, 25, 220];
+
+function makeNebula(initial) {
+  const v = CFG.starVolume;
+  return {
+    kind: 'nebula',
+    x: cam.x + rand(-v.x * 1.4, v.x * 1.4),
+    y: cam.y + rand(-v.y * 1.2, v.y * 1.2),
+    z: initial ? cam.z + rand(v.zFront, v.zBack * 1.3) : cam.z + v.zBack * rand(0.9, 1.4),
+    radius: rand(500, 1600),
+    hue: pick(NEBULA_HUES),
+    alpha: rand(0.05, 0.14),
+    layers: Array.from({ length: randInt(2, 4) }, () => ({
+      ox: rand(-0.4, 0.4), oy: rand(-0.4, 0.4),
+      scale: rand(0.5, 1.0),
+      hueShift: rand(-30, 30),
+      aMul: rand(0.5, 1),
+    })),
+  };
+}
+
+function drawNebula(nb) {
+  const c = project(nb.x, nb.y, nb.z);
+  if (!c) return;
+  const r = nb.radius * c.s;
+  if (r < 4) return;
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  for (const L of nb.layers) {
+    const lr = r * L.scale;
+    const lx = c.x + nb.radius * c.s * L.ox;
+    const ly = c.y + nb.radius * c.s * L.oy;
+    const hue = (nb.hue + L.hueShift + 360) % 360;
+    const a = nb.alpha * L.aMul * clamp(r / 400, 0.3, 1);
+    const g = ctx.createRadialGradient(lx, ly, 0, lx, ly, lr);
+    g.addColorStop(0, `hsla(${hue}, 80%, 55%, ${a})`);
+    g.addColorStop(0.5, `hsla(${(hue + 25) % 360}, 70%, 40%, ${a * 0.5})`);
+    g.addColorStop(1, 'hsla(0, 0%, 0%, 0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(lx, ly, lr, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+/* ---------- SPAWNING / CULLING ---------- */
+function spawnAhead() {
+  while (nextObjectZ < cam.z + CFG.starVolume.zBack) {
+    const roll = Math.random();
+    if (roll < 0.42) {
+      planets.push(makePlanet(nextObjectZ));
+    } else if (roll < 0.75) {
+      asteroids.push(makeAsteroid(nextObjectZ));
+    } else {
+      const n = randInt(3, 6);
+      const cx = cam.x + rand(-CFG.objectLateral, CFG.objectLateral);
+      const cy = cam.y + rand(-600, 600);
+      for (let i = 0; i < n; i++) {
+        const a = makeAsteroid(nextObjectZ + rand(-150, 150));
+        a.x = cx + rand(-250, 250);
+        a.y = cy + rand(-250, 250);
+        asteroids.push(a);
+      }
+    }
+    nextObjectZ += CFG.objectInterval * rand(0.7, 1.5);
+  }
+}
+
+function cullBehind(arr) {
+  for (let i = arr.length - 1; i >= 0; i--) {
+    if (arr[i].z < cam.z - 900) arr.splice(i, 1);
+  }
+}
+
+function updateNebulas() {
+  cullBehind(nebulas);
+  while (nebulas.length < CFG.nebulaCount) nebulas.push(makeNebula(false));
+}
+
+/* ---------- INPUT ---------- */
+function onPointerDown(x, y) {
+  input.dragging = true;
+  input.lastX = x;
+  input.lastY = y;
+  canvas.classList.add('dragging');
+}
+function onPointerMove(x, y) {
+  if (!input.dragging) return;
+  const dx = x - input.lastX;
+  const dy = y - input.lastY;
+  input.lastX = x;
+  input.lastY = y;
+  cam.vyaw -= dx * CFG.dragSensitivity;
+  cam.vpitch -= dy * CFG.dragSensitivity;
+  cam.vpitch = clamp(cam.vpitch, -1.2, 1.2);
+}
+function onPointerUp() {
+  input.dragging = false;
+  canvas.classList.remove('dragging');
+}
+
+canvas.addEventListener('mousedown', e => onPointerDown(e.clientX, e.clientY));
+window.addEventListener('mousemove', e => onPointerMove(e.clientX, e.clientY));
+window.addEventListener('mouseup', onPointerUp);
+
+canvas.addEventListener('touchstart', e => {
+  const t = e.touches[0];
+  onPointerDown(t.clientX, t.clientY);
+}, { passive: true });
+canvas.addEventListener('touchmove', e => {
+  const t = e.touches[0];
+  onPointerMove(t.clientX, t.clientY);
+  e.preventDefault();
+}, { passive: false });
+canvas.addEventListener('touchend', onPointerUp);
+
+window.addEventListener('wheel', e => {
+  e.preventDefault();
+  cam.targetSpeed = clamp(
+    cam.targetSpeed - e.deltaY * 0.004,
+    CFG.minSpeed, CFG.maxSpeed
+  );
+}, { passive: false });
+
+/* ---------- HUD ---------- */
+const elX = document.getElementById('stat-x');
+const elY = document.getElementById('stat-y');
+const elZ = document.getElementById('stat-z');
+const elStars = document.getElementById('stat-stars');
+const elObjects = document.getElementById('stat-objects');
+const elSpeed = document.getElementById('stat-speed');
+const elBar = document.getElementById('speed-bar');
+
+function fmtCoord(v) {
+  const s = v < 0 ? '-' : '+';
+  return s + String(Math.abs(v).toFixed(1)).padStart(7, '0');
+}
+
+let hudTimer = 0;
+function updateHUD(dt) {
+  hudTimer += dt;
+  if (hudTimer < 0.1) return;
+  hudTimer = 0;
+  elX.textContent = fmtCoord(cam.x);
+  elY.textContent = fmtCoord(cam.y);
+  elZ.textContent = fmtCoord(cam.z);
+  elStars.textContent = stars.length;
+  elObjects.textContent = planets.length + asteroids.length + nebulas.length;
+  elSpeed.textContent = (cam.speed * 60).toFixed(1) + ' u/s';
+  elBar.style.width = (clamp((cam.speed - CFG.minSpeed) / (CFG.maxSpeed - CFG.minSpeed), 0, 1) * 100).toFixed(1) + '%';
+}
+
+/* ---------- BACKGROUND ---------- */
+function drawBackground() {
+  const g = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, Math.max(W, H) * 0.75);
+  g.addColorStop(0, '#060a18');
+  g.addColorStop(0.5, '#03050f');
+  g.addColorStop(1, '#000003');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
+}
+
+/* ---------- MAIN LOOP ---------- */
+let lastTime = performance.now();
+
+function frame(now) {
+  const dt = Math.min((now - lastTime) / 1000, 0.05);
+  lastTime = now;
+  elapsed += dt;
+
+  // camera motion
+  cam.speed += (cam.targetSpeed - cam.speed) * (1 - Math.pow(0.001, dt));
+  cam.z += cam.speed * dt * 60;
+  cam.yaw += cam.vyaw;
+  cam.pitch += cam.vpitch;
+  cam.vyaw *= CFG.rotDamping;
+  cam.vpitch *= CFG.rotDamping;
+
+  // world updates
+  updateStars();
+  spawnAhead();
+  cullBehind(planets);
+  cullBehind(asteroids);
+  updateNebulas();
+  for (const p of planets) p.spin += p.spinSpeed * dt;
+  for (const a of asteroids) a.spin += a.spinSpeed * dt;
+
+  // render — far to near
+  drawBackground();
+  const sorted = [];
+  for (const nb of nebulas) sorted.push(nb);
+  for (const pl of planets) sorted.push(pl);
+  for (const ast of asteroids) sorted.push(ast);
+  sorted.sort((a, b) => b.z - a.z);
+  for (const obj of sorted) {
+    if (obj.kind === 'nebula') drawNebula(obj);
+    else if (obj.kind === 'planet') drawPlanet(obj);
+    else drawAsteroid(obj);
+  }
+  drawStars(elapsed);
+
+  updateHUD(dt);
+  requestAnimationFrame(frame);
+}
+
+/* ---------- BOOT ---------- */
+initStars();
+updateNebulas();
+spawnAhead();
+setTimeout(() => document.getElementById('splash').classList.add('hidden'), 1800);
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

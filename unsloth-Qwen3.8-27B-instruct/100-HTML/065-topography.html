@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Topography — Living Contour Map</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #f4ead5;
+  }
+
+  canvas {
+    display: block;
+    width: 100vw;
+    height: 100vh;
+  }
+
+  .frame {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 10;
+  }
+
+  .frame::before {
+    content: '';
+    position: absolute;
+    inset: 14px;
+    border: 1px solid rgba(92, 64, 41, 0.28);
+  }
+
+  .frame::after {
+    content: '';
+    position: absolute;
+    inset: 18px;
+    border: 1px solid rgba(92, 64, 41, 0.14);
+  }
+
+  .corner-mark {
+    position: absolute;
+    font-family: Georgia, 'Times New Roman', serif;
+    color: rgba(92, 64, 41, 0.55);
+    font-size: clamp(9px, 1.1vw, 12px);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .corner-mark.tl { top: 26px; left: 30px; }
+  .corner-mark.tr { top: 26px; right: 30px; text-align: right; }
+  .corner-mark.bl { bottom: 26px; left: 30px; }
+  .corner-mark.br { bottom: 26px; right: 30px; text-align: right; }
+
+  .corner-mark small {
+    display: block;
+    font-size: 0.72em;
+    letter-spacing: 0.14em;
+    opacity: 0.75;
+    margin-top: 2px;
+  }
+</style>
+</head>
+<body>
+<canvas id="topo" aria-label="Animated topographic contour map"></canvas>
+
+<div class="frame" aria-hidden="true">
+  <span class="corner-mark tl">Sheet 065<small>Serie Cartographica</small></span>
+  <span class="corner-mark tr">Datum WGS-84<small>Contour interval 20 m</small></span>
+  <span class="corner-mark bl">Scale 1 : 25 000<small>Meridian projection</small></span>
+  <span class="corner-mark br" id="stamp">Live survey<small id="clock">—</small></span>
+</div>
+
+<script>
+'use strict';
+
+/* ============================================================
+   Topography — multi-frequency sine terrain with marching
+   squares contour extraction and vintage cartographic styling.
+   ============================================================ */
+
+const canvas = document.getElementById('topo');
+const ctx = canvas.getContext('2d');
+
+let W = 0, H = 0, DPR = 1;
+
+function resize() {
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  W = window.innerWidth;
+  H = window.innerHeight;
+  canvas.width = Math.round(W * DPR);
+  canvas.height = Math.round(H * DPR);
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
+window.addEventListener('resize', resize);
+resize();
+
+/* ---------- Terrain height field ----------------------------
+   Sum of incommensurate sine waves in x/y plus slow time drift.
+   Returns roughly [-1, 1]. ---------------------------------- */
+
+const WAVES = [
+  // freqX,      freqY,      phase,      amp,     speedX,     speedY
+  [0.0042, 0.0031, 0.0,      0.55, 0.00011, -0.00007],
+  [0.0023, 0.0051, 1.7,      0.42, -0.00009,  0.00013],
+  [0.0067, 0.0019, 3.9,      0.30,  0.00014,  0.00008],
+  [0.0015, 0.0037, 5.2,      0.26, -0.00006, -0.00011],
+  [0.0091, 0.0073, 2.4,      0.16,  0.00019, -0.00014],
+  [0.0033, 0.0088, 0.9,      0.12, -0.00012,  0.00017],
+];
+
+// Normalize amplitudes so total ~1
+const AMP_SUM = WAVES.reduce((s, w) => s + w[3], 0);
+
+function height(x, y, t) {
+  let h = 0;
+  for (let i = 0; i < WAVES.length; i++) {
+    const w = WAVES[i];
+    h += w[3] / AMP_SUM *
+      Math.sin(w[0] * x + w[1] * y + w[2] + w[4] * t) *
+      Math.cos(w[1] * x - w[0] * y + w[2] * 1.3 + w[5] * t);
+  }
+  return h;
+}
+
+/* ---------- Palette: warm earth tones on cream paper -------- */
+
+const PAPER = '#f4ead5';
+const INK_BASE = [92, 64, 41];        // deep sienna
+const INK_LIGHT = [166, 132, 96];     // pale tan-brown
+
+function inkColor(elevNorm, alpha) {
+  // elevNorm 0..1 → light tan → deep brown
+  const r = Math.round(INK_LIGHT[0] + (INK_BASE[0] - INK_LIGHT[0]) * elevNorm);
+  const g = Math.round(INK_LIGHT[1] + (INK_BASE[1] - INK_LIGHT[1]) * elevNorm);
+  const b = Math.round(INK_LIGHT[2] + (INK_BASE[2] - INK_LIGHT[2]) * elevNorm);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+/* ---------- Grid & contour extraction -----------------------
+   Marching-squares over a coarse grid; each cell contributes
+   up to one interpolated segment per contour level. --------- */
+
+const GRID_STEP = 14;          // px between sample points
+const LEVELS = 14;             // number of contour levels
+const ELEV_MIN = -0.85;
+const ELEV_MAX = 0.85;
+
+function lerp(a, b, f) { return a + (b - a) * f; }
+
+function interpEdge(v0, v1, level) {
+  if (v0 === v1) return 0.5;
+  return (level - v0) / (v1 - v0);
+}
+
+/**
+ * Extract all contour segments for one level across the whole grid.
+ * Segments are pushed as flat arrays [x0,y0,x1,y1,...].
+ */
+function extractLevel(grid, cols, rows, level, out) {
+  for (let gy = 0; gy < rows - 1; gy++) {
+    const row = gy * cols;
+    for (let gx = 0; gx < cols - 1; gx++) {
+      const v00 = grid[row + gx];
+      const v10 = grid[row + gx + 1];
+      const v01 = grid[row + cols + gx];
+      const v11 = grid[row + cols + gx + 1];
+
+      // Corner-inside bitmask
+      let mask = 0;
+      if (v00 >= level) mask |= 1;
+      if (v10 >= level) mask |= 2;
+      if (v11 >= level) mask |= 4;
+      if (v01 >= level) mask |= 8;
+
+      if (mask === 0 || mask === 15) continue;
+
+      const x = gx * GRID_STEP;
+      const y = gy * GRID_STEP;
+
+      // Edge interpolation points
+      const topX = x + GRID_STEP * interpEdge(v00, v10, level), topY = y;
+      const rightX = x + GRID_STEP, rightY = y + GRID_STEP * interpEdge(v10, v11, level);
+      const bottomX = x + GRID_STEP * interpEdge(v01, v11, level), bottomY = y + GRID_STEP;
+      const leftX = x, leftY = y + GRID_STEP * interpEdge(v00, v01, level);
+
+      switch (mask) {
+        case 1: case 14:
+          out.push(leftX, leftY, topX, topY);
+          break;
+        case 2: case 13:
+          out.push(topX, topY, rightX, rightY);
+          break;
+        case 3: case 12:
+          out.push(leftX, leftY, rightX, rightY);
+          break;
+        case 4: case 11:
+          out.push(rightX, rightY, bottomX, bottomY);
+          break;
+        case 6: case 9:
+          // Ambiguous saddle — split into two pairs
+          out.push(topX, topY, rightX, rightY);
+          out.push(leftX, leftY, bottomX, bottomY);
+          break;
+        case 7: case 8:
+          out.push(leftX, leftY, bottomX, bottomY);
+          out.push(topX, topY, rightX, rightY);
+          break;
+      }
+    }
+  }
+}
+
+/* ---------- Path construction: cluster segments into polylines */
+
+const SEG_TOL = 1.6; // px — endpoints within this join
+
+function buildPaths(segs) {
+  // segs: flat [x0,y0,x1,y1,...]
+  const n = segs.length / 4;
+  const used = new Uint8Array(n);
+  const paths = [];
+
+  function dist2(ax, ay, bx, by) {
+    const dx = ax - bx, dy = ay - by;
+    return dx * dx + dy * dy;
+  }
+
+  for (let i = 0; i < n; i++) {
+    if (used[i]) continue;
+    used[i] = 1;
+
+    const path = [segs[i*4], segs[i*4+1], segs[i*4+2], segs[i*4+3]];
+
+    // Grow forward from head
+    for (;;) {
+      const hx = path[path.length - 2], hy = path[path.length - 1];
+      let best = -1, bestD = SEG_TOL * SEG_TOL;
+      for (let j = 0; j < n; j++) {
+        if (used[j]) continue;
+        const d1 = dist2(hx, hy, segs[j*4], segs[j*4+1]);
+        const d2 = dist2(hx, hy, segs[j*4+2], segs[j*4+3]);
+        const d = Math.min(d1, d2);
+        if (d < bestD) { bestD = d; best = j; }
+      }
+      if (best < 0) break;
+      used[best] = 1;
+      const reversed = dist2(hx, hy, segs[best*4], segs[best*4+1]) >
+                        dist2(hx, hy, segs[best*4+2], segs[best*4+3]);
+      if (reversed) {
+        path.push(segs[best*4+2], segs[best*4+3], segs[best*4], segs[best*4+1]);
+      } else {
+        path.push(segs[best*4+2], segs[best*4+3]);
+      }
+    }
+
+    // Grow backward from tail
+    for (;;) {
+      const tx = path[0], ty = path[1];
+      let best = -1, bestD = SEG_TOL * SEG_TOL;
+      for (let j = 0; j < n; j++) {
+        if (used[j]) continue;
+        const d1 = dist2(tx, ty, segs[j*4], segs[j*4+1]);
+        const d2 = dist2(tx, ty, segs[j*4+2], segs[j*4+3]);
+        const d = Math.min(d1, d2);
+        if (d < bestD) { bestD = d; best = j; }
+      }
+      if (best < 0) break;
+      used[best] = 1;
+      const reversed = dist2(tx, ty, segs[best*4], segs[best*4+1]) >
+                        dist2(tx, ty, segs[best*4+2], segs[best*4+3]);
+      if (reversed) {
+        path.unshift(segs[best*4], segs[best*4+1], segs[best*4+2], segs[best*4+3]);
+      } else {
+        path.unshift(segs[best*4+2], segs[best*4+3]);
+      }
+    }
+
+    paths.push(path);
+  }
+  return paths;
+}
+
+/* ---------- Rendering ---------------------------------------- */
+
+function drawPath(path, strokeStyle, lineWidth) {
+  if (path.length < 4) return;
+  ctx.beginPath();
+  ctx.moveTo(path[0], path[1]);
+  if (path.length === 4) {
+    ctx.lineTo(path[2], path[3]);
+  } else {
+    // Smooth through midpoints for an organic hand-drawn feel
+    for (let i = 2; i < path.length - 2; i += 2) {
+      const mx = (path[i] + path[i+2]) / 2;
+      const my = (path[i+1] + path[i+3]) / 2;
+      ctx.quadraticCurveTo(path[i], path[i+1], mx, my);
+    }
+    ctx.lineTo(path[path.length-2], path[path.length-1]);
+  }
+  ctx.strokeStyle = strokeStyle;
+  ctx.lineWidth = lineWidth;
+  ctx.stroke();
+}
+
+let startTime = performance.now();
+
+function frame(now) {
+  const t = now - startTime;
+
+  // Paper background with subtle vignette
+  ctx.fillStyle = PAPER;
+  ctx.fillRect(0, 0, W, H);
+
+  const vg = ctx.createRadialGradient(W/2, H/2, Math.min(W,H)*0.35, W/2, H/2, Math.max(W,H)*0.75);
+  vg.addColorStop(0, 'rgba(244,234,213,0)');
+  vg.addColorStop(1, 'rgba(196,176,140,0.30)');
+  ctx.fillStyle = vg;
+  ctx.fillRect(0, 0, W, H);
+
+  // Sample grid (extend one cell past edges so contours reach borders)
+  const cols = Math.ceil(W / GRID_STEP) + 2;
+  const rows = Math.ceil(H / GRID_STEP) + 2;
+  const grid = new Float32Array(cols * rows);
+
+  for (let gy = 0; gy < rows; gy++) {
+    const py = gy * GRID_STEP - GRID_STEP;
+    for (let gx = 0; gx < cols; gx++) {
+      const px = gx * GRID_STEP - GRID_STEP;
+      grid[gy * cols + gx] = height(px, py, t);
+    }
+  }
+
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  const segBuf = [];
+
+  for (let li = 0; li < LEVELS; li++) {
+    const level = ELEV_MIN + (ELEV_MAX - ELEV_MIN) * (li + 0.5) / LEVELS;
+    const elevNorm = (level - ELEV_MIN) / (ELEV_MAX - ELEV_MIN);
+
+    segBuf.length = 0;
+    extractLevel(grid, cols, rows, level, segBuf);
+    if (segBuf.length === 0) continue;
+
+    const isIndex = (li % 4 === 0); // every 4th line = index contour
+    const alpha = isIndex ? 0.85 : 0.30 + 0.35 * elevNorm;
+    const width = isIndex ? 1.5 : 0.8;
+
+    const paths = buildPaths(segBuf);
+    for (let p = 0; p < paths.length; p++) {
+      drawPath(paths[p], inkColor(elevNorm, alpha), width);
+    }
+  }
+
+  // Hypsometric tint: soft elevation wash beneath the lines
+  // (drawn last at very low alpha so it reads as aged paper shading)
+  const TINT_CELLS = 48;
+  const tcw = W / TINT_CELLS;
+  const thc = H / TINT_CELLS;
+  for (let cy = 0; cy < TINT_CELLS; cy++) {
+    for (let cx = 0; cx < TINT_CELLS; cx++) {
+      const e = height(cx * tcw + tcw/2, cy * thc + thc/2, t);
+      const norm = Math.max(0, Math.min(1, (e - ELEV_MIN) / (ELEV_MAX - ELEV_MIN)));
+      // High ground → warmer tan; low ground → cooler cream shadow
+      const r = Math.round(238 - 20 * norm);
+      const g = Math.round(222 - 34 * norm);
+      const b = Math.round(190 - 44 * norm);
+      ctx.fillStyle = `rgba(${r},${g},${b},0.16)`;
+      ctx.fillRect(cx * tcw - 0.5, cy * thc - 0.5, tcw + 1, thc + 1);
+    }
+  }
+
+  requestAnimationFrame(frame);
+}
+
+requestAnimationFrame(frame);
+
+/* ---------- Clock stamp -------------------------------------- */
+
+const clockEl = document.getElementById('clock');
+setInterval(() => {
+  const d = new Date();
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  const ss = String(d.getSeconds()).padStart(2, '0');
+  clockEl.textContent = `${hh}:${mm}:${ss}`;
+}, 1000);
+</script>
+</body>
+</html>

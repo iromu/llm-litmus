@@ -1,0 +1,25 @@
+# 050 — Sound Visualizer
+
+## Creative Prompt
+
+Create a generative audio visualization with frequency bars that pulse and dance to simulated music data. 64 bars rise and fall with colored gradients (warm to cool spectrum). Each bar has a glow effect and top highlight. A mirrored reflection appears below the baseline. The simulated audio has beats, frequency peaks, and noise bursts that create a realistic visualization feel. The background fades with a trail. The overall aesthetic is vibrant, rhythmic, and energetic — like a premium music player visualizer.
+
+## Generation Metadata
+
+- **Model:** Qwen3.8-27B-instruct
+- **Thinking effort:** high
+
+## Techniques Used
+
+- Canvas 2D bar rendering with per-bar vertical linear gradients (brighter at the tip, darker at the base)
+- Simulated audio spectrum: 5 layered drifting sine oscillators (spatial + temporal), a 118 BPM beat envelope with exponential decay and downbeat bass kicks, Gaussian low-frequency bias, off-beat mid-range lift, treble shimmer, and scheduled Gaussian noise bursts with sin-shaped envelopes
+- Attack/release smoothing on bar heights for a punchy, non-synthetic feel; per-bar random jitter
+- Dynamic hue mapping warm (red/orange) → cool (blue/violet) across the spectrum with slow global drift and per-bar phase offsets
+- Glow via radial gradients centered above each bar tip; thin bright top-highlight caps
+- Mirrored reflection below the baseline (compressed, fading gradient)
+- Trailing background fade (translucent dark fill instead of clear) plus a soft vignette
+- Responsive layout: DPR-aware canvas sizing, bar width/gap recomputed on resize, baseline positioned to leave room for reflections
+
+## Stats
+
+Wall time: N/A | Tokens: N/A

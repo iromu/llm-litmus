@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sunset Horizon</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #1a0b2e;
+  }
+
+  canvas {
+    display: block;
+    width: 100vw;
+    height: 100vh;
+  }
+</style>
+</head>
+<body>
+<canvas id="scene"></canvas>
+
+<script>
+(() => {
+  "use strict";
+
+  const canvas = document.getElementById("scene");
+  const ctx = canvas.getContext("2d");
+
+  let W = 0, H = 0, dpr = 1;
+  let horizonY = 0;
+  let sunX = 0, sunY = 0, sunR = 0;
+
+  // ---------- Scene state (rebuilt on resize) ----------
+  let clouds = [];
+  let birds = [];
+  let groundPath = null;   // Path2D for the wavy ground silhouette
+  let trees = [];          // tree definitions {x, h, w}
+  let stars = [];          // faint stars in upper sky
+
+  // ---------- Deterministic-ish random helpers ----------
+  function rand(a, b) { return a + Math.random() * (b - a); }
+  function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+  // ---------- Clouds ----------
+  // Each cloud is a cluster of soft radial-gradient puffs drifting horizontally.
+  function makeCloud(yMin, yMax) {
+    const puffCount = 5 + Math.floor(Math.random() * 6);
+    const puffs = [];
+    const baseW = rand(120, 320);
+    for (let i = 0; i < puffCount; i++) {
+      puffs.push({
+        ox: rand(-baseW / 2, baseW / 2),
+        oy: rand(-14, 14),
+        r: rand(28, 70),
+        alpha: rand(0.10, 0.28),
+        warm: Math.random() < 0.6   // tinted by sunset vs cool grey
+      });
+    }
+    return {
+      x: rand(-W * 0.3, W * 1.3),
+      y: rand(yMin, yMax),
+      speed: rand(0.12, 0.45) * (Math.random() < 0.5 ? 1 : 1), // gentle drift right
+      scale: rand(0.6, 1.4),
+      puffs
+    };
+  }
+
+  function initClouds() {
+    clouds = [];
+    const count = Math.max(7, Math.floor(W / 180));
+    for (let i = 0; i < count; i++) {
+      clouds.push(makeCloud(H * 0.08, horizonY - H * 0.12));
+    }
+  }
+
+  // ---------- Birds ----------
+  // Simple V-shaped birds with flapping wings, flying across the sky.
+  function makeBird(fromLeft) {
+    const s = rand(0.6, 1.3);
+    return {
+      x: fromLeft ? -rand(20, 120) : W + rand(20, 120),
+      y: rand(H * 0.12, horizonY - H * 0.18),
+      vx: (fromLeft ? 1 : -1) * rand(0.35, 0.9),
+      size: rand(5, 9) * s,
+      flapPhase: rand(0, Math.PI * 2),
+      flapSpeed: rand(0.08, 0.14),
+      bobAmp: rand(1, 3),
+      bobPhase: rand(0, Math.PI * 2)
+    };
+  }
+
+  function initBirds() {
+    birds = [];
+    const n = 5 + Math.floor(Math.random() * 4);
+    for (let i = 0; i < n; i++) {
+      const b = makeBird(Math.random() < 0.5);
+      b.x = rand(0, W); // spread across screen initially
+      birds.push(b);
+    }
+  }
+
+  // ---------- Ground & trees ----------
+  function buildGround() {
+    groundPath = new Path2D();
+    const amp = H * 0.012;
+    const segs = 40;
+    groundPath.moveTo(-10, H + 10);
+    groundPath.lineTo(-10, horizonY + 4);
+    for (let i = 0; i <= segs; i++) {
+      const x = (W + 20) * (i / segs) - 10;
+      const y = horizonY + 4 + Math.sin(i * 0.9) * amp + Math.sin(i * 0.37 + 1.3) * amp * 0.6;
+      groundPath.lineTo(x, y);
+    }
+    groundPath.lineTo(W + 10, H + 10);
+    groundPath.closePath();
+
+    // Trees: stylized evergreens (stacked triangles) at varied positions
+    trees = [];
+    const treeCount = Math.max(6, Math.floor(W / 110));
+    let tx = rand(20, 90);
+    for (let i = 0; i < treeCount && tx < W - 30; i++) {
+      const h = rand(H * 0.045, H * 0.11);
+      const w = h * rand(0.55, 0.75);
+      trees.push({ x: tx, h, w, layers: 3 + (Math.random() < 0.4 ? 1 : 0) });
+      tx += rand(60, 160);
+    }
+    // A couple of taller feature trees near edges for composition
+    trees.push({ x: W * 0.08, h: H * 0.13, w: H * 0.085, layers: 4 });
+    trees.push({ x: W * 0.92, h: H * 0.12, w: H * 0.08, layers: 4 });
+  }
+
+  // ---------- Stars (faint, upper sky) ----------
+  function initStars() {
+    stars = [];
+    const n = Math.floor(W / 22);
+    for (let i = 0; i < n; i++) {
+      stars.push({
+        x: rand(0, W),
+        y: rand(0, H * 0.3),
+        r: rand(0.4, 1.3),
+        tw: rand(0, Math.PI * 2),
+        ts: rand(0.005, 0.02)
+      });
+    }
+  }
+
+  // ---------- Layout / resize ----------
+  function layout() {
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = Math.round(W * dpr);
+    canvas.height = Math.round(H * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    horizonY = H * 0.72;
+    sunX = W * 0.5;
+    sunY = horizonY - H * 0.10;
+    sunR = Math.min(W, H) * 0.055;
+
+    initClouds();
+    initBirds();
+    buildGround();
+    initStars();
+  }
+
+  // ---------- Drawing ----------
+
+  function drawSky(t) {
+    const g = ctx.createLinearGradient(0, 0, 0, horizonY + H * 0.05);
+    // Deep purple -> magenta -> orange -> gold, with a slow breathing shift
+    const breathe = Math.sin(t * 0.00008) * 0.02;
+    g.addColorStop(0.00, "#1c0b3a");
+    g.addColorStop(0.22, `hsl(${268 + breathe * 40}, 55%, ${16 + breathe * 10}%)`);
+    g.addColorStop(0.42, `hsl(${315 + breathe * 30}, 62%, ${30 + breathe * 8}%)`);
+    g.addColorStop(0.62, `hsl(${338 + breathe * 20}, 74%, ${44 + breathe * 6}%)`);
+    g.addColorStop(0.78, `hsl(${18 + breathe * 15}, 88%, ${54 + breathe * 5}%)`);
+    g.addColorStop(0.92, `hsl(${38 + breathe * 10}, 95%, ${62 + breathe * 4}%)`);
+    g.addColorStop(1.00, `hsl(${45 + breathe * 8}, 98%, ${70 + breathe * 3}%)`);
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, horizonY + H * 0.05);
+  }
+
+  function drawStars(t) {
+    for (const s of stars) {
+      const a = 0.15 + 0.35 * (0.5 + 0.5 * Math.sin(t * s.ts + s.tw));
+      ctx.globalAlpha = a;
+      ctx.fillStyle = "#fff8e8";
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function drawSun(t) {
+    const pulse = 1 + Math.sin(t * 0.0012) * 0.03;
+    const r = sunR * pulse;
+
+    // Layered glow halos — outermost to innermost
+    const layers = [
+      { mul: 7.0, color: "rgba(255, 140, 60, 0.05)" },
+      { mul: 4.5, color: "rgba(255, 120, 50, 0.08)" },
+      { mul: 3.0, color: "rgba(255, 130, 60, 0.14)" },
+      { mul: 2.0, color: "rgba(255, 160, 80, 0.22)" },
+      { mul: 1.45, color: "rgba(255, 190, 110, 0.35)" }
+    ];
+    for (const L of layers) {
+      const rr = r * L.mul;
+      const g = ctx.createRadialGradient(sunX, sunY, 0, sunX, sunY, rr);
+      g.addColorStop(0, L.color);
+      g.addColorStop(1, "rgba(255, 150, 60, 0)");
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(sunX, sunY, rr, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Sun disc with hot core
+    const disc = ctx.createRadialGradient(sunX, sunY, 0, sunX, sunY, r);
+    disc.addColorStop(0.0, "#fffbe8");
+    disc.addColorStop(0.35, "#ffe9a8");
+    disc.addColorStop(0.7, "#ffbe5c");
+    disc.addColorStop(1.0, "#ff8f3d");
+    ctx.fillStyle = disc;
+    ctx.beginPath();
+    ctx.arc(sunX, sunY, r, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Bright core hotspot
+    const core = ctx.createRadialGradient(sunX, sunY, 0, sunX, sunY, r * 0.5);
+    core.addColorStop(0, "rgba(255, 255, 240, 0.9)");
+    core.addColorStop(1, "rgba(255, 255, 240, 0)");
+    ctx.fillStyle = core;
+    ctx.beginPath();
+    ctx.arc(sunX, sunY, r * 0.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Horizontal light band across the horizon (sun's reflection zone)
+    const band = ctx.createLinearGradient(0, horizonY - H * 0.06, 0, horizonY + H * 0.02);
+    band.addColorStop(0, "rgba(255, 200, 120, 0)");
+    band.addColorStop(0.5, "rgba(255, 200, 120, 0.18)");
+    band.addColorStop(1, "rgba(255, 200, 120, 0)");
+    ctx.fillStyle = band;
+    ctx.fillRect(0, horizonY - H * 0.06, W, H * 0.08);
+  }
+
+  function drawCloud(c, t) {
+    const drift = c.x + ((t * c.speed) % (W * 1.6)) - W * 0.3;
+    const cx = ((drift % (W * 1.6)) + W * 1.6) % (W * 1.6) - W * 0.3;
+    const cy = c.y + Math.sin(t * 0.0003 + c.x * 0.01) * 3;
+
+    for (const p of c.puffs) {
+      const px = cx + p.ox * c.scale;
+      const py = cy + p.oy * c.scale;
+      const pr = p.r * c.scale;
+      const col = p.warm
+        ? `rgba(255, 190, 150, ${p.alpha})`
+        : `rgba(220, 180, 210, ${p.alpha * 0.8})`;
+      const g = ctx.createRadialGradient(px, py, 0, px, py, pr);
+      g.addColorStop(0, col);
+      g.addColorStop(0.6, col.replace(/[\d.]+\)$/, m => (parseFloat(m) * 0.5).toFixed(3) + ")"));
+      g.addColorStop(1, "rgba(255, 180, 140, 0)");
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(px, py, pr, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  function drawBird(b, t) {
+    const flap = Math.sin(t * b.flapSpeed + b.flapPhase);
+    const wingY = b.size * (0.5 + 0.5 * Math.abs(flap)) * (flap >= 0 ? 1 : 0.35);
+    const y = b.y + Math.sin(t * 0.001 + b.bobPhase) * b.bobAmp;
+    const dir = b.vx > 0 ? 1 : -1;
+
+    ctx.strokeStyle = "rgba(30, 15, 40, 0.85)";
+    ctx.lineWidth = Math.max(1, b.size * 0.16);
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    // Left wing
+    ctx.moveTo(b.x - b.size * dir, y - wingY);
+    ctx.quadraticCurveTo(b.x - b.size * 0.4 * dir, y + b.size * 0.15, b.x, y);
+    // Right wing
+    ctx.quadraticCurveTo(b.x + b.size * 0.4 * dir, y + b.size * 0.15, b.x + b.size * dir, y - wingY);
+    ctx.stroke();
+  }
+
+  function drawTree(tree) {
+    const baseY = horizonY + 6;
+    const { x, h, w, layers } = tree;
+    const trunkH = h * 0.12;
+    const canopyH = h - trunkH;
+    const layerH = canopyH / layers;
+
+    ctx.fillStyle = "rgba(18, 8, 28, 0.96)";
+
+    // Trunk
+    ctx.fillRect(x - w * 0.04, baseY - trunkH, w * 0.08, trunkH + 2);
+
+    // Stacked triangle layers (bottom widest)
+    for (let i = 0; i < layers; i++) {
+      const ly = baseY - trunkH - i * layerH * 0.72;
+      const lw = w * (1 - i * 0.16);
+      const lh = layerH * 1.25;
+      ctx.beginPath();
+      ctx.moveTo(x, ly - lh);
+      ctx.lineTo(x - lw / 2, ly);
+      ctx.lineTo(x + lw / 2, ly);
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+
+  function drawGround() {
+    // Ground fill: dark warm silhouette
+    const g = ctx.createLinearGradient(0, horizonY, 0, H);
+    g.addColorStop(0, "#241030");
+    g.addColorStop(0.4, "#1a0b24");
+    g.addColorStop(1, "#0d0518");
+    ctx.fillStyle = g;
+    ctx.fill(groundPath);
+
+    // Subtle rim light along the top edge of the ground
+    ctx.save();
+    ctx.clip(groundPath);
+    const rim = ctx.createLinearGradient(0, horizonY - 4, 0, horizonY + 18);
+    rim.addColorStop(0, "rgba(255, 170, 90, 0.25)");
+    rim.addColorStop(1, "rgba(255, 170, 90, 0)");
+    ctx.fillStyle = rim;
+    ctx.fillRect(0, horizonY - 4, W, 24);
+    ctx.restore();
+
+    // Trees sit on the ground line
+    for (const tr of trees) drawTree(tr);
+  }
+
+  function drawTitle() {
+    const fs = Math.max(28, Math.min(W * 0.065, 90));
+    ctx.font = `300 ${fs}px Georgia, 'Times New Roman', serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "alphabetic";
+    ctx.fillStyle = "rgba(255, 235, 210, 0.13)";
+    ctx.fillText("Sunset Horizon", W / 2, H - fs * 0.45);
+    // Faint underline accent
+    const uw = fs * 3.2;
+    const ug = ctx.createLinearGradient(W / 2 - uw / 2, 0, W / 2 + uw / 2, 0);
+    ug.addColorStop(0, "rgba(255, 200, 140, 0)");
+    ug.addColorStop(0.5, "rgba(255, 200, 140, 0.18)");
+    ug.addColorStop(1, "rgba(255, 200, 140, 0)");
+    ctx.strokeStyle = ug;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(W / 2 - uw / 2, H - fs * 0.28);
+    ctx.lineTo(W / 2 + uw / 2, H - fs * 0.28);
+    ctx.stroke();
+  }
+
+  // Soft vignette for painterly depth
+  function drawVignette() {
+    const g = ctx.createRadialGradient(W / 2, H * 0.55, Math.min(W, H) * 0.35, W / 2, H * 0.55, Math.max(W, H) * 0.75);
+    g.addColorStop(0, "rgba(0, 0, 0, 0)");
+    g.addColorStop(1, "rgba(10, 4, 20, 0.35)");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  // ---------- Animation loop ----------
+  let lastT = 0;
+
+  function frame(t) {
+    const dt = Math.min((t - lastT) / 1000, 0.05);
+    lastT = t;
+
+    // Update birds
+    for (const b of birds) {
+      b.x += b.vx * dt * 60;
+      if (b.vx > 0 && b.x > W + 140) Object.assign(b, makeBird(true));
+      else if (b.vx < 0 && b.x < -140) Object.assign(b, makeBird(false));
+    }
+
+    // Render
+    drawSky(t);
+    drawStars(t);
+    drawSun(t);
+    for (const c of clouds) drawCloud(c, t);
+    for (const b of birds) drawBird(b, t);
+    drawGround();
+    drawTitle();
+    drawVignette();
+
+    requestAnimationFrame(frame);
+  }
+
+  // ---------- Boot ----------
+  let resizeTimer = null;
+  window.addEventListener("resize", () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(layout, 120);
+  });
+
+  layout();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

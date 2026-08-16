@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ink Bleed — Organic Ink Simulation</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #f5f0e6;
+  }
+
+  canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    cursor: crosshair;
+  }
+
+  .hint {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 13px;
+    letter-spacing: 0.12em;
+    color: rgba(90, 70, 120, 0.45);
+    pointer-events: none;
+    transition: opacity 2s ease;
+    user-select: none;
+    text-align: center;
+    padding: 0 20px;
+  }
+
+  .hint.hidden { opacity: 0; }
+
+  .title {
+    position: fixed;
+    top: 24px;
+    left: 28px;
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 11px;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: rgba(90, 70, 120, 0.35);
+    pointer-events: none;
+    user-select: none;
+  }
+</style>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+<div class="title">Ink Bleed</div>
+<div class="hint" id="hint">click or tap to release ink</div>
+
+<script>
+(() => {
+  'use strict';
+
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+  const hint = document.getElementById('hint');
+
+  let W, H, dpr;
+
+  function resize() {
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    // Repaint paper on resize
+    paintPaper();
+  }
+
+  // ── Paper texture (pre-rendered offscreen) ──────────────────────
+  let paperCanvas;
+
+  function paintPaper() {
+    paperCanvas = document.createElement('canvas');
+    paperCanvas.width = W;
+    paperCanvas.height = H;
+    const pctx = paperCanvas.getContext('2d');
+
+    // Warm cream base with subtle gradient
+    const grad = pctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, Math.max(W, H) * 0.75);
+    grad.addColorStop(0, '#f7f2e8');
+    grad.addColorStop(0.5, '#f5efe3');
+    grad.addColorStop(1, '#efe8d8');
+    pctx.fillStyle = grad;
+    pctx.fillRect(0, 0, W, H);
+
+    // Fine grain noise
+    const imgData = pctx.getImageData(0, 0, W, H);
+    const data = imgData.data;
+    for (let i = 0; i < data.length; i += 4) {
+      const n = (Math.random() - 0.5) * 10;
+      data[i]     += n;
+      data[i + 1] += n;
+      data[i + 2] += n;
+    }
+    pctx.putImageData(imgData, 0, 0);
+
+    // Subtle fiber lines
+    pctx.strokeStyle = 'rgba(180, 165, 140, 0.04)';
+    pctx.lineWidth = 0.5;
+    for (let i = 0; i < 120; i++) {
+      const x = Math.random() * W;
+      const y = Math.random() * H;
+      const len = 20 + Math.random() * 60;
+      const angle = Math.random() * Math.PI;
+      pctx.beginPath();
+      pctx.moveTo(x, y);
+      pctx.lineTo(x + Math.cos(angle) * len, y + Math.sin(angle) * len);
+      pctx.stroke();
+    }
+
+    // Vignette
+    const vig = pctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.3, W / 2, H / 2, Math.max(W, H) * 0.75);
+    vig.addColorStop(0, 'rgba(0,0,0,0)');
+    vig.addColorStop(1, 'rgba(120, 100, 70, 0.08)');
+    pctx.fillStyle = vig;
+    pctx.fillRect(0, 0, W, H);
+  }
+
+  // ── Color palette: blue-purple spectrum ─────────────────────────
+  const PALETTE = [
+    { h: 230, s: 65, l: 38 },  // deep indigo
+    { h: 245, s: 58, l: 42 },  // violet
+    { h: 260, s: 52, l: 45 },  // purple
+    { h: 220, s: 60, l: 40 },  // blue
+    { h: 270, s: 45, l: 48 },  // lavender
+    { h: 235, s: 70, l: 35 },  // dark blue
+    { h: 250, s: 55, l: 50 },  // medium purple
+    { h: 215, s: 55, l: 42 },  // steel blue
+  ];
+
+  function hsl(h, s, l, a) {
+    return `hsla(${h}, ${s}%, ${l}%, ${a})`;
+  }
+
+  // ── Particle ────────────────────────────────────────────────────
+  const MAX_PARTICLES = 12000;
+  const particles = [];
+
+  function createParticle(x, y, color, dropIndex) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 0.2 + Math.random() * 1.2;
+    return {
+      x, y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      life: 1.0,
+      decay: 0.0008 + Math.random() * 0.0018,
+      size: 2 + Math.random() * 5,
+      maxSize: 8 + Math.random() * 18,
+      growRate: 0.02 + Math.random() * 0.04,
+      h: color.h + (Math.random() - 0.5) * 15,
+      s: color.s + (Math.random() - 0.5) * 10,
+      l: color.l + (Math.random() - 0.5) * 12,
+      alpha: 0.3 + Math.random() * 0.4,
+      wobble: Math.random() * Math.PI * 2,
+      wobbleSpeed: 0.02 + Math.random() * 0.04,
+      wobbleAmp: 0.3 + Math.random() * 0.5,
+      dropIndex,
+      isFuzzy: false,
+    };
+  }
+
+  // ── Drop pool ───────────────────────────────────────────────────
+  const drops = [];
+  const MAX_DROPS = 60;
+
+  function addDrop(x, y) {
+    if (drops.length >= MAX_DROPS) drops.shift();
+
+    const baseColor = PALETTE[Math.floor(Math.random() * PALETTE.length)];
+    const dropId = drops.length;
+    drops.push({ x, y, color: baseColor, age: 0 });
+
+    // Core particles
+    const count = 30;
+    for (let i = 0; i < count; i++) {
+      if (particles.length >= MAX_PARTICLES) break;
+      const px = x + (Math.random() - 0.5) * 6;
+      const py = y + (Math.random() - 0.5) * 6;
+      particles.push(createParticle(px, py, baseColor, dropId));
+    }
+
+    // Fuzzy edge particles (larger, more transparent, spread wider)
+    const fuzzyCount = 18;
+    for (let i = 0; i < fuzzyCount; i++) {
+      if (particles.length >= MAX_PARTICLES) break;
+      const angle = Math.random() * Math.PI * 2;
+      const dist = 4 + Math.random() * 12;
+      const px = x + Math.cos(angle) * dist;
+      const py = y + Math.sin(angle) * dist;
+      const p = createParticle(px, py, baseColor, dropId);
+      p.isFuzzy = true;
+      p.size = 4 + Math.random() * 6;
+      p.maxSize = 14 + Math.random() * 24;
+      p.alpha = 0.08 + Math.random() * 0.15;
+      p.decay = 0.0005 + Math.random() * 0.001;
+      p.vx *= 1.5;
+      p.vy *= 1.5;
+      particles.push(p);
+    }
+
+    // Central dense blob
+    for (let i = 0; i < 8; i++) {
+      if (particles.length >= MAX_PARTICLES) break;
+      const px = x + (Math.random() - 0.5) * 3;
+      const py = y + (Math.random() - 0.5) * 3;
+      const p = createParticle(px, py, baseColor, dropId);
+      p.size = 3 + Math.random() * 4;
+      p.maxSize = 6 + Math.random() * 10;
+      p.alpha = 0.5 + Math.random() * 0.3;
+      p.decay = 0.0004 + Math.random() * 0.0008;
+      p.vx *= 0.3;
+      p.vy *= 0.3;
+      particles.push(p);
+    }
+
+    // Hide hint after first interaction
+    hint.classList.add('hidden');
+  }
+
+  // ── Physics update ──────────────────────────────────────────────
+  function updateParticles(dt) {
+    const damping = 0.985;
+    const brownianForce = 0.15;
+
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i];
+
+      // Brownian motion: random acceleration
+      p.vx += (Math.random() - 0.5) * brownianForce;
+      p.vy += (Math.random() - 0.5) * brownianForce;
+
+      // Organic wobble (perlin-like via sin of time offset)
+      p.wobble += p.wobbleSpeed;
+      p.vx += Math.cos(p.wobble) * p.wobbleAmp * 0.02;
+      p.vy += Math.sin(p.wobble) * p.wobbleAmp * 0.02;
+
+      // Velocity damping
+      p.vx *= damping;
+      p.vy *= damping;
+
+      // Slight upward drift (ink on wet paper tends to spread evenly)
+      p.vy -= 0.002;
+
+      // Move
+      p.x += p.vx;
+      p.y += p.vy;
+
+      // Grow over time
+      if (p.size < p.maxSize) {
+        p.size += p.growRate;
+      }
+
+      // Life decay
+      p.life -= p.decay;
+
+      // Remove dead particles
+      if (p.life <= 0) {
+        particles.splice(i, 1);
+      }
+    }
+
+    // Age drops
+    for (let i = drops.length - 1; i >= 0; i--) {
+      drops[i].age++;
+      if (drops[i].age > 3000) drops.splice(i, 1);
+    }
+  }
+
+  // ── Rendering ───────────────────────────────────────────────────
+  function render() {
+    // Draw paper
+    ctx.drawImage(paperCanvas, 0, 0, W, H);
+
+    // Trail fade: overlay semi-transparent paper to create smooth trails
+    // We use globalCompositeOperation for blending
+    ctx.globalCompositeOperation = 'multiply';
+
+    for (let i = 0; i < particles.length; i++) {
+      const p = particles[i];
+      const lifeAlpha = p.life * p.alpha;
+      if (lifeAlpha < 0.005) continue;
+
+      const r = p.size;
+      const g = p.size * 1.8; // elongated slightly for organic feel
+
+      // Main particle
+      ctx.beginPath();
+      ctx.ellipse(p.x, p.y, r, g, p.wobble * 0.5, 0, Math.PI * 2);
+      ctx.fillStyle = hsl(p.h, p.s, p.l, lifeAlpha);
+      ctx.fill();
+
+      // Fuzzy halo for larger particles
+      if (p.isFuzzy || p.size > 10) {
+        const haloR = r * 2.2;
+        const haloG = g * 2.2;
+        ctx.beginPath();
+        ctx.ellipse(p.x, p.y, haloR, haloG, p.wobble * 0.5, 0, Math.PI * 2);
+        ctx.fillStyle = hsl(p.h, p.s, p.l + 15, lifeAlpha * 0.3);
+        ctx.fill();
+      }
+    }
+
+    // Soft glow layer for fresh drops
+    ctx.globalCompositeOperation = 'source-over';
+    for (let i = 0; i < drops.length; i++) {
+      const d = drops[i];
+      if (d.age < 60) {
+        const t = d.age / 60;
+        const glowR = 15 + t * 30;
+        const grad = ctx.createRadialGradient(d.x, d.y, 0, d.x, d.y, glowR);
+        grad.addColorStop(0, hsl(d.color.h, d.color.s, d.color.l, 0.15 * (1 - t)));
+        grad.addColorStop(1, hsl(d.color.h, d.color.s, d.color.l, 0));
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(d.x, d.y, glowR, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    ctx.globalCompositeOperation = 'source-over';
+  }
+
+  // ── Animation loop ─────────────────────────────────────────────
+  let lastTime = performance.now();
+
+  function frame(now) {
+    const dt = Math.min((now - lastTime) / 16.67, 3); // normalize to ~60fps steps
+    lastTime = now;
+
+    updateParticles(dt);
+    render();
+
+    requestAnimationFrame(frame);
+  }
+
+  // ── Input handling ─────────────────────────────────────────────
+  let hintHidden = false;
+
+  function handlePointer(e) {
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left);
+    const y = (e.clientY - rect.top);
+    addDrop(x, y);
+  }
+
+  canvas.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    handlePointer(e);
+  });
+
+  // Allow dragging for continuous ink flow
+  let isDragging = false;
+  let dragThrottle = 0;
+
+  canvas.addEventListener('pointermove', (e) => {
+    if (!isDragging) return;
+    const now = performance.now();
+    if (now - dragThrottle < 50) return; // throttle to ~20 drops/sec
+    dragThrottle = now;
+    handlePointer(e);
+  });
+
+  canvas.addEventListener('pointerdown', () => { isDragging = true; });
+  canvas.addEventListener('pointerup', () => { isDragging = false; });
+  canvas.addEventListener('pointerleave', () => { isDragging = false; });
+
+  // Touch support (prevent scrolling)
+  canvas.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    const touch = e.touches[0];
+    handlePointer(touch);
+  }, { passive: false });
+
+  canvas.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    const touch = e.touches[0];
+    const now = performance.now();
+    if (now - dragThrottle < 50) return;
+    dragThrottle = now;
+    handlePointer(touch);
+  }, { passive: false });
+
+  // Keyboard: spacebar adds a drop at center
+  window.addEventListener('keydown', (e) => {
+    if (e.code === 'Space' && !e.repeat) {
+      e.preventDefault();
+      addDrop(W / 2 + (Math.random() - 0.5) * 100, H / 2 + (Math.random() - 0.5) * 100);
+    }
+  });
+
+  // ── Init ────────────────────────────────────────────────────────
+  window.addEventListener('resize', resize);
+  resize();
+
+  // Seed a few initial drops so the canvas isn't empty
+  setTimeout(() => {
+    addDrop(W * 0.3, H * 0.4);
+    addDrop(W * 0.65, H * 0.55);
+    addDrop(W * 0.5, H * 0.3);
+  }, 300);
+
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

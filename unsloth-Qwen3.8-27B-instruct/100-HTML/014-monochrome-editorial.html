@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Monochrome Editorial — A Study in Black &amp; White</title>
+<style>
+  /* ============================================================
+     RESET & TOKENS
+     ============================================================ */
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --black: #0a0a0a;
+    --white: #fafafa;
+    --gray-900: #1a1a1a;
+    --gray-700: #404040;
+    --gray-500: #6e6e6e;
+    --gray-300: #b5b5b5;
+    --gray-100: #ececec;
+    --serif: Georgia, 'Times New Roman', Times, serif;
+    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  }
+
+  html { font-size: 16px; scroll-behavior: smooth; }
+
+  body {
+    background: var(--white);
+    color: var(--black);
+    font-family: var(--sans);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  ::selection { background: var(--black); color: var(--white); }
+
+  .page {
+    max-width: 1240px;
+    margin: 0 auto;
+    padding: clamp(1.5rem, 4vw, 4rem) clamp(1.25rem, 5vw, 4.5rem);
+  }
+
+  /* ============================================================
+     MASTHEAD / TOP BAR
+     ============================================================ */
+  .masthead {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 1rem;
+    padding-bottom: 1.25rem;
+    border-bottom: 3px solid var(--black);
+    margin-bottom: clamp(2.5rem, 6vw, 5rem);
+    flex-wrap: wrap;
+  }
+
+  .masthead__brand {
+    font-weight: 900;
+    font-size: 0.95rem;
+    letter-spacing: 0.35em;
+    text-transform: uppercase;
+  }
+
+  .masthead__issue {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 0.85rem;
+    color: var(--gray-500);
+  }
+
+  .masthead__date {
+    font-size: 0.7rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--gray-500);
+  }
+
+  /* ============================================================
+     HERO
+     ============================================================ */
+  .hero {
+    position: relative;
+    padding-bottom: clamp(2.5rem, 6vw, 4.5rem);
+  }
+
+  .hero__kicker {
+    display: inline-block;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    border: 1px solid var(--black);
+    padding: 0.45em 1em;
+    margin-bottom: clamp(1.5rem, 3vw, 2.5rem);
+  }
+
+  .hero__headline {
+    font-weight: 900;
+    font-size: clamp(3rem, 11vw, 8.5rem);
+    line-height: 0.95;
+    letter-spacing: -0.03em;
+    text-transform: uppercase;
+    max-width: 14ch;
+  }
+
+  .hl {
+    display: inline-block;
+    background: var(--black);
+    color: var(--white);
+    padding: 0 0.12em;
+    transform: rotate(-1deg);
+    margin-right: 0.08em;
+  }
+
+  .hero__sub {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: clamp(1.1rem, 2.4vw, 1.6rem);
+    line-height: 1.45;
+    color: var(--gray-700);
+    max-width: 46ch;
+    margin-top: clamp(1.5rem, 3vw, 2.5rem);
+  }
+
+  .hero__meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem 2.5rem;
+    margin-top: clamp(1.5rem, 3vw, 2.5rem);
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--gray-300);
+  }
+
+  .hero__meta dt {
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--gray-500);
+    margin-bottom: 0.3rem;
+  }
+
+  .hero__meta dd {
+    font-family: var(--serif);
+    font-size: 0.95rem;
+  }
+
+  /* ============================================================
+     DIAMOND DIVIDER
+     ============================================================ */
+  .divider {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1.25rem;
+    padding: clamp(2rem, 5vw, 3.5rem) 0;
+  }
+
+  .divider::before,
+  .divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--black);
+  }
+
+  .divider__diamond {
+    width: 11px;
+    height: 11px;
+    background: var(--black);
+    transform: rotate(45deg);
+    flex-shrink: 0;
+  }
+
+  /* ============================================================
+     SECTION HEADINGS
+     ============================================================ */
+  .section-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: clamp(1.75rem, 4vw, 3rem);
+    flex-wrap: wrap;
+  }
+
+  .section-head h2 {
+    font-weight: 900;
+    font-size: clamp(1.6rem, 4vw, 2.6rem);
+    letter-spacing: -0.02em;
+    text-transform: uppercase;
+  }
+
+  .section-head__label {
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--gray-500);
+  }
+
+  /* ============================================================
+     CARDS
+     ============================================================ */
+  .grid-2 {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0;
+    border: 1px solid var(--black);
+  }
+
+  .grid-3 {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    border: 1px solid var(--black);
+  }
+
+  .card {
+    padding: clamp(1.5rem, 3vw, 2.5rem);
+    border-right: 1px solid var(--black);
+    border-bottom: 1px solid var(--black);
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+    min-height: 100%;
+  }
+
+  .grid-2 .card:nth-child(2n),
+  .grid-3 .card:nth-child(3n) { border-right: none; }
+
+  .grid-2 .card:nth-last-child(-n+2),
+  .grid-3 .card:nth-last-child(-n+3) { border-bottom: none; }
+
+  .card__num {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.3em;
+    color: var(--gray-500);
+  }
+
+  .card__stat {
+    font-weight: 900;
+    font-size: clamp(2.4rem, 5.5vw, 4rem);
+    line-height: 1;
+    letter-spacing: -0.03em;
+  }
+
+  .card__stat small {
+    font-size: 0.35em;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    vertical-align: super;
+    margin-left: 0.15em;
+  }
+
+  .card__desc {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 0.98rem;
+    line-height: 1.55;
+    color: var(--gray-700);
+  }
+
+  .card--inverted {
+    background: var(--black);
+    color: var(--white);
+  }
+
+  .card--inverted .card__num { color: var(--gray-300); }
+  .card--inverted .card__desc { color: var(--gray-100); }
+
+  /* ============================================================
+     BLOCKQUOTE
+     ============================================================ */
+  .quote-section {
+    padding: clamp(2.5rem, 6vw, 4.5rem) 0;
+  }
+
+  blockquote {
+    max-width: 62ch;
+    margin: 0 auto;
+    text-align: center;
+  }
+
+  blockquote p {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: clamp(1.5rem, 3.6vw, 2.4rem);
+    line-height: 1.4;
+    letter-spacing: -0.01em;
+  }
+
+  blockquote p::before { content: '\201C'; }
+  blockquote p::after  { content: '\201D'; }
+
+  blockquote cite {
+    display: block;
+    margin-top: 1.75rem;
+    font-family: var(--sans);
+    font-style: normal;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--gray-500);
+  }
+
+  blockquote cite span {
+    display: block;
+    margin-top: 0.4rem;
+    font-weight: 400;
+    letter-spacing: 0.15em;
+  }
+
+  /* ============================================================
+     STATS ROW
+     ============================================================ */
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    border: 1px solid var(--black);
+    margin-bottom: clamp(2.5rem, 6vw, 4.5rem);
+  }
+
+  .stat {
+    padding: clamp(1.25rem, 2.5vw, 2rem);
+    text-align: center;
+    border-right: 1px solid var(--black);
+  }
+
+  .stat:last-child { border-right: none; }
+
+  .stat__value {
+    font-weight: 900;
+    font-size: clamp(1.8rem, 4vw, 3rem);
+    line-height: 1;
+    letter-spacing: -0.02em;
+  }
+
+  .stat__label {
+    margin-top: 0.6rem;
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--gray-500);
+  }
+
+  /* ============================================================
+     FOOTER
+     ============================================================ */
+  footer {
+    border-top: 3px solid var(--black);
+    padding-top: 1.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+  }
+
+  footer__left {
+    font-size: 0.7rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    line-height: 2;
+    color: var(--gray-500);
+  }
+
+  footer__left strong {
+    color: var(--black);
+    font-weight: 900;
+  }
+
+  footer__right {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 0.9rem;
+    color: var(--gray-700);
+    text-align: right;
+  }
+
+  /* ============================================================
+     RESPONSIVE
+     ============================================================ */
+  @media (max-width: 900px) {
+    .grid-3 { grid-template-columns: repeat(2, 1fr); }
+    .grid-3 .card:nth-child(3n) { border-right: 1px solid var(--black); }
+    .grid-3 .card:nth-child(2n) { border-right: none; }
+    .grid-3 .card:nth-last-child(-n+3) { border-bottom: 1px solid var(--black); }
+    .grid-3 .card:nth-last-child(-n+2) { border-bottom: none; }
+    .stats-row { grid-template-columns: repeat(2, 1fr); }
+    .stat { border-bottom: 1px solid var(--black); }
+    .stat:nth-child(2n) { border-right: none; }
+    .stat:nth-last-child(-n+2) { border-bottom: none; }
+  }
+
+  @media (max-width: 620px) {
+    .grid-2, .grid-3 { grid-template-columns: 1fr; }
+    .grid-2 .card, .grid-3 .card { border-right: none; }
+    .grid-2 .card:nth-last-child(2), .grid-3 .card:nth-last-child(2) { border-bottom: 1px solid var(--black); }
+    .grid-2 .card:last-child, .grid-3 .card:last-child { border-bottom: none; }
+    .stats-row { grid-template-columns: 1fr; }
+    .stat { border-right: none; border-bottom: 1px solid var(--black); }
+    .stat:last-child { border-bottom: none; }
+    footer { flex-direction: column; align-items: flex-start; }
+    footer__right { text-align: left; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ===================== MASTHEAD ===================== -->
+  <header class="masthead">
+    <span class="masthead__brand">Monochrome</span>
+    <span class="masthead__issue">Issue No. 014 — The Absence of Color</span>
+    <span class="masthead__date">August 2026</span>
+  </header>
+
+  <!-- ===================== HERO ===================== -->
+  <section class="hero">
+    <span class="hero__kicker">Cover Story</span>
+    <h1 class="hero__headline"><span class="hl">Monochrome</span> Editorial</h1>
+    <p class="hero__sub">When every hue is stripped away, what remains is pure form — a discipline where contrast becomes the only language and typography carries the entire weight of meaning.</p>
+    <dl class="hero__meta">
+      <div><dt>Curated by</dt><dd>The Studio</dd></div>
+      <div><dt>Pages</dt><dd>12 – 27</dd></div>
+      <div><dt>Reading time</dt><dd>14 min</dd></div>
+      <div><dt>Edition</dt><dd>Limited print run</dd></div>
+    </dl>
+  </section>
+
+  <!-- ===================== DIVIDER ===================== -->
+  <div class="divider" role="separator" aria-hidden="true"><span class="divider__diamond"></span></div>
+
+  <!-- ===================== PRINCIPLES (2-COL) ===================== -->
+  <section aria-labelledby="principles-title">
+    <div class="section-head">
+      <h2 id="principles-title">Principles</h2>
+      <span class="section-head__label">Section 01 — Foundations</span>
+    </div>
+    <div class="grid-2">
+      <article class="card">
+        <span class="card__num">No. 01</span>
+        <span class="card__stat">90<small>%</small></span>
+        <p class="card__desc">of visual impact in monochrome work comes from value contrast alone — light against dark, with no chromatic crutch to lean on.</p>
+      </article>
+      <article class="card card--inverted">
+        <span class="card__num">No. 02</span>
+        <span class="card__stat">3</span>
+        <p class="card__desc">tones are enough for a complete hierarchy: black for authority, white for air, one mid-gray for everything that must recede.</p>
+      </article>
+      <article class="card">
+        <span class="card__num">No. 03</span>
+        <span class="card__stat">1:1</span>
+        <p class="card__desc">the ratio of restraint to intention. Every element placed must earn its position, because nothing can hide behind a palette.</p>
+      </article>
+      <article class="card card--inverted">
+        <span class="card__num">No. 04</span>
+        <span class="card__stat">∞</span>
+        <p class="card__desc">iterations between draft and final. Monochrome forgives nothing — weak composition shows itself immediately, in grayscale truth.</p>
+      </article>
+    </div>
+  </section>
+
+  <!-- ===================== CRAFT (3-COL) ===================== -->
+  <section aria-labelledby="craft-title" style="margin-top: clamp(2.5rem, 6vw, 4.5rem);">
+    <div class="section-head">
+      <h2 id="craft-title">The Craft</h2>
+      <span class="section-head__label">Section 02 — Technique</span>
+    </div>
+    <div class="grid-3">
+      <article class="card">
+        <span class="card__num">No. 05</span>
+        <span class="card__stat">900</span>
+        <p class="card__desc">weight headlines anchor the page like ink pressed deep into paper — boldness as structure, not decoration.</p>
+      </article>
+      <article class="card">
+        <span class="card__num">No. 06</span>
+        <span class="card__stat">12pt</span>
+        <p class="card__desc">is the floor for body text in print. Below it, italics do the talking; above it, the reader stops reading and starts scanning.</p>
+      </article>
+      <article class="card">
+        <span class="card__num">No. 07</span>
+        <span class="card__stat">2×3</span>
+        <p class="card__desc">grids remain the backbone of editorial layout — two columns for dialogue, three for rhythm, never four without apology.</p>
+      </article>
+    </div>
+  </section>
+
+  <!-- ===================== QUOTE ===================== -->
+  <section class="quote-section" aria-label="Pull quote">
+    <blockquote>
+      <p>Color is an emotion; black and white is a decision. And decisions, unlike emotions, cannot be taken back once printed.</p>
+      <cite>— Marguerite Voss<span>Art Director, Atelier Noir</span></cite>
+    </blockquote>
+  </section>
+
+  <!-- ===================== STATS ROW ===================== -->
+  <section aria-label="By the numbers">
+    <div class="stats-row">
+      <div class="stat">
+        <span class="stat__value">1923</span>
+        <span class="stat__label">First monochrome cover</span>
+      </div>
+      <div class="stat">
+        <span class="stat__value">48</span>
+        <span class="stat__label">Contributors this issue</span>
+      </div>
+      <div class="stat">
+        <span class="stat__value">0</span>
+        <span class="stat__label">Colors used, total</span>
+      </div>
+      <div class="stat">
+        <span class="stat__value">100%</span>
+        <span class="stat__label">Ink coverage at peak</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== FOOTER ===================== -->
+  <footer>
+    <div class="footer__left">
+      <strong>Monochrome Editorial</strong><br>
+      Published quarterly · Printed on uncoated stock<br>
+      ISSN 0000-0000 · All rights reserved
+    </div>
+    <div class="footer__right">
+      Set in system serifs &amp; grotesques.<br>
+      No color was harmed in the making of this page.
+    </div>
+  </footer>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,23 @@
+LLM Litmus — Creative Prompt Artifact
+======================================
+
+Creative Prompt:
+----------------
+Create a premium dark analytics dashboard with a glassmorphism-style container. The dashboard features four KPI cards with labels, values, percentage changes (up/down arrows), and sparkline mini-charts. A two-column charts section shows a weekly revenue bar chart and a traffic sources pie chart with legend. Below is a recent activity feed with color-coded dots. The design has a dark blue-gray background, subtle glass borders, hover effects on cards, and a clean data visualization aesthetic. Colors are professional — green for positive, red for negative, blue for primary data.
+
+Model: Qwen3.8-27B-instruct
+Thinking effort: high
+
+Techniques Used:
+----------------
+- CSS grid for the 4-up KPI card layout; flexbox for the bar chart columns with dynamic percentage heights
+- Donut/pie chart built from a JS-generated conic-gradient (segment stops computed from data) with an inner hole overlay
+- Sparkline mini-charts generated in JavaScript as staggered animated bars (scaleY keyframes)
+- Hover tooltips on bar-chart columns (pure CSS reveal with arrow), lift + glow hover effect on KPI cards
+- Activity feed rendered from a JS data array with color-coded indicator dots, connecting timeline line, and staggered fade-up entrance
+- Decorative period-selector pill buttons (Today / Week / Month / Quarter) with active-state toggle
+- Glassmorphism shell: backdrop-filter blur + saturate, translucent borders, top-edge light streak, ambient radial glows and masked grid texture behind the panel
+- Responsive breakpoints at 900px (KPIs 2-col, charts stack) and 540px (single column, full-width period selector); prefers-reduced-motion respected
+- Semantic HTML (header/nav/main/section/article/footer/time), inline SVG icons, no external dependencies
+
+Wall time: N/A | Tokens: N/A

@@ -1,0 +1,34 @@
+Neon Butterfly — Creative Prompt Artifact
+=========================================
+
+Model: Qwen3.8-27B-instruct
+Thinking effort: high
+
+Creative prompt
+---------------
+Create a mesmerizing neon butterfly that follows the mouse cursor with smooth,
+organic movement, leaving a rainbow trail. The butterfly is rendered on canvas
+with two upper and two lower wings that flap based on a sine wave. Wings are
+filled with radial gradients in shifting hues, creating an iridescent neon
+effect. The butterfly's body, antennae, and wing outlines complete the form.
+The trail fades from vibrant color to transparency. When the mouse is not
+moving, the butterfly wanders gently. The background fades with a trailing
+effect for smooth motion. The overall aesthetic is psychedelic, luminous, and
+graceful.
+
+Techniques used
+---------------
+- Canvas 2D rendering with DPR-aware sizing (capped at 2x)
+- Smooth steering: exponential velocity smoothing toward a proportional
+  desired velocity; heading via shortest-angle interpolation (lerpAngle)
+- Wing flapping via sine phase; flap speed scales with flight speed
+- Mirror-drawn wings using ctx.scale(-1, 1); per-side hue offset for depth
+- Iridescent radial gradients with HSV-to-RGB cycling (custom hsvToRgb)
+- Trail stored as coordinate array with per-point alpha fade; additive
+  ('lighter') compositing for glow; sparkle particles emitted along path
+- Exponential background fade (translucent dark wash instead of clearRect)
+  for motion-blur / afterglow effect
+- Noise-based wandering (layered sinusoids) when idle (>1.4s no input)
+- Touch support (touchstart/touchmove), responsive resize handling
+
+Wall time: N/A | Tokens: N/A

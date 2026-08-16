@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rainbow Prism — Radial Spectrum</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    width: 100%; height: 100%;
+    overflow: hidden;
+    background: #050508;
+  }
+  canvas {
+    display: block;
+    width: 100vw; height: 100vh;
+  }
+</style>
+</head>
+<body>
+<canvas id="prism" aria-label="Rotating radial rainbow spectrum"></canvas>
+<script>
+(() => {
+  "use strict";
+
+  const canvas = document.getElementById("prism");
+  const ctx = canvas.getContext("2d");
+
+  let W, H, CX, CY, R, DPR;
+
+  function resize() {
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = W * DPR;
+    canvas.height = H * DPR;
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    CX = W / 2;
+    CY = H / 2;
+    R = Math.min(W, H) * 0.42;
+  }
+  window.addEventListener("resize", resize);
+  resize();
+
+  // ---- Parameters -------------------------------------------------------
+  const BANDS       = 96;        // number of radial bars
+  const BASE_LEN    = 0.55;      // base bar length as fraction of R
+  const PULSE_AMP   = 0.35;      // pulse amplitude (fraction of R)
+  const PULSE_FREQ  = 0.9;       // temporal frequency of the pulse wave
+  const PULSE_SPREAD= 2.2;       // spatial spread of the pulse wave (radians)
+  const ROT_SPEED   = 0.00012;   // radians per ms
+  const HUE_DRIFT   = 0.00006;   // hue degrees per ms
+  const TRAIL_ALPHA = 0.14;      // fade alpha per frame (lower = longer trails)
+  const BAR_MIN_W   = 0.012;     // min angular half-width (fraction of band slot)
+  const BAR_MAX_W   = 0.055;     // max angular half-width
+  const WIDTH_PULSE = 0.5;       // how much width oscillates
+
+  // Per-band static variation so the wheel looks organic, not uniform.
+  const bands = [];
+  for (let i = 0; i < BANDS; i++) {
+    bands.push({
+      lenSeed:  Math.random(),
+      lenPhase: Math.random() * Math.PI * 2,
+      lenFreq:  0.6 + Math.random() * 0.9,
+      wSeed:    Math.random(),
+      wPhase:   Math.random() * Math.PI * 2,
+      wFreq:    0.4 + Math.random() * 0.8,
+      hueJitter:(Math.random() - 0.5) * 14
+    });
+  }
+
+  // ---- Render ------------------------------------------------------------
+  let t0 = performance.now();
+
+  function frame(now) {
+    const t = now - t0;
+
+    // Trailing fade: paint a translucent dark rect over the previous frame.
+    ctx.globalCompositeOperation = "source-over";
+    ctx.fillStyle = `rgba(5, 5, 8, ${TRAIL_ALPHA})`;
+    ctx.fillRect(0, 0, W, H);
+
+    const rotation = t * ROT_SPEED;
+    const hueBase  = (t * HUE_DRIFT) % 360;
+    const slot     = (Math.PI * 2) / BANDS;
+
+    // Additive blending makes overlapping glow bloom like real light.
+    ctx.globalCompositeOperation = "lighter";
+
+    for (let i = 0; i < BANDS; i++) {
+      const b = bands[i];
+      const angle = i * slot + rotation;
+      const cosA = Math.cos(angle), sinA = Math.sin(angle);
+
+      // Hue mapped evenly across the full spectrum around the circle,
+      // plus slow global drift and a small per-band jitter.
+      const hue = (hueBase + (i / BANDS) * 360 + b.hueJitter + 360) % 360;
+
+      // Length: base + travelling sine pulse + per-band breathing.
+      const pulse =
+        Math.sin(angle * PULSE_SPREAD - t * 0.001 * PULSE_FREQ * Math.PI * 2) *
+        0.5 + 0.5;
+      const breathe =
+        Math.sin(t * 0.001 * b.lenFreq * Math.PI * 2 + b.lenPhase) * 0.5 + 0.5;
+      const len = R * (BASE_LEN + PULSE_AMP * (pulse * 0.7 + breathe * 0.3));
+
+      // Width: oscillates between thin and fat per band.
+      const wOsc =
+        Math.sin(t * 0.001 * b.wFreq * Math.PI * 2 + b.wPhase) * 0.5 + 0.5;
+      const halfW = slot * (BAR_MIN_W + (BAR_MAX_W - BAR_MIN_W) * (wOsc * WIDTH_PULSE + b.wSeed * (1 - WIDTH_PULSE)));
+
+      // Bar geometry: a quad from inner radius r0 to outer radius r1.
+      const r0 = R * 0.16;                       // inner ring (leaves room for center glow)
+      const r1 = r0 + len;
+      const x0 = CX + cosA * r0, y0 = CY + sinA * r0;
+      const x1 = CX + cosA * r1, y1 = CY + sinA * r1;
+      const px = -sinA, py = cosA;              // perpendicular unit vector
+      const hw = Math.tan(halfW) * ((r0 + r1) * 0.5); // approx pixel half-width
+
+      // Saturation/lightness vary with pulse for shimmer.
+      const sat = 85 + pulse * 15;
+      const lit = 45 + pulse * 20 + breathe * 8;
+
+      const grad = ctx.createLinearGradient(x0, y0, x1, y1);
+      grad.addColorStop(0.0,  `hsla(${hue}, ${sat}%, ${lit * 0.55}%, 0.55)`);
+      grad.addColorStop(0.45, `hsla(${hue}, ${sat}%, ${lit}%, 0.95)`);
+      grad.addColorStop(1.0,  `hsla(${(hue + 18) % 360}, ${sat}%, ${Math.min(lit + 14, 78)}%, 0.9)`);
+
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.moveTo(x0 + px * hw, y0 + py * hw);
+      ctx.lineTo(x1 + px * hw, y1 + py * hw);
+      ctx.lineTo(x1 - px * hw, y1 - py * hw);
+      ctx.lineTo(x0 - px * hw, y0 - py * hw);
+      ctx.closePath();
+      ctx.fill();
+
+      // Bright tip cap — a small glowing dot at the outer end.
+      const tipR = hw * 0.9 + 1.2;
+      const tipGrad = ctx.createRadialGradient(x1, y1, 0, x1, y1, tipR * 2.4);
+      tipGrad.addColorStop(0, `hsla(${hue}, 100%, 88%, 0.9)`);
+      tipGrad.addColorStop(1, `hsla(${hue}, 100%, 60%, 0)`);
+      ctx.fillStyle = tipGrad;
+      ctx.beginPath();
+      ctx.arc(x1, y1, tipR * 2.4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Center white glow — soft depth anchor behind the inner ring.
+    const glowR = R * 0.30;
+    const g = ctx.createRadialGradient(CX, CY, 0, CX, CY, glowR);
+    g.addColorStop(0.0,  "rgba(255, 255, 255, 0.50)");
+    g.addColorStop(0.35, "rgba(255, 255, 255, 0.16)");
+    g.addColorStop(1.0,  "rgba(255, 255, 255, 0)");
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(CX, CY, glowR, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Faint outer halo that breathes with the global pulse.
+    const haloPulse = Math.sin(t * 0.0006) * 0.5 + 0.5;
+    const haloR = R * (1.05 + haloPulse * 0.06);
+    const h = ctx.createRadialGradient(CX, CY, R * 0.7, CX, CY, haloR);
+    h.addColorStop(0, "rgba(0, 0, 0, 0)");
+    h.addColorStop(0.8, `rgba(120, 120, 255, ${0.03 + haloPulse * 0.03})`);
+    h.addColorStop(1, "rgba(0, 0, 0, 0)");
+    ctx.fillStyle = h;
+    ctx.beginPath();
+    ctx.arc(CX, CY, haloR, 0, Math.PI * 2);
+    ctx.fill();
+
+    requestAnimationFrame(frame);
+  }
+
+  // Prime the first frame with a fully opaque clear so trails start clean.
+  ctx.fillStyle = "#050508";
+  ctx.fillRect(0, 0, W, H);
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

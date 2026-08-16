@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pixel Art — Generative Living Canvas</title>
+<style>
+  :root {
+    --bg: #0a0a0f;
+  }
+
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: var(--bg);
+  }
+
+  body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+  }
+
+  canvas {
+    display: block;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+  }
+
+  .hud {
+    position: fixed;
+    bottom: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    color: rgba(255, 255, 255, 0.35);
+    text-transform: uppercase;
+    pointer-events: none;
+    transition: opacity 0.6s ease;
+    white-space: nowrap;
+  }
+
+  .hud.fading {
+    opacity: 0;
+  }
+</style>
+</head>
+<body>
+<canvas id="canvas" aria-label="Generative pixel art display"></canvas>
+<p class="hud" id="hud">click to regenerate</p>
+
+<script>
+(() => {
+  "use strict";
+
+  // ─── Configuration ──────────────────────────────────────────────
+  const PIXEL_SIZE      = 8;        // chunky retro block size (css px)
+  const REGEN_INTERVAL  = 8000;     // ms between full regenerations
+  const MUTATION_RATE   = 0.004;    // per-frame probability a pixel mutates
+  const TRAIL_ALPHA     = 0.12;     // background fade strength (lower = longer trails)
+  const FLICKER_SPEED   = 0.8;      // sine flicker speed multiplier
+  const PALETTE_SIZES   = [5, 6, 7]; // candidate palette lengths
+
+  // ─── State ──────────────────────────────────────────────────────
+  const canvas = document.getElementById("canvas");
+  const ctx    = canvas.getContext("2d", { alpha: false });
+  const hud    = document.getElementById("hud");
+
+  let cols = 0, rows = 0;
+  let pixels = [];          // flat array of {r,g,b}
+  let palette = [];         // current palette [{r,g,b,a}]
+  let noiseSeedA = 0, noiseSeedB = 0, noiseSeedC = 0;
+  let noiseFreqA = 0, noiseFreqB = 0, noiseFreqC = 0;
+  let regenTimer = null;
+  let lastTime = 0;
+  let frameCount = 0;
+  let hudFaded = false;
+
+  // ─── Utilities ──────────────────────────────────────────────────
+  function rand(min, max) { return min + Math.random() * (max - min); }
+  function randInt(min, max) { return Math.floor(rand(min, max + 1)); }
+  function pick(arr) { return arr[randInt(0, arr.length - 1)]; }
+
+  // Smooth pseudo-noise from layered sines/cosines with random seeds
+  function noise(x, y, t) {
+    const v1 = Math.sin(x * noiseFreqA + t * 0.3 + noiseSeedA)
+             * Math.cos(y * noiseFreqA * 0.7 + t * 0.2 + noiseSeedB);
+    const v2 = Math.sin((x + y) * noiseFreqB + t * 0.15 + noiseSeedC)
+             * Math.cos((x - y) * noiseFreqB * 0.5 + t * 0.25);
+    const v3 = Math.sin(x * noiseFreqC - y * noiseFreqC * 0.6 + t * 0.1 + noiseSeedA)
+             * Math.cos(y * noiseFreqC * 0.8 + x * noiseFreqC * 0.3 + t * 0.2 + noiseSeedB);
+    return (v1 + v2 + v3) / 3; // range roughly [-1, 1]
+  }
+
+  // ─── Palette Generation ─────────────────────────────────────────
+  function generatePalette() {
+    const size = pick(PALETTE_SIZES);
+    const baseHue = rand(0, 360);
+    const scheme = pick(["analogous", "complementary", "triadic", "random"]);
+    const hues = [];
+
+    for (let i = 0; i < size; i++) {
+      let h;
+      switch (scheme) {
+        case "analogous":
+          h = baseHue + rand(-40, 40) + i * (80 / size);
+          break;
+        case "complementary":
+          h = i < size / 2 ? baseHue + rand(-20, 20) : baseHue + 180 + rand(-20, 20);
+          break;
+        case "triadic":
+          h = baseHue + (i % 3) * 120 + rand(-15, 15);
+          break;
+        default:
+          h = rand(0, 360);
+      }
+      hues.push(((h % 360) + 360) % 360);
+    }
+
+    return hues.map(h => {
+      const s = rand(55, 95);
+      const l = rand(35, 70);
+      const [r, g, b] = hslToRgb(h, s, l);
+      return { r, g, b, a: rand(0.7, 1.0) };
+    });
+  }
+
+  function hslToRgb(h, s, l) {
+    s /= 100; l /= 100;
+    const c = (1 - Math.abs(2 * l - 1)) * s;
+    const x = c * (1 - Math.abs((h / 60) % 2 - 1));
+    const m = l - c / 2;
+    let r, g, b;
+    if (h < 60)       { r = c; g = x; b = 0; }
+    else if (h < 120) { r = x; g = c; b = 0; }
+    else if (h < 180) { r = 0; g = c; b = x; }
+    else if (h < 240) { r = 0; g = x; b = c; }
+    else if (h < 300) { r = x; g = 0; b = c; }
+    else              { r = c; g = 0; b = x; }
+    return [Math.round((r + m) * 255), Math.round((g + m) * 255), Math.round((b + m) * 255)];
+  }
+
+  // ─── Grid Setup ─────────────────────────────────────────────────
+  function setupGrid() {
+    const dpr = window.devicePixelRatio || 1;
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+
+    canvas.width  = w * dpr;
+    canvas.height = h * dpr;
+    canvas.style.width  = w + "px";
+    canvas.style.height = h + "px";
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    cols = Math.ceil(w / PIXEL_SIZE);
+    rows = Math.ceil(h / PIXEL_SIZE);
+
+    pixels = new Array(cols * rows).fill(null).map(() => ({ r: 0, g: 0, b: 0 }));
+  }
+
+  // ─── Regeneration ───────────────────────────────────────────────
+  function regenerate() {
+    palette = generatePalette();
+
+    // Randomize noise parameters for a fresh organic pattern
+    noiseSeedA = rand(0, Math.PI * 2);
+    noiseSeedB = rand(0, Math.PI * 2);
+    noiseSeedC = rand(0, Math.PI * 2);
+    noiseFreqA = rand(0.04, 0.12);
+    noiseFreqB = rand(0.03, 0.09);
+    noiseFreqC = rand(0.02, 0.06);
+
+    // Fill the grid based on noise thresholding
+    const t = performance.now() / 1000;
+    for (let y = 0; y < rows; y++) {
+      for (let x = 0; x < cols; x++) {
+        const n = noise(x, y, t);
+        const idx = y * cols + x;
+        // Map noise to palette index with some randomness
+        const mapped = Math.floor(((n + 1) / 2) * palette.length);
+        const ci = Math.min(Math.max(mapped, 0), palette.length - 1);
+        const c = palette[ci];
+        // Add slight variation so it's not perfectly uniform
+        const jitter = 0.85 + Math.random() * 0.3;
+        pixels[idx].r = Math.min(255, Math.round(c.r * jitter));
+        pixels[idx].g = Math.min(255, Math.round(c.g * jitter));
+        pixels[idx].b = Math.min(255, Math.round(c.b * jitter));
+      }
+    }
+
+    // Clear canvas fully on regeneration
+    ctx.fillStyle = "#0a0a0f";
+    ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
+  }
+
+  // ─── Mutation (slow evolution) ─────────────────────────────────
+  function mutatePixels() {
+    const total = cols * rows;
+    const mutations = Math.max(1, Math.floor(total * MUTATION_RATE));
+    for (let i = 0; i < mutations; i++) {
+      const idx = randInt(0, total - 1);
+      const c = pick(palette);
+      const jitter = 0.8 + Math.random() * 0.4;
+      pixels[idx].r = Math.min(255, Math.round(c.r * jitter));
+      pixels[idx].g = Math.min(255, Math.round(c.g * jitter));
+      pixels[idx].b = Math.min(255, Math.round(c.b * jitter));
+    }
+  }
+
+  // ─── Render Loop ────────────────────────────────────────────────
+  function render(time) {
+    const t = time / 1000;
+    frameCount++;
+
+    // Trail fade: draw semi-transparent background over previous frame
+    ctx.fillStyle = `rgba(10, 10, 15, ${TRAIL_ALPHA})`;
+    ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
+
+    // Per-pixel flicker via sine time function
+    const flickerPhase = t * FLICKER_SPEED;
+
+    for (let y = 0; y < rows; y++) {
+      for (let x = 0; x < cols; x++) {
+        const idx = y * cols + x;
+        const p = pixels[idx];
+
+        // Subtle brightness flicker unique to each pixel
+        const flicker = 0.88 + 0.12 * Math.sin(flickerPhase + (x * 0.7 + y * 1.3) * 0.5);
+        const r = Math.min(255, Math.round(p.r * flicker));
+        const g = Math.min(255, Math.round(p.g * flicker));
+        const b = Math.min(255, Math.round(p.b * flicker));
+
+        ctx.fillStyle = `rgb(${r},${g},${b})`;
+        ctx.fillRect(x * PIXEL_SIZE, y * PIXEL_SIZE, PIXEL_SIZE, PIXEL_SIZE);
+      }
+    }
+
+    // Occasional mutation for slow evolution
+    if (frameCount % 3 === 0) {
+      mutatePixels();
+    }
+
+    requestAnimationFrame(render);
+  }
+
+  // ─── Event Handlers ─────────────────────────────────────────────
+  function onClick() {
+    regenerate();
+    resetRegenTimer();
+    // Fade out HUD hint after first click
+    if (!hudFaded) {
+      hud.classList.add("fading");
+      hudFaded = true;
+    }
+  }
+
+  let resizeTimeout = null;
+  function onResize() {
+    clearTimeout(resizeTimeout);
+    resizeTimeout = setTimeout(() => {
+      setupGrid();
+      regenerate();
+    }, 150);
+  }
+
+  function resetRegenTimer() {
+    clearTimeout(regenTimer);
+    regenTimer = setTimeout(() => {
+      regenerate();
+      resetRegenTimer();
+    }, REGEN_INTERVAL);
+  }
+
+  // ─── Init ───────────────────────────────────────────────────────
+  function init() {
+    setupGrid();
+    regenerate();
+    resetRegenTimer();
+
+    canvas.addEventListener("click", onClick);
+    canvas.addEventListener("touchstart", (e) => {
+      e.preventDefault();
+      onClick();
+    }, { passive: false });
+    window.addEventListener("resize", onResize);
+
+    requestAnimationFrame(render);
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>

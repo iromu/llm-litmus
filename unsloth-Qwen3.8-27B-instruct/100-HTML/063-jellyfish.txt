@@ -1,0 +1,31 @@
+Creative Prompt: Bioluminescent Jellyfish Visualization
+========================================================
+
+Create a bioluminescent jellyfish visualization with translucent bells and flowing tentacles.
+Jellyfish drift slowly upward with pulsing bells and undulating tentacles. Each jellyfish has a
+blue/cyan hue with radial gradient transparency. The bell has an inner pattern. Tentacles are
+drawn as segmented curves with sine-based wave motion. Tiny bubbles float upward. The background
+is deep ocean blue with trailing fade. Clicking adds a new jellyfish. The overall aesthetic is
+aquatic, ethereal, and luminous — like deep-sea bioluminescent creatures.
+
+Model: Qwen3.8-27B-instruct
+Thinking effort: high
+
+Techniques used:
+- Canvas 2D rendering with elliptical bell shapes and multi-stop radial gradients for translucency
+- Segmented tentacle curves using quadratic Bézier paths with sine-wave animation per segment
+- Bell pulse animation via sinusoidal radius modulation
+- Upward drift with sinusoidal lateral movement and screen-edge wrapping
+- Inner bell pattern: concentric luminous rings, central nucleus glow, radial filaments
+- Oral arms (thicker central tentacles) in addition to outer tentacles
+- Bioluminescent dot spots along tentacles with independent flicker
+- Bubble particle system with wobble and highlight
+- Subtle volumetric light rays (caustic effect) from above
+- Trailing background fade (semi-transparent overlay each frame)
+- Jellyfish pool management (max 12, oldest removed on overflow)
+- Click/touch to spawn new jellyfish with bubble burst
+- Depth sorting by scale for layered rendering
+- DPR-aware canvas scaling for crisp rendering on retina displays
+- HSL color space for natural blue/cyan hue variation per jellyfish
+
+Wall time: N/A | Tokens: N/A

@@ -1,0 +1,22 @@
+Rose in the Dark — creative prompt artifact
+
+Model: Qwen3.8-27B-instruct
+Thinking effort: high
+
+--- Creative prompt ---
+Create a blooming rose with layered petals that open and close gently. The rose has a stem with leaves, and multiple layers of petals in deep red/crimson hues with radial gradient shading. Petals are rendered as ellipses with layer-based depth sorting, creating a 3D flower effect. The bloom animates with a breathing motion. Occasional falling petals drift down. Clicking regenerates the rose. The background is very dark red with trailing fade. The overall aesthetic is romantic, organic, and delicate — like a living rose in the dark.
+
+--- Techniques used ---
+- Canvas layered petal rendering with elliptical shapes (ctx.ellipse)
+- Depth-sorted rendering: petal rings drawn outer → inner so inner layers overlap correctly
+- Radial-gradient petal shading with per-petal hue/saturation/lightness drift around crimson (hsl 348–358°), plus a rim-shadow gradient for depth
+- Sine-based breathing bloom: slow global scale oscillation + per-petal wobble phases; ease-out cubic opening animation on spawn
+- Stem and leaf drawing with quadratic Bézier curves, thorns, midribs and side veins
+- Falling-petal particles: randomized drift, sway, rotation, and alpha decay
+- Click-to-regenerate: new random configuration (layer count, petal counts, angles, sizes, hues) with a clean background reset
+- Trailing background fade via low-alpha dark-red fill each frame (motion trails)
+- Radial glow behind the bloom, tight inner bud core with a slowly rotating spiral hint
+- Responsive sizing (min(W,H)-based radius), devicePixelRatio-aware canvas, pointer events
+
+--- Stats ---
+Wall time: N/A | Tokens: N/A

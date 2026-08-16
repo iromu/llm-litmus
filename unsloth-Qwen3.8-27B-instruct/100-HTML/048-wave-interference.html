@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Wave Interference — Ripple Tank Simulation</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 100%; height: 100%;
+    overflow: hidden;
+    background: #05060f;
+    font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', Consolas, monospace;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  canvas {
+    display: block;
+    width: 100vw; height: 100vh;
+    cursor: crosshair;
+  }
+
+  .hud {
+    position: fixed;
+    top: 20px; left: 24px;
+    color: rgba(140, 200, 255, 0.55);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    line-height: 1.7;
+    pointer-events: none;
+    text-transform: uppercase;
+    z-index: 10;
+    transition: opacity 0.6s ease;
+  }
+  .hud .title {
+    font-size: 13px;
+    color: rgba(160, 220, 255, 0.8);
+    letter-spacing: 0.18em;
+    margin-bottom: 4px;
+  }
+  .hud .count {
+    color: rgba(100, 255, 220, 0.7);
+  }
+
+  .hint {
+    position: fixed;
+    bottom: 24px; left: 50%;
+    transform: translateX(-50%);
+    color: rgba(140, 200, 255, 0.4);
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    pointer-events: none;
+    z-index: 10;
+    animation: hintFade 1s ease 5s forwards;
+    white-space: nowrap;
+  }
+  @keyframes hintFade {
+    to { opacity: 0; }
+  }
+
+  .source-badge {
+    position: fixed;
+    right: 24px; top: 20px;
+    display: flex; gap: 6px;
+    z-index: 10;
+    pointer-events: none;
+  }
+  .source-badge span {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.1);
+    transition: background 0.3s, box-shadow 0.3s;
+  }
+  .source-badge span.active {
+    box-shadow: 0 0 8px currentColor;
+  }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div class="hud" id="hud">
+  <div class="title">Wave Interference</div>
+  <div>sources: <span class="count" id="srcCount">0</span> / 8</div>
+  <div>superposition &middot; constructive &amp; destructive</div>
+</div>
+
+<div class="hint">click or tap to add a wave source</div>
+
+<div class="source-badge" id="badge"></div>
+
+<script>
+(() => {
+'use strict';
+
+/* ─── Configuration ─────────────────────────────────────────────── */
+const CFG = {
+  SAMPLE_STEP: 4,        // pixel sampling stride (performance)
+  MAX_SOURCES: 8,
+  WAVE_SPEED: 2.2,       // phase velocity
+  DECAY: 0.012,          // exponential amplitude decay per px
+  AMPLITUDE: 1.0,
+  TRAIL_ALPHA: 0.14,     // lower = longer trails
+  FREQ_MIN: 0.018,
+  FREQ_MAX: 0.042,
+  HUE_BASE: 190,         // cyan-ish base
+  HUE_SPREAD: 140,
+};
+
+/* ─── Canvas setup ──────────────────────────────────────────────── */
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d', { alpha: false });
+let W, H, offCanvas, offCtx, imgData, buf;
+let cols, rows;
+
+function resize() {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  W = Math.floor(window.innerWidth * dpr);
+  H = Math.floor(window.innerHeight * dpr);
+  canvas.width = W;
+  canvas.height = H;
+  canvas.style.width = window.innerWidth + 'px';
+  canvas.style.height = window.innerHeight + 'px';
+
+  cols = Math.ceil(W / CFG.SAMPLE_STEP);
+  rows = Math.ceil(H / CFG.SAMPLE_STEP);
+  const pw = cols, ph = rows;
+
+  offCanvas = document.createElement('canvas');
+  offCanvas.width = pw;
+  offCanvas.height = ph;
+  offCtx = offCanvas.getContext('2d');
+  imgData = offCtx.createImageData(pw, ph);
+  buf = new Float32Array(pw * ph);
+}
+resize();
+window.addEventListener('resize', () => { resize(); fadeAll(); });
+
+/* ─── Wave sources ──────────────────────────────────────────────── */
+const sources = [];
+let srcIdCounter = 0;
+
+function makeSource(x, y) {
+  const t = sources.length / CFG.MAX_SOURCES;
+  const freq = CFG.FREQ_MIN + (CFG.FREQ_MAX - CFG.FREQ_MIN) * (0.3 + 0.7 * Math.random());
+  const hue = (CFG.HUE_BASE + CFG.HUE_SPREAD * ((srcIdCounter % 7) / 7)) % 360;
+  return { x, y, freq, hue, phase: Math.random() * Math.PI * 2, born: performance.now() };
+}
+
+function addSource(px, py) {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const sx = px * dpr, sy = py * dpr;
+  if (sources.length >= CFG.MAX_SOURCES) sources.shift(); // FIFO removal
+  sources.push(makeSource(sx, sy));
+  srcIdCounter++;
+  updateHUD();
+}
+
+function updateHUD() {
+  document.getElementById('srcCount').textContent = sources.length;
+  const badge = document.getElementById('badge');
+  badge.innerHTML = '';
+  for (let i = 0; i < CFG.MAX_SOURCES; i++) {
+    const s = document.createElement('span');
+    if (i < sources.length) {
+      s.classList.add('active');
+      s.style.background = `hsl(${sources[i].hue}, 80%, 60%)`;
+      s.style.color = `hsl(${sources[i].hue}, 80%, 60%)`;
+    }
+    badge.appendChild(s);
+  }
+}
+
+/* ─── Input ─────────────────────────────────────────────────────── */
+canvas.addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  addSource(e.clientX, e.clientY);
+});
+
+/* ─── Color LUT ─────────────────────────────────────────────────── */
+// Precompute a 512-entry LUT mapping amplitude [-1..1] → RGB.
+// Positive: deep blue → cyan → white peak
+// Negative: warm amber → red-orange
+const LUT_SIZE = 512;
+const lutR = new Uint8ClampedArray(LUT_SIZE);
+const lutG = new Uint8ClampedArray(LUT_SIZE);
+const lutB = new Uint8ClampedArray(LUT_SIZE);
+
+(function buildLUT() {
+  for (let i = 0; i < LUT_SIZE; i++) {
+    const a = (i / (LUT_SIZE - 1)) * 2 - 1; // -1 .. 1
+    let r, g, b;
+    if (a >= 0) {
+      // positive: dark navy → blue → cyan → white
+      const t = a;
+      if (t < 0.4) {
+        const u = t / 0.4;
+        r = 8 + u * 10;
+        g = 12 + u * 60;
+        b = 40 + u * 140;
+      } else if (t < 0.75) {
+        const u = (t - 0.4) / 0.35;
+        r = 18 + u * 20;
+        g = 72 + u * 140;
+        b = 180 + u * 60;
+      } else {
+        const u = (t - 0.75) / 0.25;
+        r = 38 + u * 217;
+        g = 212 + u * 43;
+        b = 240 + u * 15;
+      }
+    } else {
+      // negative: dark maroon → amber → warm orange
+      const t = -a;
+      if (t < 0.4) {
+        const u = t / 0.4;
+        r = 30 + u * 100;
+        g = 10 + u * 40;
+        b = 8 + u * 10;
+      } else if (t < 0.75) {
+        const u = (t - 0.4) / 0.35;
+        r = 130 + u * 90;
+        g = 50 + u * 60;
+        b = 18 + u * 10;
+      } else {
+        const u = (t - 0.75) / 0.25;
+        r = 220 + u * 35;
+        g = 110 + u * 80;
+        b = 28 + u * 30;
+      }
+    }
+    lutR[i] = r; lutG[i] = g; lutB[i] = b;
+  }
+})();
+
+function lutIndex(a) {
+  // clamp and map to LUT index
+  if (a > 1) a = 1;
+  else if (a < -1) a = -1;
+  return ((a + 1) * 0.5 * (LUT_SIZE - 1)) | 0;
+}
+
+/* ─── Rendering ─────────────────────────────────────────────────── */
+let time = 0;
+
+function render() {
+  time += 0.016;
+
+  const data = imgData.data;
+  const nSrc = sources.length;
+  const step = CFG.SAMPLE_STEP;
+  const speed = CFG.WAVE_SPEED;
+  const decay = CFG.DECAY;
+  const amp = CFG.AMPLITUDE;
+
+  // Compute superposition into buffer
+  for (let ry = 0; ry < rows; ry++) {
+    const wy = ry * step;
+    const rowOff = ry * cols;
+    for (let cx = 0; cx < cols; cx++) {
+      const wx = cx * step;
+      let sum = 0;
+      for (let s = 0; s < nSrc; s++) {
+        const src = sources[s];
+        const dx = wx - src.x;
+        const dy = wy - src.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < 2) continue;
+        const envelope = Math.exp(-dist * decay);
+        const phase = dist * src.freq - time * speed * 6 + src.phase;
+        sum += Math.sin(phase) * envelope * amp;
+      }
+      buf[rowOff + cx] = sum;
+    }
+  }
+
+  // Map to colors with trail blending
+  const trail = CFG.TRAIL_ALPHA;
+  const oneMinusTrail = 1 - trail;
+  for (let i = 0, p = 0; i < buf.length; i++, p += 4) {
+    const li = lutIndex(buf[i]);
+    const nr = lutR[li], ng = lutG[li], nb = lutB[li];
+    // blend with previous frame for smooth trails
+    data[p]     = data[p]     * oneMinusTrail + nr * trail;
+    data[p + 1] = data[p + 1] * oneMinusTrail + ng * trail;
+    data[p + 2] = data[p + 2] * oneMinusTrail + nb * trail;
+    data[p + 3] = 255;
+  }
+
+  offCtx.putImageData(imgData, 0, 0);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(offCanvas, 0, 0, W, H);
+
+  // Draw source points
+  for (let s = 0; s < nSrc; s++) {
+    const src = sources[s];
+    const pulse = 0.5 + 0.5 * Math.sin(time * 4 + src.phase);
+    const r = 4 + pulse * 3;
+    const grad = ctx.createRadialGradient(src.x, src.y, 0, src.x, src.y, r * 3);
+    grad.addColorStop(0, `hsla(${src.hue}, 100%, 90%, 0.9)`);
+    grad.addColorStop(0.4, `hsla(${src.hue}, 90%, 60%, 0.4)`);
+    grad.addColorStop(1, `hsla(${src.hue}, 90%, 50%, 0)`);
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(src.x, src.y, r * 3, 0, Math.PI * 2);
+    ctx.fill();
+
+    // ring
+    ctx.strokeStyle = `hsla(${src.hue}, 80%, 70%, ${0.3 + pulse * 0.3})`;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(src.x, src.y, r + 4, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  requestAnimationFrame(render);
+}
+
+function fadeAll() {
+  if (!imgData) return;
+  const d = imgData.data;
+  for (let i = 0; i < d.length; i += 4) {
+    d[i] = 5; d[i+1] = 6; d[i+2] = 15; d[i+3] = 255;
+  }
+}
+
+/* ─── Init ──────────────────────────────────────────────────────── */
+fadeAll();
+updateHUD();
+
+// Seed two sources at center-ish positions
+setTimeout(() => {
+  const w = window.innerWidth, h = window.innerHeight;
+  addSource(w * 0.38, h * 0.5);
+  addSource(w * 0.62, h * 0.5);
+}, 100);
+
+requestAnimationFrame(render);
+
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,22 @@
+Cosmic Dust — Nebula Particle System Visualization
+
+Creative Prompt:
+Create a nebula particle system visualization with thousands of particles that form colorful dust clouds. Multiple nebula "centers" drift slowly with their own color palettes (blues, purples, pinks, teals), and particles near each center take on its colors. Particles flicker gently and wrap around screen edges for an infinite cosmos feel. Clicking reshuffles the nebula centers and particle positions. The title "Cosmic Dust" is large and faint. The background has a subtle trailing effect. The aesthetic is deep space, interstellar, and ethereal.
+
+Model: Qwen3.8-27B-instruct
+Thinking effort: high
+
+Techniques:
+- Canvas 2D particle system with ~4000 particles
+- Multi-center nebula color interpolation via exponential distance falloff (Gaussian influence)
+- HSL-to-RGB conversion per particle for dynamic color blending from multiple nebula sources
+- Alpha flickering driven by per-particle sine functions with randomized phase/speed
+- Velocity-based drift with weak cohesion toward nearest center + damping
+- Screen-edge wrapping for infinite cosmos feel
+- Trailing/motion-blur effect via semi-transparent fillRect overlay (rgba alpha 0.08)
+- Radial gradient glow halos behind each nebula center with sinusoidal pulse
+- Click/tap-driven regeneration of nebula centers (position, velocity, palette) and particle redistribution
+- Responsive canvas with devicePixelRatio scaling (capped at 2x)
+- Soft bounce-off-edge behavior for nebula centers with sinusoidal wander
+
+Stats: Wall time: N/A | Tokens: N/A

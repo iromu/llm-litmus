@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cosmic Dust — Nebula Particle System</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #05060f;
+    cursor: crosshair;
+  }
+
+  canvas {
+    display: block;
+    position: fixed;
+    inset: 0;
+  }
+
+  .title {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: clamp(3rem, 10vw, 9rem);
+    font-weight: 400;
+    letter-spacing: 0.35em;
+    text-transform: uppercase;
+    color: rgba(180, 190, 255, 0.07);
+    pointer-events: none;
+    user-select: none;
+    white-space: nowrap;
+    z-index: 1;
+    animation: titleBreath 8s ease-in-out infinite;
+  }
+
+  @keyframes titleBreath {
+    0%, 100% { opacity: 0.6; }
+    50%      { opacity: 1; }
+  }
+
+  .hint {
+    position: fixed;
+    bottom: 2rem;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: system-ui, sans-serif;
+    font-size: 0.75rem;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: rgba(160, 170, 220, 0.3);
+    pointer-events: none;
+    user-select: none;
+    z-index: 1;
+    transition: opacity 1.5s ease;
+  }
+
+  .hint.hidden { opacity: 0; }
+</style>
+</head>
+<body>
+
+<canvas id="cosmos"></canvas>
+<h1 class="title">Cosmic Dust</h1>
+<p class="hint" id="hint">click to reshape the nebulae</p>
+
+<script>
+(() => {
+  'use strict';
+
+  const canvas = document.getElementById('cosmos');
+  const ctx = canvas.getContext('2d');
+  const hint = document.getElementById('hint');
+
+  let W, H, DPR;
+  const PARTICLE_COUNT = 4000;
+  const CENTER_COUNT = 5;
+
+  // ── Color palettes for nebula centers (HSL-based for easy interpolation) ──
+  const PALETTES = [
+    // deep blue / indigo
+    [ { h: 225, s: 85, l: 55 }, { h: 245, s: 90, l: 65 }, { h: 210, s: 80, l: 45 } ],
+    // purple / violet
+    [ { h: 275, s: 80, l: 60 }, { h: 290, s: 75, l: 55 }, { h: 260, s: 85, l: 70 } ],
+    // pink / magenta
+    [ { h: 320, s: 75, l: 60 }, { h: 340, s: 80, l: 65 }, { h: 300, s: 70, l: 55 } ],
+    // teal / cyan
+    [ { h: 175, s: 80, l: 50 }, { h: 190, s: 85, l: 55 }, { h: 165, s: 75, l: 45 } ],
+    // warm rose / coral accent
+    [ { h: 350, s: 70, l: 60 }, { h: 15,  s: 75, l: 60 }, { h: 330, s: 65, l: 55 } ],
+    // electric blue
+    [ { h: 200, s: 95, l: 55 }, { h: 215, s: 90, l: 60 }, { h: 195, s: 85, l: 50 } ],
+  ];
+
+  // ── State ──
+  let particles = [];
+  let centers = [];
+  let time = 0;
+  let firstClick = true;
+
+  // ── Utility ──
+  const rand = (min, max) => min + Math.random() * (max - min);
+  const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+
+  function hsl(h, s, l, a) {
+    return `hsla(${h},${s}%,${l}%,${a})`;
+  }
+
+  // ── Nebula center ──
+  function createCenter(x, y) {
+    const palette = pick(PALETTES);
+    return {
+      x: x !== undefined ? x : rand(W * 0.15, W * 0.85),
+      y: y !== undefined ? y : rand(H * 0.15, H * 0.85),
+      vx: rand(-0.15, 0.15),
+      vy: rand(-0.15, 0.15),
+      radius: rand(Math.min(W, H) * 0.25, Math.min(W, H) * 0.45),
+      palette,
+      phase: rand(0, Math.PI * 2),
+    };
+  }
+
+  // ── Particle ──
+  function createParticle(cx, cy) {
+    const angle = rand(0, Math.PI * 2);
+    const dist = Math.pow(Math.random(), 0.6) * 180; // bias toward center
+    return {
+      x: cx + Math.cos(angle) * dist,
+      y: cy + Math.sin(angle) * dist,
+      vx: rand(-0.3, 0.3),
+      vy: rand(-0.3, 0.3),
+      size: rand(0.4, 2.2),
+      flickerPhase: rand(0, Math.PI * 2),
+      flickerSpeed: rand(0.008, 0.03),
+      baseAlpha: rand(0.15, 0.6),
+      hueShift: rand(-15, 15),
+    };
+  }
+
+  // ── Initialize / regenerate ──
+  function init(regenerate) {
+    if (!regenerate) {
+      centers = [];
+      for (let i = 0; i < CENTER_COUNT; i++) centers.push(createCenter());
+    } else {
+      // Reshuffle: new positions, velocities, palettes
+      for (let i = 0; i < centers.length; i++) {
+        const c = centers[i];
+        const nc = createCenter();
+        c.x = nc.x; c.y = nc.y;
+        c.vx = nc.vx; c.vy = nc.vy;
+        c.radius = nc.radius;
+        c.palette = nc.palette;
+        c.phase = nc.phase;
+      }
+    }
+
+    // Redistribute particles around centers
+    for (let i = 0; i < particles.length; i++) {
+      const c = centers[i % centers.length];
+      const np = createParticle(c.x, c.y);
+      particles[i].x = np.x;
+      particles[i].y = np.y;
+      particles[i].vx = np.vx;
+      particles[i].vy = np.vy;
+      particles[i].size = np.size;
+      particles[i].flickerPhase = np.flickerPhase;
+      particles[i].flickerSpeed = np.flickerSpeed;
+      particles[i].baseAlpha = np.baseAlpha;
+      particles[i].hueShift = np.hueShift;
+    }
+  }
+
+  // ── Resize ──
+  function resize() {
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = W * DPR;
+    canvas.height = H * DPR;
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  }
+
+  // ── Update ──
+  function update(dt) {
+    time += dt;
+
+    // Drift centers with gentle sinusoidal wander + bounce
+    for (const c of centers) {
+      c.phase += 0.003;
+      c.x += c.vx + Math.sin(c.phase) * 0.08;
+      c.y += c.vy + Math.cos(c.phase * 0.7) * 0.08;
+
+      // Bounce off edges (soft margin)
+      const m = 50;
+      if (c.x < m)       { c.x = m;       c.vx = Math.abs(c.vx); }
+      if (c.x > W - m)   { c.x = W - m;   c.vx = -Math.abs(c.vx); }
+      if (c.y < m)       { c.y = m;       c.vy = Math.abs(c.vy); }
+      if (c.y > H - m)   { c.y = H - m;   c.vy = -Math.abs(c.vy); }
+    }
+
+    // Update particles
+    for (const p of particles) {
+      // Gentle drift
+      p.x += p.vx;
+      p.y += p.vy;
+
+      // Slight attraction toward nearest center (very weak, keeps clouds cohesive)
+      let bestDist = Infinity;
+      let bestC = null;
+      for (const c of centers) {
+        const dx = c.x - p.x;
+        const dy = c.y - p.y;
+        const d2 = dx * dx + dy * dy;
+        if (d2 < bestDist) { bestDist = d2; bestC = c; }
+      }
+      if (bestC && bestDist > 100) {
+        const d = Math.sqrt(bestDist);
+        p.vx += ((bestC.x - p.x) / d) * 0.002;
+        p.vy += ((bestC.y - p.y) / d) * 0.002;
+      }
+
+      // Dampen velocity
+      p.vx *= 0.999;
+      p.vy *= 0.999;
+
+      // Wrap around screen edges
+      if (p.x < -10) p.x += W + 20;
+      if (p.x > W + 10) p.x -= W + 20;
+      if (p.y < -10) p.y += H + 20;
+      if (p.y > H + 10) p.y -= H + 20;
+    }
+  }
+
+  // ── Render ──
+  function render() {
+    // Trailing effect: semi-transparent dark fill
+    ctx.fillStyle = 'rgba(5, 6, 15, 0.08)';
+    ctx.fillRect(0, 0, W, H);
+
+    // Draw soft glow halos behind each center
+    for (const c of centers) {
+      const pulse = 0.8 + 0.2 * Math.sin(time * 0.001 + c.phase);
+      const r = c.radius * pulse;
+      const grad = ctx.createRadialGradient(c.x, c.y, 0, c.x, c.y, r);
+      const pc = c.palette[0];
+      grad.addColorStop(0, hsl(pc.h, pc.s, pc.l, 0.015));
+      grad.addColorStop(0.5, hsl(pc.h, pc.s, pc.l, 0.008));
+      grad.addColorStop(1, 'transparent');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Draw particles
+    for (const p of particles) {
+      // Find influence from all centers (weighted by distance)
+      let r = 0, g = 0, b = 0, totalW = 0;
+
+      for (const c of centers) {
+        const dx = c.x - p.x;
+        const dy = c.y - p.y;
+        const d2 = dx * dx + dy * dy;
+        const influence = Math.exp(-d2 / (c.radius * c.radius * 0.5));
+        if (influence < 0.01) continue;
+
+        const pc = c.palette[0];
+        // Convert HSL to approximate RGB contribution
+        const hRad = (pc.h + p.hueShift) * Math.PI / 180;
+        const l = pc.l / 100;
+        const s = pc.s / 100;
+        const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+        const hue2q = (hh) => {
+          if (hh < 0) hh += 1;
+          if (hh > 1) hh -= 1;
+          if (hh < 1/6) return l + (q - l) * 6 * hh;
+          if (hh < 1/2) return q;
+          if (hh < 2/3) return l + (q - l) * (2/3 - hh) * 6;
+          return l;
+        };
+        const hr = hue2q(pc.h / 360 + 1/3);
+        const hg = hue2q(pc.h / 360);
+        const hb = hue2q(pc.h / 360 - 1/3);
+
+        r += hr * 255 * influence;
+        g += hg * 255 * influence;
+        b += hb * 255 * influence;
+        totalW += influence;
+      }
+
+      if (totalW < 0.01) {
+        // Faint ambient dust when far from any center
+        r = 100; g = 110; b = 160;
+        totalW = 0.3;
+      }
+
+      r /= totalW; g /= totalW; b /= totalW;
+
+      // Alpha flicker via sine
+      const flicker = 0.5 + 0.5 * Math.sin(time * p.flickerSpeed + p.flickerPhase);
+      const alpha = p.baseAlpha * (0.3 + 0.7 * flicker);
+
+      ctx.fillStyle = `rgba(${r | 0},${g | 0},${b | 0},${alpha.toFixed(3)})`;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // ── Main loop ──
+  let lastTime = performance.now();
+  function frame(now) {
+    const dt = Math.min(now - lastTime, 50);
+    lastTime = now;
+    update(dt);
+    render();
+    requestAnimationFrame(frame);
+  }
+
+  // ── Events ──
+  window.addEventListener('resize', () => {
+    resize();
+    // Re-clamp centers into new bounds
+    for (const c of centers) {
+      c.x = Math.max(50, Math.min(W - 50, c.x));
+      c.y = Math.max(50, Math.min(H - 50, c.y));
+    }
+  });
+
+  function onPointerDown(e) {
+    if (firstClick) {
+      firstClick = false;
+      hint.classList.add('hidden');
+    }
+    init(true);
+  }
+  canvas.addEventListener('pointerdown', onPointerDown);
+
+  // ── Boot ──
+  resize();
+  particles = [];
+  for (let i = 0; i < PARTICLE_COUNT; i++) {
+    particles.push({ x: 0, y: 0, vx: 0, vy: 0, size: 1, flickerPhase: 0, flickerSpeed: 0.02, baseAlpha: 0.4, hueShift: 0 });
+  }
+  init(false);
+
+  // Initial full clear so trails start clean
+  ctx.fillStyle = '#05060f';
+  ctx.fillRect(0, 0, W, H);
+
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

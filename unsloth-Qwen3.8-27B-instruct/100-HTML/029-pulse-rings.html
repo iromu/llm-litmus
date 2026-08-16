@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pulse Rings — Sonar Frequency Visualization</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #050510;
+  }
+
+  canvas {
+    display: block;
+    position: fixed;
+    inset: 0;
+    cursor: crosshair;
+  }
+
+  .hud {
+    position: fixed;
+    bottom: 1.25rem;
+    left: 1.5rem;
+    font-family: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+    font-size: 0.68rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: rgba(160, 170, 255, 0.4);
+    pointer-events: none;
+    user-select: none;
+    line-height: 1.7;
+  }
+
+  .hud strong {
+    color: rgba(200, 210, 255, 0.65);
+    font-weight: 600;
+  }
+
+  .vignette {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background: radial-gradient(ellipse at center, transparent 55%, rgba(3, 3, 12, 0.55) 100%);
+  }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div class="vignette"></div>
+<footer class="hud" aria-hidden="true">
+  <strong>pulse rings</strong><br>
+  move to emit &middot; click to burst
+</footer>
+
+<script>
+(() => {
+  'use strict';
+
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d');
+
+  // ---------- configuration ----------
+  const CFG = {
+    maxRings: 220,          // hard pool cap
+    fadeAlpha: 0.085,       // exponential trail fade per frame (lower = longer trails)
+    spawnInterval: 42,      // ms between mouse-follow spawns
+    autoSpawnChance: 0.035, // probability per frame of a random ambient ring
+    clickBurst: 5,
+    baseSpeed: 0.9,         // px/frame base expansion
+    speedJitter: 0.9,       // +/- jitter on speed
+    baseLife: 1.0,          // normalized life span
+    lifeJitter: 0.6,
+    lineWidthMin: 1.2,
+    lineWidthMax: 3.4,
+    glowWidthMult: 3.2,     // glow stroke width relative to main
+    hueDrift: 0.35,         // hue shift per frame while alive
+    fillYoung: 0.28,        // fraction of life during which inner fill glow shows
+  };
+
+  // ---------- state ----------
+  let W = 0, H = 0, DPR = 1;
+  let rings = [];
+  let lastMouseSpawn = 0;
+  let mouseX = -1e4, mouseY = -1e4;
+  let hasMouse = false;
+  let time = 0;
+
+  function resize() {
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = W * DPR;
+    canvas.height = H * DPR;
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    // repaint solid so first frame isn't transparent
+    ctx.fillStyle = '#050510';
+    ctx.fillRect(0, 0, W, H);
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  // ---------- ring factory ----------
+  function spawnRing(x, y, opts = {}) {
+    if (rings.length >= CFG.maxRings) {
+      // recycle the oldest (most faded) ring to keep the pool bounded
+      let idx = 0, bestAge = -1;
+      for (let i = 0; i < rings.length; i++) {
+        if (rings[i].age > bestAge) { bestAge = rings[i].age; idx = i; }
+      }
+      rings.splice(idx, 1);
+    }
+    const speed = (CFG.baseSpeed + Math.random() * CFG.speedJitter) * (opts.speedScale ?? 1);
+    const life = (CFG.baseLife + Math.random() * CFG.lifeJitter) * (opts.lifeScale ?? 1);
+    rings.push({
+      x, y,
+      r: 1 + Math.random() * 2,
+      speed,
+      age: 0,
+      life,
+      hue: opts.hue != null ? opts.hue : Math.random() * 360,
+      sat: 70 + Math.random() * 30,
+      light: 52 + Math.random() * 14,
+      lw: CFG.lineWidthMin + Math.random() * (CFG.lineWidthMax - CFG.lineWidthMin),
+      drift: (Math.random() - 0.5) * CFG.hueDrift * 2,
+    });
+  }
+
+  function burst(x, y) {
+    const baseHue = Math.random() * 360;
+    for (let i = 0; i < CFG.clickBurst; i++) {
+      const angle = (i / CFG.clickBurst) * Math.PI * 2 + Math.random() * 0.5;
+      const dist = Math.random() * 14;
+      spawnRing(
+        x + Math.cos(angle) * dist,
+        y + Math.sin(angle) * dist,
+        {
+          hue: (baseHue + i * 24 + 360) % 360,
+          speedScale: 0.85 + Math.random() * 0.7,
+          lifeScale: 0.9 + Math.random() * 0.5,
+        }
+      );
+    }
+  }
+
+  // ---------- input ----------
+  function pointerPos(e) {
+    const t = e.touches ? e.touches[0] : e;
+    return { x: t.clientX, y: t.clientY };
+  }
+
+  window.addEventListener('mousemove', (e) => {
+    mouseX = e.clientX; mouseY = e.clientY;
+    hasMouse = true;
+    const now = performance.now();
+    if (now - lastMouseSpawn > CFG.spawnInterval) {
+      lastMouseSpawn = now;
+      spawnRing(mouseX, mouseY);
+    }
+  }, { passive: true });
+
+  window.addEventListener('click', (e) => burst(e.clientX, e.clientY));
+
+  window.addEventListener('touchmove', (e) => {
+    const p = pointerPos(e);
+    mouseX = p.x; mouseY = p.y;
+    hasMouse = true;
+    const now = performance.now();
+    if (now - lastMouseSpawn > CFG.spawnInterval) {
+      lastMouseSpawn = now;
+      spawnRing(p.x, p.y);
+    }
+  }, { passive: true });
+
+  window.addEventListener('touchstart', (e) => {
+    const p = pointerPos(e);
+    burst(p.x, p.y);
+  }, { passive: true });
+
+  // ---------- render ----------
+  function drawRing(ring) {
+    const t = ring.age / ring.life;            // 0 → 1 over lifetime
+    const alpha = Math.pow(1 - t, 1.6);        // ease-out fade
+    if (alpha <= 0.004) return;
+
+    const hue = (ring.hue + ring.drift * ring.age * 60 + 360) % 360;
+    const hsl = (h, s, l, a) => `hsla(${h.toFixed(1)},${s}%,${l}%,${a.toFixed(3)})`;
+
+    // main stroke
+    ctx.beginPath();
+    ctx.arc(ring.x, ring.y, ring.r, 0, Math.PI * 2);
+    ctx.strokeStyle = hsl(hue, ring.sat, ring.light, alpha);
+    ctx.lineWidth = ring.lw * (1 - t * 0.45);
+    ctx.stroke();
+
+    // glow stroke (wide, dim)
+    ctx.beginPath();
+    ctx.arc(ring.x, ring.y, ring.r, 0, Math.PI * 2);
+    ctx.strokeStyle = hsl(hue, ring.sat, Math.min(ring.light + 12, 78), alpha * 0.28);
+    ctx.lineWidth = ring.lw * CFG.glowWidthMult * (1 - t * 0.3);
+    ctx.stroke();
+
+    // inner fill glow for young rings — sonar "ping" core
+    if (t < CFG.fillYoung) {
+      const fA = (1 - t / CFG.fillYoung) * 0.16;
+      const grad = ctx.createRadialGradient(ring.x, ring.y, 0, ring.x, ring.y, ring.r);
+      grad.addColorStop(0, hsl(hue, ring.sat, 80, fA));
+      grad.addColorStop(0.7, hsl(hue, ring.sat, 60, fA * 0.35));
+      grad.addColorStop(1, hsl(hue, ring.sat, 50, 0));
+      ctx.beginPath();
+      ctx.arc(ring.x, ring.y, ring.r, 0, Math.PI * 2);
+      ctx.fillStyle = grad;
+      ctx.fill();
+    }
+  }
+
+  function frame() {
+    time++;
+
+    // exponential background fade — leaves smooth trails
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = `rgba(5, 5, 16, ${CFG.fadeAlpha})`;
+    ctx.fillRect(0, 0, W, H);
+
+    // additive blending makes overlapping glows bloom
+    ctx.globalCompositeOperation = 'lighter';
+
+    // ambient auto-spawn
+    if (Math.random() < CFG.autoSpawnChance) {
+      spawnRing(Math.random() * W, Math.random() * H, { lifeScale: 1.2 });
+    }
+    // occasional slow "deep" pulse from screen edges for depth
+    if (time % 480 === 0) {
+      const side = Math.floor(Math.random() * 4);
+      const x = side === 0 ? 0 : side === 1 ? W : Math.random() * W;
+      const y = side === 2 ? 0 : side === 3 ? H : Math.random() * H;
+      spawnRing(x, y, { speedScale: 1.6, lifeScale: 1.5, hue: (time * 0.7) % 360 });
+    }
+
+    // update + draw
+    for (let i = rings.length - 1; i >= 0; i--) {
+      const ring = rings[i];
+      ring.age += 1;
+      ring.r += ring.speed * (1 + ring.age * 0.004); // slight acceleration
+      if (ring.age >= ring.life * 60) {
+        rings.splice(i, 1);
+        continue;
+      }
+      drawRing(ring);
+    }
+
+    requestAnimationFrame(frame);
+  }
+
+  // seed a few rings so the page never opens dead
+  for (let i = 0; i < 6; i++) {
+    spawnRing(W * (0.2 + Math.random() * 0.6), H * (0.2 + Math.random() * 0.6), { lifeScale: 1.3 });
+  }
+
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

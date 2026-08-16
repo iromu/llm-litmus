@@ -1,0 +1,21 @@
+Creative Prompt:
+Create a fire particle simulation with glowing embers that rise, flicker, and fade. Particles spawn at the mouse cursor, creating a controlled flame effect. Each particle has warm hues (orange, red, yellow), upward velocity with wobble, a radial glow, and a bright core. Particles decay in life, size, and alpha. Clicking creates a burst of fire. The background has a dark red-black trailing fade. The overall aesthetic is warm, dynamic, and fiery — like a living flame.
+
+Model: Qwen3.8-27B-instruct
+Thinking effort: high
+
+Techniques used:
+- Canvas 2D particle system with object pool (900 max particles)
+- Pre-rendered radial gradient sprites (24 hue variants, HSL 10–50 range) for GPU-friendly additive compositing
+- Upward buoyancy acceleration + sine-based horizontal wobble per particle
+- Life-cycle management: per-frame decay rate, quadratic alpha fade, size shrink proportional to remaining life
+- Hue shift toward red as particles cool (hot→cool color drift)
+- Mouse-follow spawning (12 particles/frame while active) + touch support
+- Click/tap burst: 60–90 radially scattered particles with randomized speed
+- Ambient auto-spawn along the bottom edge (rate scales with viewport width)
+- Trailing background via semi-transparent fill (rgba(10,4,2,0.18)) each frame
+- Additive blending (globalCompositeOperation: 'lighter') for luminous glow accumulation
+- DPR-aware canvas sizing (capped at 2x) for crisp rendering on Retina displays
+- Responsive: full-viewport canvas, resize handler, touch events for mobile
+
+Wall time: N/A | Tokens: N/A

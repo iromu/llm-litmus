@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Liquid Dream</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #0a0a14;
+  }
+
+  canvas {
+    display: block;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    cursor: pointer;
+  }
+
+  .title {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: clamp(3rem, 10vw, 9rem);
+    font-weight: 300;
+    letter-spacing: 0.15em;
+    color: rgba(255, 255, 255, 0.06);
+    text-transform: uppercase;
+    pointer-events: none;
+    user-select: none;
+    white-space: nowrap;
+    z-index: 1;
+  }
+
+  .hint {
+    position: fixed;
+    bottom: 2rem;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 0.75rem;
+    letter-spacing: 0.2em;
+    color: rgba(255, 255, 255, 0.25);
+    pointer-events: none;
+    user-select: none;
+    z-index: 1;
+    animation: pulse-hint 4s ease-in-out infinite;
+  }
+
+  @keyframes pulse-hint {
+    0%, 100% { opacity: 0.25; }
+    50% { opacity: 0.5; }
+  }
+</style>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+<h1 class="title">Liquid Dream</h1>
+<p class="hint">[ click to shift the dream ]</p>
+
+<script>
+(() => {
+  'use strict';
+
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+
+  let W, H, dpr;
+  let blobs = [];
+  let paletteIndex = 0;
+  let time = 0;
+
+  // Color palettes: each has a base hue range and accent
+  const palettes = [
+    { // Purple / Blue
+      hues: [260, 280, 300, 220, 240],
+      sat: [70, 80, 65, 75, 60],
+      light: [55, 60, 50, 55, 48],
+      bg: [12, 8, 28]
+    },
+    { // Warm Red / Orange
+      hues: [10, 25, 40, 350, 15],
+      sat: [85, 90, 75, 80, 88],
+      light: [55, 60, 52, 58, 50],
+      bg: [24, 8, 6]
+    },
+    { // Green / Teal
+      hues: [150, 170, 120, 190, 160],
+      sat: [65, 75, 55, 70, 68],
+      light: [45, 50, 42, 48, 52],
+      bg: [4, 18, 16]
+    },
+    { // Pink / Magenta
+      hues: [320, 340, 300, 355, 310],
+      sat: [80, 85, 70, 78, 82],
+      light: [58, 62, 52, 60, 55],
+      bg: [20, 6, 22]
+    }
+  ];
+
+  function resize() {
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  function rand(min, max) {
+    return min + Math.random() * (max - min);
+  }
+
+  class Blob {
+    constructor(palette) {
+      this.reset(palette);
+    }
+
+    reset(palette) {
+      const pi = palette % palettes.length;
+      const pal = palettes[pi];
+      const idx = Math.floor(Math.random() * pal.hues.length);
+
+      this.hue = pal.hues[idx] + rand(-15, 15);
+      this.sat = pal.sat[idx] + rand(-10, 10);
+      this.light = pal.light[idx] + rand(-8, 8);
+
+      // Size relative to viewport
+      const minDim = Math.min(W, H);
+      this.baseRadius = rand(minDim * 0.08, minDim * 0.22);
+
+      // Position — biased toward center
+      this.x = W * rand(0.2, 0.8);
+      this.y = H * rand(0.2, 0.8);
+
+      // Drift target (center-ish)
+      this.targetX = W * rand(0.3, 0.7);
+      this.targetY = H * rand(0.3, 0.7);
+
+      // Velocity
+      this.vx = rand(-0.3, 0.3);
+      this.vy = rand(-0.3, 0.3);
+
+      // Morph parameters
+      this.numPoints = Math.floor(rand(8, 14));
+      this.morphSpeed = rand(0.003, 0.008);
+      this.morphAmp = rand(0.15, 0.4);
+      this.phaseOffset = rand(0, Math.PI * 2);
+
+      // Per-point random phases for organic feel
+      this.pointPhases = [];
+      this.pointFreqs = [];
+      this.pointAmps = [];
+      for (let i = 0; i < this.numPoints; i++) {
+        this.pointPhases.push(rand(0, Math.PI * 2));
+        this.pointFreqs.push(rand(0.5, 2.0));
+        this.pointAmps.push(rand(0.5, 1.5));
+      }
+
+      // Pulse
+      this.pulseSpeed = rand(0.005, 0.015);
+      this.pulseAmp = rand(0.05, 0.15);
+      this.pulsePhase = rand(0, Math.PI * 2);
+
+      // Opacity
+      this.alpha = rand(0.15, 0.4);
+
+      // Rotation drift
+      this.rotSpeed = rand(-0.002, 0.002);
+      this.rotation = rand(0, Math.PI * 2);
+
+      // Center pull strength
+      this.pullStrength = rand(0.0005, 0.002);
+
+      // Damping
+      this.damping = rand(0.98, 0.995);
+    }
+
+    update(dt) {
+      // Center-pull physics
+      const dx = this.targetX - this.x;
+      const dy = this.targetY - this.y;
+      this.vx += dx * this.pullStrength;
+      this.vy += dy * this.pullStrength;
+
+      // Add slight random wander
+      this.vx += rand(-0.01, 0.01);
+      this.vy += rand(-0.01, 0.01);
+
+      // Damping
+      this.vx *= this.damping;
+      this.vy *= this.damping;
+
+      // Move
+      this.x += this.vx;
+      this.y += this.vy;
+
+      // Update rotation
+      this.rotation += this.rotSpeed;
+
+      // Slowly drift target
+      this.targetX += rand(-0.2, 0.2);
+      this.targetY += rand(-0.2, 0.2);
+      // Keep target in bounds
+      this.targetX = Math.max(W * 0.15, Math.min(W * 0.85, this.targetX));
+      this.targetY = Math.max(H * 0.15, Math.min(H * 0.85, this.targetY));
+    }
+
+    getPoints(t) {
+      const points = [];
+      const pulse = 1 + Math.sin(t * this.pulseSpeed + this.pulsePhase) * this.pulseAmp;
+      const r = this.baseRadius * pulse;
+
+      for (let i = 0; i < this.numPoints; i++) {
+        const angle = (i / this.numPoints) * Math.PI * 2 + this.rotation;
+        const phase = this.pointPhases[i];
+        const freq = this.pointFreqs[i];
+        const amp = this.pointAmps[i];
+
+        // Sine-wave-based radius oscillation
+        const wobble = Math.sin(t * this.morphSpeed * freq + phase) * this.morphAmp * amp;
+        const radius = r * (1 + wobble);
+
+        const px = this.x + Math.cos(angle) * radius;
+        const py = this.y + Math.sin(angle) * radius;
+        points.push({ x: px, y: py });
+      }
+      return points;
+    }
+
+    draw(ctx, t) {
+      const points = this.getPoints(t);
+      if (points.length < 3) return;
+
+      ctx.save();
+
+      // Build smooth path using quadratic curves through midpoints
+      ctx.beginPath();
+      const n = points.length;
+      // Start at midpoint between last and first point
+      const midX = (points[n - 1].x + points[0].x) / 2;
+      const midY = (points[n - 1].y + points[0].y) / 2;
+      ctx.moveTo(midX, midY);
+
+      for (let i = 0; i < n; i++) {
+        const curr = points[i];
+        const next = points[(i + 1) % n];
+        const cpX = (curr.x + next.x) / 2;
+        const cpY = (curr.y + next.y) / 2;
+        ctx.quadraticCurveTo(curr.x, curr.y, cpX, cpY);
+      }
+      ctx.closePath();
+
+      // Radial gradient fill
+      const grad = ctx.createRadialGradient(
+        this.x, this.y, 0,
+        this.x, this.y, this.baseRadius * 1.5
+      );
+      const h = this.hue;
+      const s = this.sat;
+      const l = this.light;
+
+      grad.addColorStop(0, `hsla(${h}, ${s}%, ${l + 15}%, ${this.alpha * 0.9})`);
+      grad.addColorStop(0.4, `hsla(${h + 10}, ${s}%, ${l}%, ${this.alpha * 0.6})`);
+      grad.addColorStop(0.7, `hsla(${h + 20}, ${s - 10}%, ${l - 10}%, ${this.alpha * 0.3})`);
+      grad.addColorStop(1, `hsla(${h + 30}, ${s - 20}%, ${l - 20}%, 0)`);
+
+      ctx.fillStyle = grad;
+      ctx.fill();
+
+      // Subtle inner glow
+      const innerGrad = ctx.createRadialGradient(
+        this.x - this.baseRadius * 0.2, this.y - this.baseRadius * 0.2, 0,
+        this.x, this.y, this.baseRadius * 0.8
+      );
+      innerGrad.addColorStop(0, `hsla(${h - 10}, ${s + 10}%, ${l + 25}%, ${this.alpha * 0.4})`);
+      innerGrad.addColorStop(1, `hsla(${h}, ${s}%, ${l}%, 0)`);
+      ctx.fillStyle = innerGrad;
+      ctx.fill();
+
+      ctx.restore();
+    }
+  }
+
+  function generateBlobs() {
+    const count = Math.floor(rand(5, 9));
+    blobs = [];
+    for (let i = 0; i < count; i++) {
+      blobs.push(new Blob(paletteIndex));
+    }
+    // Sort by size so larger blobs render behind smaller ones
+    blobs.sort((a, b) => b.baseRadius - a.baseRadius);
+  }
+
+  function drawBackground() {
+    const pal = palettes[paletteIndex];
+    const [r, g, b] = pal.bg;
+    // Subtle animated gradient background
+    const cx = W / 2 + Math.sin(time * 0.0003) * W * 0.1;
+    const cy = H / 2 + Math.cos(time * 0.0004) * H * 0.1;
+    const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(W, H) * 0.8);
+    grad.addColorStop(0, `rgb(${r + 8}, ${g + 8}, ${b + 12})`);
+    grad.addColorStop(1, `rgb(${Math.max(0, r - 4)}, ${Math.max(0, g - 4)}, ${Math.max(0, b - 4)})`);
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  function drawVignette() {
+    const grad = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.3, W / 2, H / 2, Math.max(W, H) * 0.75);
+    grad.addColorStop(0, 'rgba(0,0,0,0)');
+    grad.addColorStop(1, 'rgba(0,0,0,0.4)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  let lastTime = performance.now();
+
+  function animate(now) {
+    const dt = Math.min((now - lastTime) / 16.67, 3); // normalize to ~60fps units, cap at 3
+    lastTime = now;
+    time = now;
+
+    drawBackground();
+
+    // Update and draw blobs
+    for (const blob of blobs) {
+      blob.update(dt);
+      blob.draw(ctx, time);
+    }
+
+    drawVignette();
+
+    requestAnimationFrame(animate);
+  }
+
+  function onResize() {
+    resize();
+    // Regenerate to fit new dimensions
+    generateBlobs();
+  }
+
+  function onClick(e) {
+    paletteIndex = (paletteIndex + 1) % palettes.length;
+    generateBlobs();
+  }
+
+  // Init
+  resize();
+  generateBlobs();
+  requestAnimationFrame(animate);
+
+  window.addEventListener('resize', onResize);
+  canvas.addEventListener('click', onClick);
+  canvas.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    onClick(e);
+  }, { passive: false });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,32 @@
+Crystal Growth — Generative Crystallography
+=============================================
+
+Creative Prompt:
+Create a generative crystal growth visualization where faceted crystal structures
+grow organically from nucleation points. Each crystal has multiple facets radiating
+from a center, rendered as quadrilateral shapes with varying hues (blue-purple spectrum),
+alpha levels, and edge strokes. Crystal tips have a glow effect. Crystals slowly grow
+additional facets over time. Clicking spawns new crystals at the cursor. Moving the mouse
+also generates new crystals in the vicinity. The background fades with a trailing effect.
+The overall aesthetic is frozen, geometric, and luminescent — like observing crystal
+formation under a microscope.
+
+Model: Qwen3.8-27B-instruct
+Thinking effort: high
+
+Techniques used:
+- Canvas quadrilateral rendering for crystal facets (4-point polygon per facet)
+- Organic growth algorithm: each crystal spawns child facets adjacent to existing ones,
+  with a generation limit of 28 facets per crystal
+- HSL color cycling per facet within a blue-purple hue range (220–290°)
+- Tip glow via radial gradients at each facet's outer midpoint
+- Mouse-following crystal generation (spawn every N frames at cursor ± jitter)
+- Trailing background via semi-transparent fillRect (rgba fade, alpha 0.045)
+- Click spawning: cluster of 5 crystals at cursor position
+- Population control: max 120 crystals; oldest removed when cap reached
+- Subtle shimmer animation (per-facet sine pulse on alpha)
+- Vignette overlay for depth
+- Touch support for mobile
+- HUD showing live facet/crystal counts
+
+Wall time: N/A | Tokens: N/A

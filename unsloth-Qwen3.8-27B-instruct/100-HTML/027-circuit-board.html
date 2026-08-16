@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Circuit Board</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #041a0e;
+  }
+
+  canvas {
+    display: block;
+    width: 100vw;
+    height: 100vh;
+  }
+
+  .title {
+    position: fixed;
+    bottom: 2rem;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: 'Courier New', Courier, monospace;
+    font-size: clamp(0.9rem, 2.2vw, 1.6rem);
+    letter-spacing: 0.6em;
+    text-transform: uppercase;
+    color: rgba(0, 255, 120, 0.14);
+    pointer-events: none;
+    user-select: none;
+    animation: title-breathe 6s ease-in-out infinite;
+    z-index: 10;
+  }
+
+  @keyframes title-breathe {
+    0%, 100% { opacity: 0.55; }
+    50%      { opacity: 1; }
+  }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div class="title" aria-hidden="true">Circuit Board</div>
+
+<script>
+(() => {
+  'use strict';
+
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d');
+
+  let W = 0, H = 0, DPR = 1;
+  let nodes = [];
+  let traces = [];
+  let pulses = [];
+  let time = 0;
+
+  /* ---------- palette ---------- */
+  const COL = {
+    bg:        '#041a0e',
+    traceDim:  [0, 140, 60],   // base trace rgb
+    traceHot:  [0, 255, 120],  // bright pulse rgb
+    nodeCore:  [180, 255, 210],
+    nodeGlow:  [0, 255, 120],
+    dot:       [160, 255, 200]
+  };
+
+  /* ---------- helpers ---------- */
+  const rand  = (a, b) => a + Math.random() * (b - a);
+  const lerp  = (a, b, t) => a + (b - a) * t;
+  const dist  = (ax, ay, bx, by) => Math.hypot(bx - ax, by - ay);
+
+  // Organic sinusoidal pulse: smooth 0..1 with per-instance phase & speed
+  function pulse(t, phase, speed) {
+    return 0.5 + 0.5 * Math.sin(t * speed + phase);
+  }
+
+  /* ---------- scene generation ---------- */
+  function buildScene() {
+    nodes = [];
+    traces = [];
+    pulses = [];
+
+    const cell = Math.max(70, Math.min(W, H) / 10);
+    const cols = Math.ceil(W / cell) + 1;
+    const rows = Math.ceil(H / cell) + 1;
+
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        // ~62% of grid cells get a node — semi-random occupancy
+        if (Math.random() > 0.62) continue;
+
+        const jx = rand(-cell * 0.32, cell * 0.32);
+        const jy = rand(-cell * 0.32, cell * 0.32);
+        nodes.push({
+          x: c * cell + cell / 2 + jx,
+          y: r * cell + cell / 2 + jy,
+          radius: rand(2.2, 4.6),
+          phase: rand(0, Math.PI * 2),
+          breatheSpeed: rand(0.6, 1.4),
+          kind: Math.random() < 0.14 ? 'square' : 'round' // a few SMD-style pads
+        });
+      }
+    }
+
+    // Connection logic: distance threshold, max degree to avoid hairball
+    const linkDist = cell * 1.35;
+    const maxDeg = 3;
+    const degree = new Array(nodes.length).fill(0);
+
+    for (let i = 0; i < nodes.length; i++) {
+      for (let j = i + 1; j < nodes.length; j++) {
+        if (degree[i] >= maxDeg || degree[j] >= maxDeg) continue;
+        const d = dist(nodes[i].x, nodes[i].y, nodes[j].x, nodes[j].y);
+        if (d <= linkDist && Math.random() < 0.72) {
+          const a = nodes[i], b = nodes[j];
+          // PCB-style right-angle routing: pick an elbow point
+          const horizontalFirst = Math.random() < 0.5;
+          const mid = horizontalFirst
+            ? { x: b.x, y: a.y }
+            : { x: a.x, y: b.y };
+          traces.push({ a: i, b: j, mid, len: d, phase: rand(0, Math.PI * 2), speed: rand(0.5, 1.1) });
+          degree[i]++; degree[j]++;
+        }
+      }
+    }
+
+    // Traveling signal dots — one or two per trace
+    for (const tr of traces) {
+      const count = Math.random() < 0.35 ? 2 : 1;
+      for (let k = 0; k < count; k++) {
+        pulses.push({
+          trace: tr,
+          t: Math.random(),                 // parametric position along path
+          speed: rand(0.0018, 0.0045),      // fraction of path per frame
+          size: rand(1.6, 3.2),
+          dir: Math.random() < 0.5 ? 1 : -1
+        });
+      }
+    }
+  }
+
+  /* ---------- geometry: point on a 3-segment path (a -> mid -> b) ---------- */
+  function pathPoint(tr, t) {
+    const a = nodes[tr.a], m = tr.mid, b = nodes[tr.b];
+    const l1 = dist(a.x, a.y, m.x, m.y);
+    const l2 = dist(m.x, m.y, b.x, b.y);
+    const total = l1 + l2 || 1;
+    const d = t * total;
+    if (d <= l1) {
+      const f = l1 === 0 ? 0 : d / l1;
+      return { x: lerp(a.x, m.x, f), y: lerp(a.y, m.y, f) };
+    }
+    const f = l2 === 0 ? 0 : (d - l1) / l2;
+    return { x: lerp(m.x, b.x, f), y: lerp(m.y, b.y, f) };
+  }
+
+  /* ---------- drawing ---------- */
+  function drawTrace(tr, alpha) {
+    const a = nodes[tr.a], m = tr.mid, b = nodes[tr.b];
+    const g = Math.round(lerp(COL.traceDim[1], COL.traceHot[1], alpha));
+    const r = Math.round(lerp(COL.traceDim[0], COL.traceHot[0], alpha));
+    ctx.strokeStyle = `rgba(${r},${g},${Math.round(lerp(COL.traceDim[2], COL.traceHot[2], alpha))},${0.10 + alpha * 0.5})`;
+    ctx.lineWidth = 1 + alpha * 1.2;
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(m.x, m.y);
+    ctx.lineTo(b.x, b.y);
+    ctx.stroke();
+
+    // faint glow pass for hot traces
+    if (alpha > 0.45) {
+      ctx.strokeStyle = `rgba(0,255,120,${(alpha - 0.45) * 0.16})`;
+      ctx.lineWidth = 4 + alpha * 3;
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(m.x, m.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.stroke();
+    }
+  }
+
+  function drawNode(n, intensity) {
+    const g = COL.nodeGlow;
+    // radial gradient glow
+    const glowR = n.radius * (4.5 + intensity * 3.5);
+    const grad = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, glowR);
+    grad.addColorStop(0, `rgba(${g[0]},${g[1]},${g[2]},${0.35 + intensity * 0.45})`);
+    grad.addColorStop(0.4, `rgba(${g[0]},${g[1]},${g[2]},${0.10 + intensity * 0.15})`);
+    grad.addColorStop(1, 'rgba(0,255,120,0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(n.x, n.y, glowR, 0, Math.PI * 2);
+    ctx.fill();
+
+    // core
+    const cr = n.radius * (0.85 + intensity * 0.35);
+    ctx.fillStyle = `rgba(${COL.nodeCore[0]},${COL.nodeCore[1]},${COL.nodeCore[2]},${0.55 + intensity * 0.45})`;
+    if (n.kind === 'square') {
+      ctx.fillRect(n.x - cr, n.y - cr, cr * 2, cr * 2);
+    } else {
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, cr, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  function drawPulse(p) {
+    const pt = pathPoint(p.trace, p.t);
+    const s = p.size;
+    // halo
+    const grad = ctx.createRadialGradient(pt.x, pt.y, 0, pt.x, pt.y, s * 5);
+    grad.addColorStop(0, `rgba(${COL.dot[0]},${COL.dot[1]},${COL.dot[2]},0.9)`);
+    grad.addColorStop(0.35, 'rgba(0,255,120,0.35)');
+    grad.addColorStop(1, 'rgba(0,255,120,0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(pt.x, pt.y, s * 5, 0, Math.PI * 2);
+    ctx.fill();
+    // bright head
+    ctx.fillStyle = `rgba(220,255,235,0.95)`;
+    ctx.beginPath();
+    ctx.arc(pt.x, pt.y, s, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  /* ---------- main loop ---------- */
+  function frame() {
+    time += 0.016;
+
+    // Exponential background fade → motion trails
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = 'rgba(4, 26, 14, 0.16)';
+    ctx.fillRect(0, 0, W, H);
+
+    // additive blending for neon glow accumulation
+    ctx.globalCompositeOperation = 'lighter';
+
+    // traces with pulse-driven alpha modulation
+    for (const tr of traces) {
+      const a = pulse(time, tr.phase, tr.speed);
+      drawTrace(tr, a);
+    }
+
+    // nodes breathing
+    for (const n of nodes) {
+      const i = pulse(time, n.phase, n.breatheSpeed);
+      drawNode(n, i);
+    }
+
+    // traveling signal dots
+    for (const p of pulses) {
+      p.t += p.speed * p.dir;
+      if (p.t > 1) p.t -= 1;
+      if (p.t < 0) p.t += 1;
+      drawPulse(p);
+    }
+
+    requestAnimationFrame(frame);
+  }
+
+  /* ---------- resize ---------- */
+  function resize() {
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = W * DPR;
+    canvas.height = H * DPR;
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    // solid clear so the first frame starts clean
+    ctx.fillStyle = COL.bg;
+    ctx.fillRect(0, 0, W, H);
+    buildScene();
+  }
+
+  window.addEventListener('resize', resize);
+  resize();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

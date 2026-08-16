@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KINETIC — Kinetic Letterforms</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #06090f;
+  }
+
+  canvas {
+    display: block;
+    width: 100vw;
+    height: 100vh;
+    cursor: crosshair;
+  }
+
+  .hint {
+    position: fixed;
+    bottom: 1.4rem;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: clamp(0.65rem, 1.4vw, 0.8rem);
+    letter-spacing: 0.35em;
+    text-transform: uppercase;
+    color: rgba(160, 190, 255, 0.35);
+    pointer-events: none;
+    user-select: none;
+    transition: opacity 1.2s ease;
+    white-space: nowrap;
+  }
+  .hint.hidden { opacity: 0; }
+</style>
+</head>
+<body>
+<canvas id="stage" aria-label="Interactive kinetic typography of the word KINETIC"></canvas>
+<p class="hint" id="hint">move to repel &middot; click to scatter</p>
+
+<script>
+(() => {
+  'use strict';
+
+  // ---------- Canvas setup ----------
+  const canvas = document.getElementById('stage');
+  const ctx = canvas.getContext('2d');
+  let W = 0, H = 0, DPR = 1;
+
+  function resize() {
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = W * DPR;
+    canvas.height = H * DPR;
+    layoutTargets();
+  }
+
+  // ---------- Mouse / touch state ----------
+  const mouse = { x: -9999, y: -9999, active: false };
+
+  function setPointer(x, y) {
+    mouse.x = x;
+    mouse.y = y;
+    mouse.active = true;
+  }
+
+  window.addEventListener('mousemove', e => setPointer(e.clientX, e.clientY), { passive: true });
+  window.addEventListener('mouseleave', () => { mouse.active = false; }, { passive: true });
+  window.addEventListener('touchmove', e => {
+    if (e.touches.length) setPointer(e.touches[0].clientX, e.touches[0].clientY);
+  }, { passive: true });
+  window.addEventListener('touchend', () => { mouse.active = false; }, { passive: true });
+
+  // ---------- Letter model ----------
+  const WORD = 'KINETIC';
+  const LETTERS = [];   // main letters
+  const DRIFTERS = [];  // ambient floating letters
+  const AMBIENT_CHARS = 'AEIOUXYZKWQJFGLMNPQRSTVHBD'.split('');
+
+  const SPRING_K = 0.045;      // attraction to target
+  const DAMPING = 0.88;        // velocity damping
+  const MOUSE_RADIUS = 190;    // repulsion radius
+  const MOUSE_FORCE = 14;      // repulsion strength
+  const LINE_DIST = 1.35;      // connection-line distance factor (x base gap)
+
+  let baseGap = 0;             // spacing between main letter targets
+  let baseSize = 0;            // font size for main letters
+
+  function computeBaseSizes() {
+    const n = WORD.length;
+    baseSize = Math.min(W / (n * 1.05), H * 0.22, 150);
+    baseSize = Math.max(baseSize, 34);
+    baseGap = baseSize * 0.92;
+  }
+
+  function layoutTargets() {
+    computeBaseSizes();
+    const totalW = baseGap * (WORD.length - 1);
+    const startX = (W - totalW) / 2;
+    const cy = H * 0.46;
+    for (let i = 0; i < LETTERS.length; i++) {
+      LETTERS[i].tx = startX + i * baseGap;
+      LETTERS[i].ty = cy;
+    }
+  }
+
+  function makeLetter(ch, x, y, isMain, index) {
+    return {
+      ch,
+      x, y,
+      vx: 0, vy: 0,
+      tx: x, ty: y,
+      isMain,
+      index,
+      phase: Math.random() * Math.PI * 2,
+      phaseSpeed: 0.008 + Math.random() * 0.014,
+      rotPhase: Math.random() * Math.PI * 2,
+      rotSpeed: 0.004 + Math.random() * 0.008,
+      sizeScale: isMain ? 1 : 0.32 + Math.random() * 0.3,
+      hue: isMain ? 215 : 200 + Math.random() * 40,
+      alpha: isMain ? 1 : 0.28 + Math.random() * 0.3,
+      driftAngle: Math.random() * Math.PI * 2,
+      driftSpeed: 0.002 + Math.random() * 0.004,
+    };
+  }
+
+  function initLetters(scatter) {
+    LETTERS.length = 0;
+    DRIFTERS.length = 0;
+    layoutTargets();
+
+    for (let i = 0; i < WORD.length; i++) {
+      const L = makeLetter(WORD[i], 0, 0, true, i);
+      if (scatter) {
+        L.x = Math.random() * W;
+        L.y = Math.random() * H;
+        L.vx = (Math.random() - 0.5) * 18;
+        L.vy = (Math.random() - 0.5) * 18;
+      } else {
+        L.x = L.tx;
+        L.y = L.ty;
+      }
+      LETTERS.push(L);
+    }
+
+    const count = Math.round(Math.min(26, Math.max(10, (W * H) / 45000)));
+    for (let i = 0; i < count; i++) {
+      const D = makeLetter(
+        AMBIENT_CHARS[Math.floor(Math.random() * AMBIENT_CHARS.length)],
+        Math.random() * W,
+        Math.random() * H,
+        false, -1
+      );
+      DRIFTERS.push(D);
+    }
+  }
+
+  // Click → re-randomize everything
+  let hintEl = document.getElementById('hint');
+  let hintHidden = false;
+
+  function onScatter() {
+    initLetters(true);
+    if (!hintHidden) {
+      hintHidden = true;
+      hintEl.classList.add('hidden');
+    }
+  }
+
+  canvas.addEventListener('click', onScatter, { passive: true });
+  canvas.addEventListener('touchstart', e => {
+    if (e.touches.length) {
+      setPointer(e.touches[0].clientX, e.touches[0].clientY);
+      onScatter();
+    }
+  }, { passive: true });
+
+  // ---------- Physics step ----------
+  function step(letter) {
+    // spring toward target
+    const dxT = letter.tx - letter.x;
+    const dyT = letter.ty - letter.y;
+    letter.vx += dxT * SPRING_K;
+    letter.vy += dyT * SPRING_K;
+
+    // mouse repulsion
+    if (mouse.active) {
+      const dx = letter.x - mouse.x;
+      const dy = letter.y - mouse.y;
+      const d2 = dx * dx + dy * dy;
+      const r = MOUSE_RADIUS * (letter.isMain ? 1 : 0.7);
+      if (d2 < r * r && d2 > 0.01) {
+        const d = Math.sqrt(d2);
+        const f = (1 - d / r) * MOUSE_FORCE * (letter.isMain ? 1 : 0.5);
+        letter.vx += (dx / d) * f;
+        letter.vy += (dy / d) * f;
+      }
+    }
+
+    // gentle wander for drifters
+    if (!letter.isMain) {
+      letter.driftAngle += (Math.random() - 0.5) * 0.08;
+      letter.vx += Math.cos(letter.driftAngle) * 0.06;
+      letter.vy += Math.sin(letter.driftAngle) * 0.06;
+      // soft wrap-around pull back into view
+      const m = 60;
+      if (letter.x < -m) letter.vx += 0.15;
+      if (letter.x > W + m) letter.vx -= 0.15;
+      if (letter.y < -m) letter.vy += 0.15;
+      if (letter.y > H + m) letter.vy -= 0.15;
+    }
+
+    letter.vx *= DAMPING;
+    letter.vy *= DAMPING;
+    letter.x += letter.vx;
+    letter.y += letter.vy;
+
+    // organic oscillation phases
+    letter.phase += letter.phaseSpeed;
+    letter.rotPhase += letter.rotSpeed;
+  }
+
+  // ---------- Glow intensity from cursor proximity ----------
+  function glowFor(letter) {
+    if (!mouse.active) return 0.35;
+    const dx = letter.x - mouse.x;
+    const dy = letter.y - mouse.y;
+    const d = Math.sqrt(dx * dx + dy * dy);
+    const t = Math.max(0, 1 - d / (MOUSE_RADIUS * 1.6));
+    return 0.35 + t * 1.4;
+  }
+
+  // ---------- Render ----------
+  function drawConnections() {
+    // lines between adjacent main letters when close enough
+    const maxDist = baseGap * LINE_DIST;
+    for (let i = 0; i < LETTERS.length - 1; i++) {
+      const a = LETTERS[i], b = LETTERS[i + 1];
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const d = Math.sqrt(dx * dx + dy * dy);
+      if (d < maxDist) {
+        const t = 1 - d / maxDist;
+        const ga = glowFor(a), gb = glowFor(b);
+        const g = (ga + gb) * 0.5;
+        const alpha = t * (0.12 + g * 0.18);
+        ctx.save();
+        ctx.strokeStyle = `rgba(150, 190, 255, ${alpha.toFixed(3)})`;
+        ctx.lineWidth = 1 + t * 1.5;
+        ctx.shadowColor = 'rgba(120, 170, 255, 0.8)';
+        ctx.shadowBlur = 8 + g * 10;
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y);
+        // slight curve through midpoint for elegance
+        const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2 + Math.sin(performance.now() * 0.001 + i) * 6;
+        ctx.quadraticCurveTo(mx, my, b.x, b.y);
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+  }
+
+  function drawLetter(letter, time) {
+    const pulse = 1 + Math.sin(letter.phase) * 0.06;
+    const size = baseSize * letter.sizeScale * pulse;
+    const rot = Math.sin(letter.rotPhase) * (letter.isMain ? 0.08 : 0.35);
+    const glow = glowFor(letter);
+    const sat = letter.hue;
+    const light = 72 + glow * 10;
+
+    ctx.save();
+    ctx.translate(letter.x, letter.y);
+    ctx.rotate(rot);
+    ctx.font = `700 ${size}px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    // outer glow pass
+    ctx.shadowColor = `hsla(${sat}, 90%, ${light}%, ${Math.min(0.9, 0.35 + glow * 0.4).toFixed(3)})`;
+    ctx.shadowBlur = 12 + glow * 26;
+    ctx.fillStyle = `hsla(${sat}, 70%, ${light}%, ${(letter.alpha * (0.55 + glow * 0.3)).toFixed(3)})`;
+    ctx.fillText(letter.ch, 0, 0);
+
+    // crisp inner pass
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = `hsla(${sat}, 40%, ${Math.min(96, light + 14)}%, ${letter.alpha.toFixed(3)})`;
+    ctx.fillText(letter.ch, 0, 0);
+
+    ctx.restore();
+  }
+
+  // subtle vignette + ambient gradient, cached per frame
+  function drawBackground(time) {
+    // deep radial wash that breathes slowly
+    const cx = W / 2, cy = H * 0.46;
+    const breathe = 0.5 + 0.5 * Math.sin(time * 0.0003);
+    const rad = Math.max(W, H) * (0.75 + breathe * 0.1);
+    const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, rad);
+    grad.addColorStop(0, `rgba(22, 34, 58, ${0.5 + breathe * 0.12})`);
+    grad.addColorStop(0.55, 'rgba(10, 16, 30, 0.9)');
+    grad.addColorStop(1, 'rgba(4, 6, 12, 1)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, W, H);
+
+    // faint cursor halo
+    if (mouse.active) {
+      const hg = ctx.createRadialGradient(mouse.x, mouse.y, 0, mouse.x, mouse.y, MOUSE_RADIUS * 1.4);
+      hg.addColorStop(0, 'rgba(90, 140, 255, 0.07)');
+      hg.addColorStop(1, 'rgba(90, 140, 255, 0)');
+      ctx.fillStyle = hg;
+      ctx.fillRect(0, 0, W, H);
+    }
+  }
+
+  // ---------- Main loop ----------
+  let lastTime = 0;
+
+  function frame(time) {
+    const dt = Math.min(32, time - lastTime);
+    lastTime = time;
+
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    ctx.clearRect(0, 0, W, H);
+
+    drawBackground(time);
+
+    // physics
+    for (const L of LETTERS) step(L);
+    for (const D of DRIFTERS) step(D);
+
+    drawConnections();
+
+    // drifters behind, main letters in front
+    for (const D of DRIFTERS) drawLetter(D, time);
+    for (const L of LETTERS) drawLetter(L, time);
+
+    requestAnimationFrame(frame);
+  }
+
+  // ---------- Boot ----------
+  window.addEventListener('resize', () => { resize(); }, { passive: true });
+  resize();
+  initLetters(false);
+  requestAnimationFrame(t => { lastTime = t; requestAnimationFrame(frame); });
+})();
+</script>
+</body>
+</html>

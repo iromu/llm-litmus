@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chess Board — 3D Isometric</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #0a0908; }
+  canvas { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
+  .label {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 11px; letter-spacing: 0.35em; text-transform: uppercase;
+    color: rgba(214, 196, 160, 0.35); pointer-events: none; user-select: none;
+  }
+</style>
+</head>
+<body>
+<canvas id="board"></canvas>
+<div class="label">Move the mouse to rotate the board</div>
+<script>
+(() => {
+  const canvas = document.getElementById('board');
+  const ctx = canvas.getContext('2d');
+
+  // ---------- Configuration ----------
+  const N = 8;                 // board size
+  const SQ = 1;                // square size in world units
+  const DEPTH = 0.22;          // extrusion depth of each square
+  const GAP = 0.015;           // tiny gap between squares (bevel look)
+  const FOCUS = 11;            // perspective focal distance
+  const BASE_TILT = -0.95;     // base rotation around X (isometric-ish top view)
+  const MAX_SPIN = 0.55;       // max extra Y rotation from mouse
+  const TILT_RANGE = 0.35;     // extra X tilt range from mouse
+  const SMOOTH = 0.06;         // lerp factor for mouse follow
+
+  // Colors — classic cream / dark walnut
+  const CREAM_TOP   = [236, 224, 196];
+  const DARK_TOP    = [92, 64, 44];
+  const CREAM_SIDE  = [168, 152, 122];
+  const DARK_SIDE   = [58, 40, 28];
+  const RIM_COLOR   = [196, 176, 138];
+  const BG_FADE     = 'rgba(10, 9, 8, 0.28)';
+
+  // ---------- State ----------
+  let W = 0, H = 0, DPR = 1;
+  let mouseX = 0.5, mouseY = 0.5;   // normalized target
+  let curX = 0.5, curY = 0.5;        // smoothed current
+  let t = 0;
+
+  function resize() {
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth; H = window.innerHeight;
+    canvas.width = W * DPR; canvas.height = H * DPR;
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    // paint solid once so first frame has no flash
+    ctx.fillStyle = '#0a0908';
+    ctx.fillRect(0, 0, W, H);
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  window.addEventListener('mousemove', e => {
+    mouseX = e.clientX / W;
+    mouseY = e.clientY / H;
+  });
+  window.addEventListener('touchmove', e => {
+    if (!e.touches.length) return;
+    mouseX = e.touches[0].clientX / W;
+    mouseY = e.touches[0].clientY / H;
+  }, { passive: true });
+
+  // ---------- 3D math ----------
+  // World: board centered at origin, +Z up.
+  // Camera orbit: rotY then rotX, then perspective divide by (FOCUS - z).
+  function project(x, y, z, sinY, cosY, sinX, cosX, scale) {
+    // rotate around Y
+    const x1 = x * cosY + z * sinY;
+    const z1 = -x * sinY + z * cosY;
+    const y1 = y;
+    // rotate around X
+    const y2 = y1 * cosX - z1 * sinX;
+    const z2 = y1 * sinX + z1 * cosX;
+    const x2 = x1;
+    const persp = FOCUS / (FOCUS - z2);
+    return {
+      sx: W / 2 + x2 * scale * persp,
+      sy: H / 2 + y2 * scale * persp,
+      depth: z2
+    };
+  }
+
+  function shade(base, f) {
+    return `rgb(${Math.min(255, base[0] * f) | 0},${Math.min(255, base[1] * f) | 0},${Math.min(255, base[2] * f) | 0})`;
+  }
+
+  function quad(a, b, c, d, fill) {
+    ctx.beginPath();
+    ctx.moveTo(a.sx, a.sy);
+    ctx.lineTo(b.sx, b.sy);
+    ctx.lineTo(c.sx, c.sy);
+    ctx.lineTo(d.sx, d.sy);
+    ctx.closePath();
+    ctx.fillStyle = fill;
+    ctx.fill();
+  }
+
+  // ---------- Board geometry ----------
+  // Precompute square corners in world space.
+  // Square (i,j): i = file (x), j = rank (y). Centered board.
+  const half = (N * SQ) / 2;
+  const squares = [];
+  for (let j = 0; j < N; j++) {
+    for (let i = 0; i < N; i++) {
+      const x0 = -half + i * SQ + GAP;
+      const x1 = -half + (i + 1) * SQ - GAP;
+      const y0 = -half + j * SQ + GAP;
+      const y1 = -half + (j + 1) * SQ - GAP;
+      const light = (i + j) % 2 === 0;
+      squares.push({ i, j, x0, x1, y0, y1, light, center: (x0 + x1 + y0 + y1) / 4 });
+    }
+  }
+
+  // Rim: outer frame slightly larger than the board
+  const rimPad = 0.18;
+  const rim = {
+    x0: -half - rimPad, x1: half + rimPad,
+    y0: -half - rimPad, y1: half + rimPad
+  };
+
+  // ---------- Render ----------
+  function render() {
+    t += 0.008;
+
+    // Trailing fade
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = BG_FADE;
+    ctx.fillRect(0, 0, W, H);
+
+    // Smooth mouse interpolation
+    curX += (mouseX - curX) * SMOOTH;
+    curY += (mouseY - curY) * SMOOTH;
+
+    // Rotation angles with a gentle idle drift
+    const idleX = Math.sin(t * 0.4) * 0.05;
+    const idleY = Math.cos(t * 0.3) * 0.06;
+    const angY = (curX - 0.5) * 2 * MAX_SPIN + idleY;
+    const angX = BASE_TILT + (curY - 0.5) * 2 * TILT_RANGE + idleX;
+
+    const sinY = Math.sin(angY), cosY = Math.cos(angY);
+    const sinX = Math.sin(angX), cosX = Math.cos(angX);
+
+    // Scale responsive to viewport
+    const scale = Math.min(W, H) / (N * SQ * 1.9);
+
+    // Depth sort: painter's algorithm — farthest first (smallest z2 = farthest)
+    const order = squares.map(s => ({ s, d: 0 }));
+    for (const o of order) {
+      // approximate depth using projected center
+      const p = project((o.s.x0 + o.s.x1) / 2, (o.s.y0 + o.s.y1) / 2, 0, sinY, cosY, sinX, cosX, scale);
+      o.d = p.depth;
+    }
+    order.sort((a, b) => a.d - b.d);
+
+    // --- Draw rim (bottom layer) ---
+    {
+      const rTopZ = -DEPTH * 0.5;
+      const rBotZ = -DEPTH * 0.5 - DEPTH * 0.6;
+      const a = project(rim.x0, rim.y0, rTopZ, sinY, cosY, sinX, cosX, scale);
+      const b = project(rim.x1, rim.y0, rTopZ, sinY, cosY, sinX, cosX, scale);
+      const c = project(rim.x1, rim.y1, rTopZ, sinY, cosY, sinX, cosX, scale);
+      const d = project(rim.x0, rim.y1, rTopZ, sinY, cosY, sinX, cosX, scale);
+      const a2 = project(rim.x0, rim.y0, rBotZ, sinY, cosY, sinX, cosX, scale);
+      const b2 = project(rim.x1, rim.y0, rBotZ, sinY, cosY, sinX, cosX, scale);
+      const c2 = project(rim.x1, rim.y1, rBotZ, sinY, cosY, sinX, cosX, scale);
+      const d2 = project(rim.x0, rim.y1, rBotZ, sinY, cosY, sinX, cosX, scale);
+
+      // rim sides (only draw faces that face the camera: check normal via screen winding)
+      const sides = [
+        [a, b, b2, a2], [b, c, c2, b2], [c, d, d2, c2], [d, a, a2, d2]
+      ];
+      for (const q of sides) {
+        // winding test: positive area => front-facing
+        const area = (q[1].sx - q[0].sx) * (q[2].sy - q[0].sy) - (q[2].sx - q[0].sx) * (q[1].sy - q[0].sy);
+        if (area > 0) {
+          quad(q[0], q[1], q[2], q[3], shade(RIM_COLOR, 0.35));
+        }
+      }
+      // rim top
+      quad(a, b, c, d, shade(RIM_COLOR, 0.5));
+    }
+
+    // --- Draw squares ---
+    for (const { s } of order) {
+      const topZ = 0;
+      const botZ = -DEPTH;
+      const { x0, x1, y0, y1, light } = s;
+
+      // Top face corners
+      const t00 = project(x0, y0, topZ, sinY, cosY, sinX, cosX, scale);
+      const t10 = project(x1, y0, topZ, sinY, cosY, sinX, cosX, scale);
+      const t11 = project(x1, y1, topZ, sinY, cosY, sinX, cosX, scale);
+      const t01 = project(x0, y1, topZ, sinY, cosY, sinX, cosX, scale);
+
+      // Bottom face corners
+      const b00 = project(x0, y0, botZ, sinY, cosY, sinX, cosX, scale);
+      const b10 = project(x1, y0, botZ, sinY, cosY, sinX, cosX, scale);
+      const b11 = project(x1, y1, botZ, sinY, cosY, sinX, cosX, scale);
+      const b01 = project(x0, y1, botZ, sinY, cosY, sinX, cosX, scale);
+
+      // Side faces with winding-based visibility
+      const sideBase = light ? CREAM_SIDE : DARK_SIDE;
+      const sides = [
+        [t00, t10, b10, b00],  // south
+        [t10, t11, b11, b10],  // east
+        [t11, t01, b01, b11],  // north
+        [t01, t00, b00, b01]   // west
+      ];
+      for (const q of sides) {
+        const area = (q[1].sx - q[0].sx) * (q[2].sy - q[0].sy) - (q[2].sx - q[0].sx) * (q[1].sy - q[0].sy);
+        if (area > 0) {
+          // slight per-face shading variation for dimensionality
+          const f = 0.55 + 0.15 * Math.abs(Math.sin(angY + q[0].sx * 0.002));
+          quad(q[0], q[1], q[2], q[3], shade(sideBase, f));
+        }
+      }
+
+      // Top face with subtle lighting gradient based on position
+      const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+      const lightF = 0.85 + 0.15 * ((cx + cy) / (N * SQ)) + 0.08 * Math.sin(cx * 1.2 + t) ;
+      const topCol = light ? CREAM_TOP : DARK_TOP;
+      quad(t00, t10, t11, t01, shade(topCol, Math.max(0.5, Math.min(1.15, lightF))));
+
+      // Thin edge highlight on top face
+      ctx.strokeStyle = light ? 'rgba(255,250,235,0.12)' : 'rgba(255,220,180,0.07)';
+      ctx.lineWidth = 0.5;
+      ctx.beginPath();
+      ctx.moveTo(t00.sx, t00.sy);
+      ctx.lineTo(t10.sx, t10.sy);
+      ctx.lineTo(t11.sx, t11.sy);
+      ctx.lineTo(t01.sx, t01.sy);
+      ctx.closePath();
+      ctx.stroke();
+    }
+
+    // Subtle vignette glow at center
+    const grad = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, Math.max(W, H) * 0.7);
+    grad.addColorStop(0, 'rgba(180, 150, 100, 0.025)');
+    grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, W, H);
+
+    requestAnimationFrame(render);
+  }
+
+  requestAnimationFrame(render);
+})();
+</script>
+</body>
+</html>

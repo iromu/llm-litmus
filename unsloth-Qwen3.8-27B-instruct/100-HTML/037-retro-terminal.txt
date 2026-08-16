@@ -1,0 +1,21 @@
+Creative Prompt:
+Create a retro CRT terminal emulator with a glowing green monochrome display. The terminal window has macOS-style traffic light dots, a title bar, scanline overlay, and a scanning horizontal line. Output text appears with a typewriter fade-in effect. Pre-programmed commands auto-execute sequentially (whoami, uptime, ls, etc.) with realistic responses. A blinking cursor sits at the prompt. Clicking triggers a random command. The color palette is black background with various shades of green text. The aesthetic is nostalgic, cyberpunk-adjacent, and authentically retro.
+
+Model: Qwen3.8-27B-instruct
+Thinking effort: high
+
+Techniques used:
+- CSS scanline overlay via repeating-linear-gradient, plus an aperture-grille RGB mask layer
+- Scanning horizontal beam animation sweeping down the screen continuously
+- Whole-screen phosphor flicker animation (steps timing for authentic stutter)
+- Occasional random flash-line glitch across the display
+- Typewriter fade-in per line (opacity + blur + translateY keyframes)
+- Command simulation engine with categorized response classes (info/success/error/highlight/dimmed)
+- Blinking block cursor at the shell prompt
+- Boot sequence: ASCII banner + pre-programmed startup commands, then infinite random-command loop with randomized delays
+- Click-anywhere interaction triggering a random command (guarded by a busy flag)
+- CRT power-on animation (scaleY collapse/brightness flash) on load
+- Live clock in status bar; responsive layout for mobile
+- Monospace typography, layered green glow via text-shadow, vignette via radial gradients
+
+Wall time: N/A | Tokens: N/A

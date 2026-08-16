@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aurora — Glass Gallery</title>
+<style>
+/* ============================================================
+   AURORA GLASS — glassmorphism landing page
+   Single-file, zero dependencies, fully offline.
+   ============================================================ */
+
+:root {
+  --bg-deep: #05060f;
+  --bg-mid: #0a0d1e;
+  --ink: rgba(235, 240, 255, 0.92);
+  --ink-dim: rgba(190, 200, 230, 0.62);
+  --glass-bg: linear-gradient(135deg, rgba(255,255,255,0.09) 0%, rgba(255,255,255,0.03) 100%);
+  --glass-border: rgba(255, 255, 255, 0.14);
+  --glass-highlight: rgba(255, 255, 255, 0.35);
+  --accent-a: #7df9ff;
+  --accent-b: #b48cff;
+  --accent-c: #6ee7a8;
+  --radius: 20px;
+  --ease-spring: cubic-bezier(0.22, 1.4, 0.36, 1);
+  --ease-smooth: cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  background: var(--bg-deep);
+  color: var(--ink);
+  min-height: 100vh;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---------- Aurora sky (multi-layered animated gradients) ---------- */
+
+.sky {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background:
+    radial-gradient(ellipse 120% 80% at 50% -20%, #101538 0%, transparent 60%),
+    linear-gradient(180deg, var(--bg-deep) 0%, var(--bg-mid) 55%, #070912 100%);
+  overflow: hidden;
+}
+
+.sky::before,
+.sky::after {
+  content: "";
+  position: absolute;
+  inset: -30%;
+  filter: blur(70px);
+  opacity: 0.55;
+  will-change: transform, opacity;
+}
+
+/* Layer 1 — teal-green curtain sweeping from the left */
+.sky::before {
+  background:
+    radial-gradient(ellipse 55% 42% at 22% 18%, rgba(64, 255, 190, 0.34) 0%, transparent 62%),
+    radial-gradient(ellipse 48% 36% at 78% 12%, rgba(120, 110, 255, 0.30) 0%, transparent 60%);
+  animation: aurora-drift-a 26s ease-in-out infinite alternate;
+}
+
+/* Layer 2 — violet/pink curtain sweeping from the right */
+.sky::after {
+  background:
+    radial-gradient(ellipse 50% 40% at 74% 30%, rgba(190, 90, 255, 0.30) 0%, transparent 62%),
+    radial-gradient(ellipse 44% 34% at 30% 42%, rgba(80, 220, 255, 0.22) 0%, transparent 60%);
+  animation: aurora-drift-b 34s ease-in-out infinite alternate;
+}
+
+@keyframes aurora-drift-a {
+  0%   { transform: translate3d(-4%, -2%, 0) rotate(-2deg) scale(1);     opacity: 0.5; }
+  35%  { transform: translate3d(3%,  2%, 0) rotate(1.5deg) scale(1.06);  opacity: 0.72; }
+  70%  { transform: translate3d(-2%, 4%, 0) rotate(-1deg) scale(1.02);   opacity: 0.58; }
+  100% { transform: translate3d(4%, -3%, 0) rotate(2deg) scale(1.08);    opacity: 0.75; }
+}
+
+@keyframes aurora-drift-b {
+  0%   { transform: translate3d(3%, 3%, 0) rotate(1.5deg) scale(1.05);   opacity: 0.6; }
+  40%  { transform: translate3d(-4%, -2%, 0) rotate(-2deg) scale(1);     opacity: 0.45; }
+  75%  { transform: translate3d(2%, -4%, 0) rotate(1deg) scale(1.07);    opacity: 0.68; }
+  100% { transform: translate3d(-3%, 2%, 0) rotate(-1.5deg) scale(1.03); opacity: 0.52; }
+}
+
+/* Vertical light rays that shimmer like aurora curtains */
+.rays {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  mix-blend-mode: screen;
+  opacity: 0.5;
+  background:
+    linear-gradient(100deg, transparent 20%, rgba(110, 255, 200, 0.05) 26%, transparent 32%),
+    linear-gradient(80deg,  transparent 55%, rgba(150, 130, 255, 0.06) 62%, transparent 69%),
+    linear-gradient(95deg,  transparent 74%, rgba(120, 220, 255, 0.045) 80%, transparent 86%);
+  animation: rays-shimmer 12s ease-in-out infinite alternate;
+}
+
+@keyframes rays-shimmer {
+  0%   { opacity: 0.35; transform: translateX(-1.5%); }
+  50%  { opacity: 0.6;  transform: translateX(1%); }
+  100% { opacity: 0.4;  transform: translateX(-0.5%); }
+}
+
+/* ---------- Star field (JS-generated) ---------- */
+
+#stars {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.star {
+  position: absolute;
+  border-radius: 50%;
+  background: #fff;
+  animation: twinkle var(--tw-dur, 4s) ease-in-out var(--tw-delay, 0s) infinite;
+  will-change: opacity, transform;
+}
+
+@keyframes twinkle {
+  0%, 100% { opacity: var(--tw-min, 0.15); transform: scale(0.8); }
+  50%      { opacity: var(--tw-max, 0.9);  transform: scale(1.15); }
+}
+
+/* Occasional shooting star */
+.shooting-star {
+  position: fixed;
+  z-index: 1;
+  width: 120px;
+  height: 1.5px;
+  background: linear-gradient(90deg, rgba(255,255,255,0.9), transparent);
+  border-radius: 2px;
+  pointer-events: none;
+  opacity: 0;
+  animation: shoot 1.1s ease-out forwards;
+}
+
+@keyframes shoot {
+  0%   { opacity: 0; transform: translate(0, 0) rotate(var(--shoot-angle, 24deg)); }
+  12%  { opacity: 0.9; }
+  100% { opacity: 0; transform: translate(var(--shoot-dx, 340px), var(--shoot-dy, 150px)) rotate(var(--shoot-angle, 24deg)); }
+}
+
+/* ---------- Page layout ---------- */
+
+.page {
+  position: relative;
+  z-index: 2;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: clamp(2rem, 6vw, 5rem) clamp(1.25rem, 4vw, 3rem) clamp(3rem, 8vw, 6rem);
+}
+
+/* ---------- Hero ---------- */
+
+.hero {
+  text-align: center;
+  margin-bottom: clamp(2.5rem, 7vw, 5rem);
+}
+
+.hero .eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.78rem;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  padding: 0.5rem 1.1rem;
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  background: rgba(255, 255, 255, 0.04);
+  margin-bottom: 1.6rem;
+}
+
+.hero .eyebrow::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent-a);
+  box-shadow: 0 0 10px var(--accent-a), 0 0 22px rgba(125, 249, 255, 0.5);
+  animation: pulse-dot 2.6s ease-in-out infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { transform: scale(1);   opacity: 1; }
+  50%      { transform: scale(1.35); opacity: 0.65; }
+}
+
+.hero h1 {
+  font-size: clamp(2.6rem, 8vw, 5.2rem);
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  background: linear-gradient(100deg,
+    #eafcff 0%, var(--accent-a) 22%, var(--accent-b) 48%,
+    #ff9de2 72%, var(--accent-c) 100%);
+  background-size: 220% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  animation: gradient-pan 9s ease-in-out infinite alternate;
+  filter: drop-shadow(0 0 28px rgba(140, 160, 255, 0.25));
+}
+
+@keyframes gradient-pan {
+  0%   { background-position: 0% center; }
+  100% { background-position: 100% center; }
+}
+
+.hero p {
+  margin-top: 1.2rem;
+  max-width: 560px;
+  margin-left: auto;
+  margin-right: auto;
+  font-size: clamp(0.98rem, 1.6vw, 1.12rem);
+  line-height: 1.7;
+  color: var(--ink-dim);
+}
+
+/* ---------- Card grid ---------- */
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+  gap: clamp(1.1rem, 2.4vw, 1.75rem);
+}
+
+/* ---------- Glass card ---------- */
+
+.card {
+  --mx: 50%;          /* mouse x within card, set by JS */
+  --my: 50%;          /* mouse y within card, set by JS */
+  --shine-opacity: 0; /* shine visibility while hovered */
+
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  padding: 1.75rem 1.6rem 1.5rem;
+  border-radius: var(--radius);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(18px) saturate(1.35);
+  -webkit-backdrop-filter: blur(18px) saturate(1.35);
+  box-shadow:
+    0 10px 34px rgba(0, 0, 0, 0.38),
+    inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  overflow: hidden;
+  cursor: default;
+  transition:
+    transform 0.55s var(--ease-spring),
+    box-shadow 0.55s var(--ease-smooth),
+    border-color 0.55s var(--ease-smooth);
+  transform: translateY(0) scale(1);
+  will-change: transform;
+}
+
+/* Top edge light highlight (crystal bevel) */
+.card::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 12%; right: 12%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--glass-highlight), transparent);
+  opacity: 0.8;
+  transition: opacity 0.5s var(--ease-smooth);
+}
+
+/* Mouse-tracking radial shine overlay */
+.card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(
+    circle 260px at var(--mx) var(--my),
+    rgba(255, 255, 255, 0.16) 0%,
+    rgba(255, 255, 255, 0.05) 42%,
+    transparent 70%
+  );
+  opacity: var(--shine-opacity);
+  transition: opacity 0.45s var(--ease-smooth);
+  pointer-events: none;
+}
+
+/* Diagonal light streak that sweeps on hover */
+.card .streak {
+  position: absolute;
+  top: -60%;
+  left: -30%;
+  width: 45%;
+  height: 220%;
+  background: linear-gradient(105deg, transparent 30%, rgba(255,255,255,0.10) 50%, transparent 70%);
+  transform: rotate(12deg) translateX(-120%);
+  pointer-events: none;
+  transition: transform 1.1s var(--ease-smooth);
+}
+
+.card:hover {
+  transform: translateY(-9px) scale(1.022);
+  border-color: rgba(255, 255, 255, 0.28);
+  box-shadow:
+    0 24px 60px rgba(0, 0, 0, 0.5),
+    0 0 42px rgba(140, 170, 255, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28);
+}
+
+.card:hover::before { opacity: 1; }
+.card:hover::after  { --shine-opacity: 1; opacity: 1; }
+.card:hover .streak { transform: rotate(12deg) translateX(340%); }
+
+/* Per-card accent glow tint (set via --tint on each card) */
+.card[data-accent]::after {
+  background:
+    radial-gradient(circle 260px at var(--mx) var(--my),
+      rgba(255, 255, 255, 0.14) 0%,
+      color-mix(in srgb, var(--tint) 22%, transparent) 45%,
+      transparent 72%);
+}
+
+/* ---------- Card internals ---------- */
+
+.card .icon-wrap {
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background:
+    linear-gradient(140deg, rgba(255,255,255,0.16), rgba(255,255,255,0.04));
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.3), 0 4px 14px rgba(0,0,0,0.3);
+  transition: transform 0.55s var(--ease-spring), box-shadow 0.55s var(--ease-smooth);
+}
+
+.card:hover .icon-wrap {
+  transform: translateY(-3px) rotate(-4deg) scale(1.06);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.4), 0 8px 22px color-mix(in srgb, var(--tint) 30%, transparent);
+}
+
+.card .icon-wrap svg {
+  width: 26px;
+  height: 26px;
+  stroke: var(--tint, #cfe4ff);
+  fill: none;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--tint, #cfe4ff) 55%, transparent));
+}
+
+.card h2 {
+  font-size: 1.18rem;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.card .badge {
+  font-size: 0.64rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  padding: 0.28rem 0.62rem;
+  border-radius: 999px;
+  color: var(--tint, #cfe4ff);
+  background: color-mix(in srgb, var(--tint, #cfe4ff) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--tint, #cfe4ff) 34%, transparent);
+  white-space: nowrap;
+}
+
+.card p.desc {
+  font-size: 0.92rem;
+  line-height: 1.65;
+  color: var(--ink-dim);
+}
+
+/* Subtle bottom reflection line */
+.card .base {
+  margin-top: auto;
+  height: 1px;
+  border-radius: 1px;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--tint, #cfe4ff) 45%, transparent), transparent);
+  opacity: 0.55;
+  transition: opacity 0.5s var(--ease-smooth);
+}
+
+.card:hover .base { opacity: 1; }
+
+/* ---------- Footer ---------- */
+
+footer {
+  margin-top: clamp(3rem, 7vw, 4.5rem);
+  text-align: center;
+  color: var(--ink-dim);
+  font-size: 0.82rem;
+  letter-spacing: 0.08em;
+}
+
+footer .line {
+  width: 120px;
+  height: 1px;
+  margin: 0 auto 1.2rem;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.35), transparent);
+}
+
+/* ---------- Entrance animation ---------- */
+
+.reveal {
+  opacity: 0;
+  transform: translateY(26px);
+  animation: rise 0.9s var(--ease-smooth) forwards;
+  animation-delay: var(--reveal-delay, 0s);
+}
+
+@keyframes rise {
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .reveal { opacity: 1; transform: none; }
+}
+
+/* Small screens: soften blur cost & tighten spacing */
+@media (max-width: 640px) {
+  .card { backdrop-filter: blur(12px) saturate(1.25); -webkit-backdrop-filter: blur(12px) saturate(1.25); }
+  .sky::before, .sky::after { filter: blur(50px); }
+}
+</style>
+</head>
+<body>
+
+<!-- Background layers -->
+<div class="sky" aria-hidden="true"></div>
+<div class="rays" aria-hidden="true"></div>
+<div id="stars" aria-hidden="true"></div>
+
+<main class="page">
+
+  <!-- Hero -->
+  <header class="hero reveal" style="--reveal-delay: 0.05s;">
+    <span class="eyebrow">Digital Art Gallery</span>
+    <h1>Aurora&nbsp;Glass</h1>
+    <p>An ethereal collection of luminous works — polished crystal under a living northern sky. Move your cursor across the cards and watch the light follow.</p>
+  </header>
+
+  <!-- Card grid -->
+  <section class="grid" aria-label="Gallery collection">
+
+    <article class="card reveal" data-accent style="--tint:#7df9ff; --reveal-delay:0.15s;">
+      <div class="streak" aria-hidden="true"></div>
+      <div class="icon-wrap" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M12 3v18M5 8l7-5 7 5M5 16l7 5 7-5"/><circle cx="12" cy="12" r="2.4"/></svg>
+      </div>
+      <h2>Polaris Drift <span class="badge">Series I</span></h2>
+      <p class="desc">A slow procession of frozen light across midnight ice — long-exposure tones suspended in a single breath of cold air.</p>
+      <div class="base" aria-hidden="true"></div>
+    </article>
+
+    <article class="card reveal" data-accent style="--tint:#b48cff; --reveal-delay:0.25s;">
+      <div class="streak" aria-hidden="true"></div>
+      <div class="icon-wrap" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M12 21c-4.5-3.2-8-6.6-8-10.4C4 7 6.4 4.8 9 4.8c1.4 0 2.5.6 3 1.4.5-.8 1.6-1.4 3-1.4 2.6 0 5 2.2 5 5.8 0 3.8-3.5 7.2-8 10.4z"/></svg>
+      </div>
+      <h2>Violet Bloom <span class="badge">Study</span></h2>
+      <p class="desc">Chromatic petals unfurling in ultraviolet dusk — a study in how color behaves when it has nowhere else to go but inward.</p>
+      <div class="base" aria-hidden="true"></div>
+    </article>
+
+    <article class="card reveal" data-accent style="--tint:#6ee7a8; --reveal-delay:0.35s;">
+      <div class="streak" aria-hidden="true"></div>
+      <div class="icon-wrap" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M3 17c2.5-6 5.5-9 9-9s6.5 3 9 9"/><path d="M7 13.5c1.6-3 3.2-4.5 5-4.5s3.4 1.5 5 4.5"/><circle cx="12" cy="6" r="2"/></svg>
+      </div>
+      <h2>Moss Cathedral <span class="badge">New</span></h2>
+      <p class="desc">Bioluminescent canopies rendered as stained glass — green fire filtered through ten thousand leaves at the edge of sleep.</p>
+      <div class="base" aria-hidden="true"></div>
+    </article>
+
+    <article class="card reveal" data-accent style="--tint:#ffd479; --reveal-delay:0.45s;">
+      <div class="streak" aria-hidden="true"></div>
+      <div class="icon-wrap" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.5"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.2 5.2l2.1 2.1M16.7 16.7l2.1 2.1M18.8 5.2l-2.1 2.1M7.3 16.7l-2.1 2.1"/></svg>
+      </div>
+      <h2>Solstice Ember <span class="badge">Archive</span></h2>
+      <p class="desc">The last warm hour of the longest day, caught mid-fade — amber held against the incoming dark like a promise.</p>
+      <div class="base" aria-hidden="true"></div>
+    </article>
+
+    <article class="card reveal" data-accent style="--tint:#ff9de2; --reveal-delay:0.55s;">
+      <div class="streak" aria-hidden="true"></div>
+      <div class="icon-wrap" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M4 18c0-6 3.6-10 8-10s8 4 8 10"/><path d="M8.5 18c0-3.6 1.6-6 3.5-6s3.5 2.4 3.5 6"/><circle cx="12" cy="5.5" r="1.8"/></svg>
+      </div>
+      <h2>Rose Nebula <span class="badge">Limited</span></h2>
+      <p class="desc">Interstellar dust painted in rosewater — a nebula's quiet heart, three hundred light-years shy of becoming anything.</p>
+      <div class="base" aria-hidden="true"></div>
+    </article>
+
+    <article class="card reveal" data-accent style="--tint:#8fd0ff; --reveal-delay:0.65s;">
+      <div class="streak" aria-hidden="true"></div>
+      <div class="icon-wrap" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M12 3l2.4 5.3L20 9l-4 4.1.9 5.9L12 16.4 7.1 19l.9-5.9L4 9l5.6-.7z"/></svg>
+      </div>
+      <h2>Starfall Hymn <span class="badge">Featured</span></h2>
+      <p class="desc">Meteor trails scored into a deep blue score — every falling light a note in a hymn the night sings to itself.</p>
+      <div class="base" aria-hidden="true"></div>
+    </article>
+
+  </section>
+
+  <footer class="reveal" style="--reveal-delay:0.8s;">
+    <div class="line" aria-hidden="true"></div>
+    Aurora Glass &middot; rendered entirely in one file &middot; no network, no frameworks
+  </footer>
+
+</main>
+
+<script>
+(() => {
+  "use strict";
+
+  const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  /* ----------------------------------------------------------
+     1. Star field — generate N stars with randomized size,
+        position, and twinkle timing.
+     ---------------------------------------------------------- */
+  function buildStars() {
+    const layer = document.getElementById("stars");
+    if (!layer) return;
+    const count = Math.min(180, Math.max(70, Math.floor(window.innerWidth / 9)));
+    const frag = document.createDocumentFragment();
+
+    for (let i = 0; i < count; i++) {
+      const s = document.createElement("span");
+      s.className = "star";
+      const size = (Math.random() * 1.9 + 0.6).toFixed(2);
+      s.style.width = size + "px";
+      s.style.height = size + "px";
+      s.style.left = (Math.random() * 100).toFixed(2) + "%";
+      s.style.top = (Math.random() * 100).toFixed(2) + "%";
+      // Bigger stars are slightly brighter; most stay dim.
+      const maxO = (0.35 + Math.random() * 0.6).toFixed(2);
+      s.style.setProperty("--tw-max", maxO);
+      s.style.setProperty("--tw-min", (parseFloat(maxO) * 0.12).toFixed(2));
+      s.style.setProperty("--tw-dur", (2.5 + Math.random() * 5).toFixed(2) + "s");
+      s.style.setProperty("--tw-delay", (-Math.random() * 6).toFixed(2) + "s");
+      // Give a few stars a soft halo.
+      if (Math.random() < 0.18) {
+        s.style.boxShadow = "0 0 " + (size * 4) + "px rgba(200,220,255,0.55)";
+      }
+      frag.appendChild(s);
+    }
+    layer.appendChild(frag);
+  }
+
+  /* ----------------------------------------------------------
+     2. Shooting stars — occasional streaks across the sky.
+     ---------------------------------------------------------- */
+  function spawnShootingStar() {
+    if (prefersReducedMotion || document.hidden) return;
+    const el = document.createElement("div");
+    el.className = "shooting-star";
+    const startX = Math.random() * window.innerWidth * 0.7;
+    const startY = Math.random() * window.innerHeight * 0.35;
+    const angle = 18 + Math.random() * 20;               // degrees down-right
+    const dist = 260 + Math.random() * 260;              // travel distance px
+    el.style.left = startX + "px";
+    el.style.top = startY + "px";
+    el.style.setProperty("--shoot-angle", angle + "deg");
+    el.style.setProperty("--shoot-dx", (dist * Math.cos(angle * Math.PI / 180)).toFixed(0) + "px");
+    el.style.setProperty("--shoot-dy", (dist * Math.sin(angle * Math.PI / 180)).toFixed(0) + "px");
+    document.body.appendChild(el);
+    el.addEventListener("animationend", () => el.remove(), { once: true });
+  }
+
+  function scheduleShootingStars() {
+    if (prefersReducedMotion) return;
+    const tick = () => {
+      spawnShootingStar();
+      setTimeout(tick, 4000 + Math.random() * 7000);
+    };
+    setTimeout(tick, 2500 + Math.random() * 3000);
+  }
+
+  /* ----------------------------------------------------------
+     3. Mouse-tracking shine — update CSS custom properties on
+        each card so its ::after radial highlight follows the
+        cursor. rAF-batched for smoothness.
+     ---------------------------------------------------------- */
+  function initCardShine() {
+    const cards = Array.from(document.querySelectorAll(".card"));
+    if (!cards.length) return;
+
+    let rafId = null;
+    const pending = new Map(); // card -> {x, y}
+
+    const flush = () => {
+      rafId = null;
+      pending.forEach((pos, card) => {
+        card.style.setProperty("--mx", pos.x.toFixed(1) + "px");
+        card.style.setProperty("--my", pos.y.toFixed(1) + "px");
+      });
+      pending.clear();
+    };
+
+    const onMove = (e) => {
+      const card = e.target.closest ? e.target.closest(".card") : null;
+      if (!card) return;
+      const rect = card.getBoundingClientRect();
+      pending.set(card, { x: e.clientX - rect.left, y: e.clientY - rect.top });
+      if (rafId === null) rafId = requestAnimationFrame(flush);
+    };
+
+    document.addEventListener("pointermove", onMove, { passive: true });
+  }
+
+  /* ----------------------------------------------------------
+     4. Boot
+     ---------------------------------------------------------- */
+  buildStars();
+  scheduleShootingStars();
+  initCardShine();
+})();
+</script>
+
+</body>
+</html>

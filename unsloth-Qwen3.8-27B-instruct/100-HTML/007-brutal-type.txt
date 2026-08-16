@@ -1,0 +1,22 @@
+Creative Prompt
+===============
+
+Create a brutalist typography showcase page with raw, unapologetic design. Three massive staggered title lines in contrasting colors (red, white, blue) with glitch animations. The first line is filled red, the second is outlined white, the third is filled blue. A noise texture overlay and scanning scanline add grit. A stats grid with animated bottom bars shows typographic metrics. An italic quote with citation adds editorial weight. A two-column description block explains the brutalist philosophy. Monospace labels and heavy Impact fonts throughout. The aesthetic is raw, industrial, and confrontational.
+
+Model: Qwen3.8-27B-instruct
+Thinking effort: high
+
+Techniques Used
+===============
+- SVG feTurbulence noise texture embedded as a data-URI CSS background, animated with stepped transforms for an analog grain feel
+- CSS glitch keyframe animations on each title line using ::before/::after pseudo-elements with clip-path slicing and RGB-split ghost copies
+- Infinite scrolling scanline via a fixed-position gradient bar plus a static repeating-linear-gradient scanline layer
+- Animated progress bars in the stats grid with per-item staggered animation-delays and continuous brightness pulse
+- -webkit-text-stroke for the outlined white middle title line
+- Responsive minimal-gap grid (auto-fit stat cells, two-column philosophy block collapsing to one column on small screens)
+- Click-triggered JavaScript that re-arms glitch animations (restart via animation reset + forced reflow), adds a brief intensified phase, and fires a white screen-flash feedback
+- prefers-reduced-motion support: all motion disabled, bars render at final width
+
+Stats
+=====
+Wall time: N/A | Tokens: N/A

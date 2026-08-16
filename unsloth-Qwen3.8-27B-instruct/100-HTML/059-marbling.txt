@@ -1,0 +1,23 @@
+# 059 — Marbling: Ink on Water
+
+## Creative Prompt
+Create a marbling pattern with flowing sinusoidal lines that create organic, fluid shapes reminiscent of paper marbling or ink on water. Each line has its own amplitude, frequency, phase, speed, and color, creating complex interference patterns. Lines undulate slowly, making the pattern shift organically. The background is warm cream paper color. Clicking generates a new marbling pattern. The overall aesthetic is artistic, fluid, and organic — like handmade marbled paper.
+
+## Model
+Qwen3.8-27B-instruct
+
+## Thinking Effort
+high
+
+## Techniques Used
+- Canvas sinusoidal line rendering with per-line parameters (amplitude, frequency, phase, speed, color)
+- Multi-harmonic composition: each line stacks three sine components (primary wave, secondary harmonic, fine ripple) plus slow vertical drift and lateral sway for organic motion
+- 8 curated ink palettes evoking traditional marbling pigments (indigo/madder, sepia/rust, deep water, botanical, royal, warm earth, oceanic, charcoal/gold), with per-line RGB jitter for hand-painted variation
+- Time-based phase shift for slow, continuous undulation; adaptive step resolution tied to viewport width for performance
+- Subtle trailing fade via translucent paper wash each frame (rgba(245,239,227,0.08)) for smooth motion trails
+- DPR-aware canvas scaling (capped at 2x), full repaint on resize
+- Click / Space / Enter regenerates the entire pattern with fresh palette and wave parameters
+- CSS radial vignette overlay for depth; italic serif hint that fades after first interaction
+
+## Stats
+Wall time: N/A | Tokens: N/A

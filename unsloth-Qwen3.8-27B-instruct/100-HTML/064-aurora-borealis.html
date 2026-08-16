@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aurora Borealis</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #050510;
+  }
+
+  canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  .hint {
+    position: fixed;
+    bottom: 1.5rem;
+    left: 50%;
+    transform: translateX(-50%);
+    color: rgba(255, 255, 255, 0.35);
+    font-family: system-ui, -apple-system, sans-serif;
+    font-size: 0.8rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    pointer-events: none;
+    user-select: none;
+    animation: fadeHint 4s ease-out 2s forwards;
+    white-space: nowrap;
+  }
+
+  @keyframes fadeHint {
+    to { opacity: 0; }
+  }
+</style>
+</head>
+<body>
+<canvas id="scene"></canvas>
+<p class="hint">click anywhere to shift the lights</p>
+
+<script>
+(() => {
+  'use strict';
+
+  const canvas = document.getElementById('scene');
+  const ctx = canvas.getContext('2d');
+
+  let W, H, dpr;
+  let time = 0;
+  let stars = [];
+  let bands = [];
+  let hills = [];
+  let hueShift = 0;
+  let targetHueShift = 0;
+
+  // ── Utilities ────────────────────────────────────────────────
+  const rand = (min, max) => min + Math.random() * (max - min);
+  const lerp = (a, b, t) => a + (b - a) * t;
+
+  // ── Resize ───────────────────────────────────────────────────
+  function resize() {
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    generateStars();
+    generateHills();
+  }
+
+  // ── Stars ────────────────────────────────────────────────────
+  function generateStars() {
+    const count = Math.floor((W * H) / 1800);
+    stars = [];
+    for (let i = 0; i < count; i++) {
+      stars.push({
+        x: Math.random() * W,
+        y: Math.random() * H * 0.75,
+        r: rand(0.3, 1.4),
+        baseAlpha: rand(0.3, 0.9),
+        twinkleSpeed: rand(0.5, 2.5),
+        twinklePhase: rand(0, Math.PI * 2),
+        drift: rand(-0.02, 0.02)
+      });
+    }
+  }
+
+  function drawStars(t) {
+    for (const s of stars) {
+      const alpha = s.baseAlpha * (0.5 + 0.5 * Math.sin(t * s.twinkleSpeed + s.twinklePhase));
+      if (alpha < 0.05) continue;
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // ── Aurora Bands ─────────────────────────────────────────────
+  const BAND_PRESETS = [
+    { hue: 130, sat: 85, layers: 4 },   // green
+    { hue: 165, sat: 80, layers: 3 },   // teal
+    { hue: 270, sat: 70, layers: 3 },   // purple
+    { hue: 150, sat: 90, layers: 3 },   // bright green
+    { hue: 200, sat: 75, layers: 2 },   // blue-teal
+    { hue: 300, sat: 60, layers: 2 },   // magenta
+  ];
+
+  function generateBands() {
+    bands = [];
+    const bandCount = Math.floor(rand(3, 5.5));
+    const shuffled = [...BAND_PRESETS].sort(() => Math.random() - 0.5);
+
+    for (let i = 0; i < bandCount; i++) {
+      const preset = shuffled[i % shuffled.length];
+      const baseY = H * rand(0.12, 0.55);
+      const amplitude = H * rand(0.06, 0.18);
+      const layerCount = preset.layers;
+      const layers = [];
+
+      for (let l = 0; l < layerCount; l++) {
+        layers.push({
+          yOffset: l * rand(8, 20) - (layerCount - 1) * rand(4, 10),
+          ampScale: 1 - l * 0.12,
+          phaseOffset: l * rand(0.3, 0.8),
+          freqScale: 1 + l * 0.15,
+          alpha: 0.12 - l * 0.02,
+          thickness: rand(40, 90) + l * 15
+        });
+      }
+
+      bands.push({
+        baseY,
+        amplitude,
+        hue: preset.hue + rand(-15, 15),
+        sat: preset.sat,
+        layers,
+        speed1: rand(0.15, 0.4),
+        speed2: rand(0.08, 0.2),
+        freq1: rand(0.8, 1.6),
+        freq2: rand(0.4, 0.9),
+        verticalWave: rand(0.3, 0.8),
+        verticalFreq: rand(0.2, 0.5),
+        width: rand(0.6, 1.0)
+      });
+    }
+  }
+
+  function auroraTopY(band, x, t) {
+    const norm = x / W;
+    const wave1 = Math.sin(norm * Math.PI * 2 * band.freq1 + t * band.speed1) * band.amplitude;
+    const wave2 = Math.sin(norm * Math.PI * 2 * band.freq2 + t * band.speed2 + 1.7) * band.amplitude * 0.5;
+    const vWave = Math.sin(t * band.verticalFreq + norm * Math.PI * band.verticalWave) * band.amplitude * 0.3;
+    return band.baseY + wave1 + wave2 + vWave;
+  }
+
+  function drawAuroraBand(band, t) {
+    const step = Math.max(4, Math.floor(W / 200));
+
+    for (const layer of band.layers) {
+      const yOff = layer.yOffset;
+      const ampS = layer.ampScale;
+      const thick = layer.thickness;
+      const alpha = layer.alpha * (0.7 + 0.3 * Math.sin(t * 0.3 + layer.phaseOffset));
+
+      // Build top edge points
+      const topPoints = [];
+      const botPoints = [];
+
+      for (let x = 0; x <= W; x += step) {
+        const y = auroraTopY(band, x, t * layer.freqScale + layer.phaseOffset * 0.5) * ampS + (band.baseY * (1 - ampS)) + yOff;
+        topPoints.push([x, y]);
+        botPoints.push([x, y + thick * (0.8 + 0.2 * Math.sin(x * 0.01 + t * 0.5))]);
+      }
+
+      // Gradient: bright at top, fading down
+      const grad = ctx.createLinearGradient(0, band.baseY - band.amplitude, 0, band.baseY + thick + band.amplitude);
+      const h = (band.hue + hueShift + layer.phaseOffset * 10) % 360;
+      grad.addColorStop(0, `hsla(${h}, ${band.sat}%, 65%, ${alpha * 1.4})`);
+      grad.addColorStop(0.3, `hsla(${(h + 20) % 360}, ${band.sat}%, 50%, ${alpha})`);
+      grad.addColorStop(0.7, `hsla(${(h + 40) % 360}, ${band.sat - 10}%, 35%, ${alpha * 0.4})`);
+      grad.addColorStop(1, `hsla(${(h + 50) % 360}, ${band.sat - 20}%, 25%, 0)`);
+
+      ctx.beginPath();
+      ctx.moveTo(topPoints[0][0], topPoints[0][1]);
+      for (let i = 1; i < topPoints.length; i++) {
+        const prev = topPoints[i - 1];
+        const curr = topPoints[i];
+        const cpx = (prev[0] + curr[0]) / 2;
+        ctx.quadraticCurveTo(prev[0], prev[1], cpx, (prev[1] + curr[1]) / 2);
+      }
+      ctx.lineTo(topPoints[topPoints.length - 1][0], topPoints[topPoints.length - 1][1]);
+
+      // Bottom edge (reversed)
+      for (let i = botPoints.length - 1; i >= 0; i--) {
+        ctx.lineTo(botPoints[i][0], botPoints[i][1]);
+      }
+      ctx.closePath();
+      ctx.fillStyle = grad;
+      ctx.fill();
+    }
+  }
+
+  // ── Ground Silhouette ────────────────────────────────────────
+  function generateHills() {
+    hills = [];
+    const hillCount = 3;
+    for (let i = 0; i < hillCount; i++) {
+      const baseY = H * (0.82 + i * 0.06);
+      const amp = H * rand(0.02, 0.05) * (hillCount - i);
+      const freq = rand(0.5, 1.2);
+      const phase = rand(0, Math.PI * 2);
+      hills.push({ baseY, amp, freq, phase, shade: 0.02 + i * 0.015 });
+    }
+  }
+
+  function drawGround() {
+    // Draw from back to front
+    for (let i = hills.length - 1; i >= 0; i--) {
+      const h = hills[i];
+      ctx.beginPath();
+      ctx.moveTo(0, H);
+      for (let x = 0; x <= W; x += 4) {
+        const y = h.baseY + Math.sin((x / W) * Math.PI * 2 * h.freq + h.phase) * h.amp
+                        + Math.sin((x / W) * Math.PI * 4 * h.freq + h.phase * 2) * h.amp * 0.3;
+        ctx.lineTo(x, y);
+      }
+      ctx.lineTo(W, H);
+      ctx.closePath();
+      ctx.fillStyle = `rgba(${Math.floor(h.shade * 255)}, ${Math.floor(h.shade * 300)}, ${Math.floor(h.shade * 350)}, 1)`;
+      ctx.fill();
+    }
+  }
+
+  // ── Sky Background ───────────────────────────────────────────
+  function drawSky() {
+    const grad = ctx.createLinearGradient(0, 0, 0, H);
+    grad.addColorStop(0, '#050510');
+    grad.addColorStop(0.4, '#0a0a20');
+    grad.addColorStop(0.7, '#0d1025');
+    grad.addColorStop(1, '#0f1520');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  // ── Main Loop ────────────────────────────────────────────────
+  function frame() {
+    time += 0.016;
+    hueShift = lerp(hueShift, targetHueShift, 0.02);
+
+    // Trailing fade
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = 'rgba(5, 5, 16, 0.15)';
+    ctx.fillRect(0, 0, W, H);
+
+    // Sky (subtle refresh to prevent full accumulation)
+    ctx.globalAlpha = 0.3;
+    drawSky();
+    ctx.globalAlpha = 1;
+
+    // Stars
+    drawStars(time);
+
+    // Aurora with additive blending
+    ctx.globalCompositeOperation = 'lighter';
+    for (const band of bands) {
+      drawAuroraBand(band, time);
+    }
+    ctx.globalCompositeOperation = 'source-over';
+
+    // Ground
+    drawGround();
+
+    requestAnimationFrame(frame);
+  }
+
+  // ── Interaction ──────────────────────────────────────────────
+  function regenerate() {
+    generateBands();
+    targetHueShift = rand(-40, 40);
+    generateHills();
+  }
+
+  canvas.addEventListener('click', regenerate);
+  window.addEventListener('resize', () => { resize(); });
+
+  // ── Init ─────────────────────────────────────────────────────
+  resize();
+  generateBands();
+  frame();
+})();
+</script>
+</body>
+</html>

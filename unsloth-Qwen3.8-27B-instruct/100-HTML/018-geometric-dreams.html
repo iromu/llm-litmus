@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Geometric Dreams — Platonic Solids</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 100%; height: 100%;
+    overflow: hidden;
+    background: #05060f;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    cursor: crosshair;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: none;
+  }
+
+  canvas#scene {
+    display: block;
+    width: 100vw; height: 100vh;
+  }
+
+  .hud {
+    position: fixed;
+    pointer-events: none;
+    color: rgba(255,255,255,0.55);
+    z-index: 10;
+  }
+
+  .hud-title {
+    top: 28px; left: 32px;
+    letter-spacing: 0.45em;
+    font-size: clamp(11px, 1.4vw, 14px);
+    text-transform: uppercase;
+    font-weight: 300;
+  }
+  .hud-title strong {
+    display: block;
+    font-size: clamp(18px, 2.6vw, 28px);
+    font-weight: 200;
+    letter-spacing: 0.28em;
+    margin-top: 6px;
+    background: linear-gradient(90deg, #7df9ff, #c77dff, #ff7ad9);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .hud-shape {
+    bottom: 30px; left: 32px;
+    font-size: clamp(13px, 1.8vw, 17px);
+    letter-spacing: 0.35em;
+    text-transform: uppercase;
+    font-weight: 300;
+    transition: opacity 0.4s ease;
+  }
+  .hud-shape .idx {
+    color: rgba(255,255,255,0.25);
+    margin-right: 10px;
+    font-size: 0.75em;
+  }
+
+  .hud-hint {
+    bottom: 30px; right: 32px;
+    font-size: clamp(10px, 1.2vw, 12px);
+    letter-spacing: 0.2em;
+    text-align: right;
+    line-height: 1.9;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.3);
+  }
+
+  .dots {
+    position: fixed;
+    top: 50%; right: 34px;
+    transform: translateY(-50%);
+    display: flex; flex-direction: column; gap: 14px;
+    z-index: 10; pointer-events: none;
+  }
+  .dots span {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.18);
+    transition: all 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .dots span.active {
+    background: #9ef2ff;
+    box-shadow: 0 0 12px 2px rgba(125, 249, 255, 0.8);
+    transform: scale(1.5);
+  }
+
+  @media (max-width: 600px) {
+    .hud-title { top: 18px; left: 20px; }
+    .hud-shape { bottom: 20px; left: 20px; }
+    .hud-hint { display: none; }
+    .dots { right: 18px; }
+  }
+</style>
+</head>
+<body>
+<canvas id="scene"></canvas>
+
+<header class="hud hud-title" aria-hidden="true">
+  <span>The Five Forms</span>
+  <strong>Geometric Dreams</strong>
+</header>
+
+<div class="hud hud-shape" id="shapeLabel" aria-live="polite">
+  <span class="idx" id="shapeIdx">01 / 04</span><span id="shapeName">Tetrahedron</span>
+</div>
+
+<div class="hud hud-hint" aria-hidden="true">
+  Move to rotate<br>Click to morph
+</div>
+
+<nav class="dots" id="dots" aria-label="Shape progress"></nav>
+
+<script>
+(() => {
+'use strict';
+
+/* ============================================================
+   Canvas setup
+============================================================ */
+const canvas = document.getElementById('scene');
+const ctx = canvas.getContext('2d');
+let W = 0, H = 0, DPR = 1;
+
+function resize() {
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  W = window.innerWidth;
+  H = window.innerHeight;
+  canvas.width = W * DPR;
+  canvas.height = H * DPR;
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
+window.addEventListener('resize', resize);
+resize();
+
+/* ============================================================
+   Platonic solid definitions (unit-ish radius ~1)
+   Each shape: vertices + edges (index pairs).
+   Vertex counts differ per solid, so we build a unified
+   "slot" representation: every shape provides exactly N_SLOTS
+   vertices (padded by duplicating existing ones with tiny
+   jitter-free duplicates at the same position), so morphing
+   interpolates slot i -> slot i smoothly.
+============================================================ */
+const PHI = (1 + Math.sqrt(5)) / 2;
+const IPH = 1 / PHI;
+
+// --- Tetrahedron (4 verts, 6 edges) ---
+const tR = 1;
+const tetraV = [
+  [ 1,  1,  1],
+  [ 1, -1, -1],
+  [-1,  1, -1],
+  [-1, -1,  1]
+].map(v => v.map(c => c * tR / Math.sqrt(3)));
+const tetraE = [[0,1],[0,2],[0,3],[1,2],[1,3],[2,3]];
+
+// --- Cube (8 verts, 12 edges) ---
+const cubeV = [];
+for (const x of [-1, 1]) for (const y of [-1, 1]) for (const z of [-1, 1])
+  cubeV.push([x, y, z]);
+cubeV.forEach(v => { v[0]*=0.8165; v[1]*=0.8165; v[2]*=0.8165; }); // normalize circumscribed radius
+const cubeE = [
+  [0,1],[2,3],[4,5],[6,7],
+  [0,2],[1,3],[4,6],[5,7],
+  [0,4],[1,5],[2,6],[3,7]
+];
+
+// --- Octahedron (6 verts, 12 edges) ---
+const octaV = [
+  [ 1,0,0],[-1,0,0],
+  [0, 1,0],[0,-1,0],
+  [0,0, 1],[0,0,-1]
+];
+const octaE = [
+  [0,2],[0,3],[0,4],[0,5],
+  [1,2],[1,3],[1,4],[1,5],
+  [2,4],[2,5],[3,4],[3,5]
+];
+
+// --- Icosahedron (12 verts, 30 edges) ---
+const icoV = [
+  [-IPH, 1, 0],[IPH, 1, 0],[-IPH,-1, 0],[IPH,-1, 0],
+  [0,-IPH, 1],[0, IPH, 1],[0,-IPH,-1],[0, IPH,-1],
+  [ 1, 0,-IPH],[1, 0, IPH],[-1, 0,-IPH],[-1, 0, IPH]
+].map(v => { const l = Math.hypot(...v); return v.map(c => c/l); });
+const icoE = [
+  [0,1],[0,5],[0,11],[0,7],[0,3],
+  [1,5],[1,9],[1,7],[1,3],
+  [2,3],[2,4],[2,8],[2,10],[2,6],
+  [3,4],[3,9],[3,10],
+  [4,5],[4,9],[4,11],
+  [5,6],[5,11],
+  [6,7],[6,8],[6,10],
+  [7,8],[7,9],
+  [8,10],[8,11],
+  [9,11]
+];
+
+/* Slot count = max vertex count across shapes = 12 (icosahedron).
+   For smaller shapes, duplicate vertices to fill slots.
+   Duplicates are placed at the SAME position (zero-length morph
+   segment) so they don't create visual artifacts — but we add a
+   very small radial offset so each duplicated vertex traces a
+   distinct path during morph and reads as "extra structure". */
+const SLOTS = 12;
+
+function padVertices(verts, edges, seed) {
+  const out = verts.slice();
+  let n = 0;
+  while (out.length < SLOTS) {
+    const src = verts[n % verts.length];
+    const angle = seed + n * 2.399963; // golden-angle spread
+    const j = 0.012;
+    out.push([
+      src[0] + Math.cos(angle) * j,
+      src[1] + Math.sin(angle) * j,
+      src[2] + Math.sin(angle * 1.7) * j
+    ]);
+    n++;
+  }
+  return out;
+}
+
+// Edge sets must also be padded to a common count so edge lines
+// interpolate. We use max edge count = 30 (icosahedron).
+const E_SLOTS = 30;
+
+function padEdges(edges, vertCount) {
+  const out = edges.slice();
+  let n = 0;
+  while (out.length < E_SLOTS) {
+    // Reuse an existing edge (morph segment collapses onto it)
+    const e = edges[n % edges.length];
+    out.push(e);
+    n++;
+  }
+  return out;
+}
+
+const SHAPES = [
+  { name: 'Tetrahedron', verts: padVertices(tetraV, tetraE, 0.0), edges: padEdges(tetraE, 4) },
+  { name: 'Cube',        verts: padVertices(cubeV,  cubeE,  1.3), edges: padEdges(cubeE, 8) },
+  { name: 'Octahedron',  verts: padVertices(octaV,  octaE,  2.6), edges: padEdges(octaE, 6) },
+  { name: 'Icosahedron', verts: padVertices(icoV,   icoE,   3.9), edges: padEdges(icoE, 12) }
+];
+
+/* ============================================================
+   Morph state
+============================================================ */
+let shapeIndex = 0;
+let morphFrom = 0, morphTo = 0;
+let morphT = 1;          // 0..1 progress (1 = settled on current)
+let morphDur = 1.1;      // seconds
+let isMorphing = false;
+
+const labelEl = document.getElementById('shapeName');
+const idxEl = document.getElementById('shapeIdx');
+const dotsEl = document.getElementById('dots');
+SHAPES.forEach((_, i) => {
+  const s = document.createElement('span');
+  if (i === 0) s.classList.add('active');
+  dotsEl.appendChild(s);
+});
+const dotEls = [...dotsEl.children];
+
+function updateHUD() {
+  const target = morphTo;
+  labelEl.textContent = SHAPES[target].name;
+  idxEl.textContent = String(target + 1).padStart(2, '0') + ' / 0' + SHAPES.length;
+  dotEls.forEach((d, i) => d.classList.toggle('active', i === target));
+}
+
+function nextShape() {
+  morphFrom = morphTo;
+  morphTo = (morphTo + 1) % SHAPES.length;
+  morphT = 0;
+  isMorphing = true;
+  updateHUD();
+  pulse = 1; // trigger flash
+}
+
+/* ============================================================
+   Rotation & input
+============================================================ */
+let rotX = 0.4, rotY = 0.6, rotZ = 0;
+let targetRotX = 0.4, targetRotY = 0.6;
+let mouseX = 0.5, mouseY = 0.5;
+let hasMouse = false;
+let autoSpin = 0;
+let pulse = 0;
+
+function onMove(x, y) {
+  mouseX = x / W;
+  mouseY = y / H;
+  hasMouse = true;
+  // Map mouse to rotation targets: full sweep ±~1.2 rad
+  targetRotY = (mouseX - 0.5) * 2.4;
+  targetRotX = (mouseY - 0.5) * 2.4;
+}
+
+window.addEventListener('mousemove', e => onMove(e.clientX, e.clientY));
+window.addEventListener('touchmove', e => {
+  const t = e.touches[0];
+  onMove(t.clientX, t.clientY);
+}, { passive: true });
+
+let lastTap = 0;
+function onTap() {
+  const now = performance.now();
+  if (now - lastTap < 250) return; // debounce double-fire
+  lastTap = now;
+  nextShape();
+}
+window.addEventListener('click', onTap);
+window.addEventListener('touchend', e => {
+  if (e.changedTouches.length === 1) onTap();
+});
+
+/* ============================================================
+   3D math
+============================================================ */
+function rotXYZ(p, ax, ay, az) {
+  let [x, y, z] = p;
+  // X axis
+  let c = Math.cos(ax), s = Math.sin(ax);
+  let y1 = y * c - z * s, z1 = y * s + z * c;
+  // Y axis
+  c = Math.cos(ay); s = Math.sin(ay);
+  let x2 = x * c + z1 * s, z2 = -x * s + z1 * c;
+  // Z axis
+  c = Math.cos(az); s = Math.sin(az);
+  let x3 = x2 * c - y1 * s, y3 = x2 * s + y1 * c;
+  return [x3, y3, z2];
+}
+
+const FOCAL = 3.2; // perspective distance
+function project(p) {
+  const [x, y, z] = p;
+  const f = FOCAL / (FOCAL - z);
+  return [x * f, y * f, z, f];
+}
+
+/* ============================================================
+   Easing
+============================================================ */
+function easeInOutCubic(t) {
+  return t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t + 2, 3) / 2;
+}
+
+/* ============================================================
+   Render loop
+============================================================ */
+let prevTime = performance.now();
+let timeSec = 0;
+
+function frame(now) {
+  const dt = Math.min((now - prevTime) / 1000, 0.05);
+  prevTime = now;
+  timeSec += dt;
+
+  /* --- advance morph --- */
+  if (isMorphing) {
+    morphT += dt / morphDur;
+    if (morphT >= 1) { morphT = 1; isMorphing = false; }
+  }
+  const mt = easeInOutCubic(Math.min(morphT, 1));
+
+  /* --- rotation: smooth-follow mouse + auto spin --- */
+  const follow = 1 - Math.exp(-dt * 4.5);
+  rotX += (targetRotX - rotX) * follow;
+  rotY += (targetRotY - rotY) * follow;
+  autoSpin += dt * 0.25; // slow continuous Z drift
+  rotZ = autoSpin;
+
+  /* --- decay pulse --- */
+  pulse *= Math.exp(-dt * 3.5);
+
+  /* --- compute interpolated vertices --- */
+  const A = SHAPES[morphFrom], B = SHAPES[morphTo];
+  const verts3D = new Array(SLOTS);
+  for (let i = 0; i < SLOTS; i++) {
+    const va = A.verts[i], vb = B.verts[i];
+    verts3D[i] = [
+      va[0] + (vb[0] - va[0]) * mt,
+      va[1] + (vb[1] - va[1]) * mt,
+      va[2] + (vb[2] - va[2]) * mt
+    ];
+  }
+
+  /* --- rotate + project --- */
+  const pv = new Array(SLOTS);
+  for (let i = 0; i < SLOTS; i++) {
+    const r = rotXYZ(verts3D[i], rotX, rotY, rotZ);
+    pv[i] = project(r);
+  }
+
+  /* --- clear with subtle trail fade for hypnotic motion blur --- */
+  ctx.fillStyle = 'rgba(5, 6, 15, 0.35)';
+  ctx.fillRect(0, 0, W, H);
+
+  /* --- ambient center glow --- */
+  const cx = W / 2, cy = H / 2;
+  const baseR = Math.min(W, H) * 0.34;
+  const breathe = 1 + 0.04 * Math.sin(timeSec * 0.8);
+  const glowR = baseR * 1.9 * breathe;
+  const hueBase = (timeSec * 12) % 360;
+  const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, glowR);
+  g.addColorStop(0, `hsla(${hueBase}, 70%, 55%, ${0.10 + pulse * 0.12})`);
+  g.addColorStop(0.5, `hsla(${(hueBase + 60) % 360}, 60%, 45%, 0.04)`);
+  g.addColorStop(1, 'transparent');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
+
+  /* --- scale factor: fit shape to viewport --- */
+  const scale = baseR * 0.62 * breathe;
+
+  /* --- painter's algorithm: sort edges by average depth --- */
+  const edgeList = [];
+  const edgesA = A.edges, edgesB = B.edges;
+  for (let i = 0; i < E_SLOTS; i++) {
+    const ea = edgesA[i], eb = edgesB[i];
+    // Interpolate edge endpoints (indices are stable across shapes
+    // because both reference the same SLOTS layout)
+    const ai = ea[0], bi = ea[1], cj = eb[0], dj = eb[1];
+    const a = pv[ai], b = pv[bi], c = pv[cj], d = pv[dj];
+    const depth = (a[2] + b[2] + c[2] + d[2]) / 4;
+    edgeList.push({ a, b, c, d, depth, i });
+  }
+  edgeList.sort((p, q) => p.depth - q.depth); // far first
+
+  /* --- draw edges --- */
+  ctx.lineCap = 'round';
+  for (const e of edgeList) {
+    const { a, b, c, d, depth, i } = e;
+    // depth in [-1.2, 1.2] roughly; normalize to 0..1 (far=0, near=1)
+    const dn = Math.max(0, Math.min(1, (depth + 1.3) / 2.6));
+    const alpha = 0.12 + dn * 0.75;
+    const width = 0.6 + dn * 2.2;
+    const hue = (hueBase + i * 11 + (a[0] + b[0] + c[0] + d[0]) * 40) % 360;
+    const light = 50 + dn * 22;
+
+    // Interpolated 2D endpoints
+    const x1 = cx + (a[0] + c[0]) * 0.5 * scale;
+    const y1 = cy + (a[1] + c[1]) * 0.5 * scale;
+    const x2 = cx + (b[0] + d[0]) * 0.5 * scale;
+    const y2 = cy + (b[1] + d[1]) * 0.5 * scale;
+
+    // Glow pass
+    ctx.strokeStyle = `hsla(${hue}, 95%, ${light}%, ${alpha * 0.35})`;
+    ctx.lineWidth = width * 3.2;
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+
+    // Core pass
+    ctx.strokeStyle = `hsla(${hue}, 90%, ${Math.min(light + 18, 88)}%, ${alpha})`;
+    ctx.lineWidth = width;
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+  }
+
+  /* --- draw vertices (glow dots), sorted by depth --- */
+  const vlist = pv.map((p, i) => ({ p, i }))
+                  .sort((p, q) => p.p[2] - q.p[2]);
+  for (const { p, i } of vlist) {
+    const dn = Math.max(0, Math.min(1, (p[2] + 1.3) / 2.6));
+    const x = cx + p[0] * scale;
+    const y = cy + p[1] * scale;
+    const hue = (hueBase + i * 30 + p[0] * 60) % 360;
+    const r = (1.6 + dn * 3.4) * (1 + pulse * 0.6);
+
+    // outer glow
+    const vg = ctx.createRadialGradient(x, y, 0, x, y, r * 4);
+    vg.addColorStop(0, `hsla(${hue}, 100%, 75%, ${0.5 + dn * 0.4})`);
+    vg.addColorStop(0.4, `hsla(${hue}, 100%, 60%, 0.18)`);
+    vg.addColorStop(1, 'transparent');
+    ctx.fillStyle = vg;
+    ctx.beginPath();
+    ctx.arc(x, y, r * 4, 0, Math.PI * 2);
+    ctx.fill();
+
+    // bright core
+    ctx.fillStyle = `hsla(${hue}, 100%, ${78 + dn * 15}%, ${0.75 + dn * 0.25})`;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  /* --- morph flash ring --- */
+  if (pulse > 0.02) {
+    const pr = baseR * (1.1 + (1 - pulse) * 0.9);
+    ctx.strokeStyle = `hsla(${(hueBase + 180) % 360}, 90%, 70%, ${pulse * 0.5})`;
+    ctx.lineWidth = 1.5 + pulse * 2;
+    ctx.beginPath();
+    ctx.arc(cx, cy, pr, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  requestAnimationFrame(frame);
+}
+
+updateHUD();
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

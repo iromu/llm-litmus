@@ -1,0 +1,23 @@
+# 010 — Kinetic Letterforms
+
+## Creative Prompt
+Create an interactive kinetic typography visualization where letters dance and respond to mouse movement. The word "KINETIC" forms the core, with each letter springing toward its target position but repelled by the mouse cursor. Additional random floating letters drift around. Letters have subtle rotation, size pulsing, and glow that intensifies near the cursor. Connection lines appear between adjacent main letters when they are close. Clicking re-randomizes all positions. The background is dark, and the letters glow in soft blue-white. The overall feel is playful, responsive, and elegant.
+
+## Model
+Qwen3.8-27B-instruct
+
+## Thinking Effort
+high
+
+## Techniques Used
+- Canvas text rendering with spring physics: per-letter velocity integrated against a spring attraction to target position plus inverse-distance mouse repulsion within a radius, with damping for stability.
+- Per-letter phase-based oscillation (independent phase + speed per letter) drives organic size pulsing and subtle rotation so the word feels alive even at rest.
+- Dynamic shadow-glow rendering: two-pass fill (outer glow pass with `shadowBlur` scaled by cursor proximity, then a crisp inner pass), hue/lightness computed per frame from a proximity-derived glow factor.
+- Connection lines between adjacent main letters drawn as quadratic curves whose alpha and width fade with distance; only rendered when letters fall within a threshold of their base spacing.
+- Click/touch reinitialization: scatters all letters to random positions with random velocities so springs animate them back into formation.
+- Ambient drifter letters with wander steering and soft edge-pull keep the field populated without crowding the main word.
+- Responsive typography sizing derived from viewport dimensions (letter count, min dimension caps), DPR-aware canvas scaling, touch support, and a breathing radial background wash with a faint cursor halo.
+- save/restore per-letter transforms for isolated rotation/translation state.
+
+## Stats
+Wall time: N/A | Tokens: N/A

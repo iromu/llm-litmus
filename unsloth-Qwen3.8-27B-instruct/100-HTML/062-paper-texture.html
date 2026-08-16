@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Weight of Paper — An Essay</title>
+<style>
+  /* ============================================================
+     RESET & BASE
+     ============================================================ */
+  *, *::before, *::after {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  :root {
+    --cream:        #f5f0e6;
+    --cream-deep:   #efe8d8;
+    --ink:          #2c2418;
+    --ink-soft:     #4a3f30;
+    --ink-faint:    #8a7d6b;
+    --rule:         #c9bda6;
+    --accent:       #7a5c3e;
+    --serif:        Georgia, 'Times New Roman', Times, serif;
+  }
+
+  html {
+    font-size: 16px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    background: var(--cream);
+    color: var(--ink);
+    font-family: var(--serif);
+    line-height: 1.75;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: clamp(1rem, 4vw, 4rem);
+    position: relative;
+  }
+
+  /* ============================================================
+     PAPER GRAIN — SVG feTurbulence noise overlay
+     The <svg> is injected inline in the DOM (see markup).
+     Animated with steps() so the grain "ticks" rather than
+     glides — mimicking the look of a scanned physical page.
+     ============================================================ */
+  .grain {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 10;
+    opacity: 0.55;
+    mix-blend-mode: multiply;
+    animation: grain-shift 0.9s steps(4) infinite;
+  }
+
+  @keyframes grain-shift {
+    0%   { transform: translate(0, 0); }
+    25%  { transform: translate(-2px, 1px); }
+    50%  { transform: translate(1px, -1px); }
+    75%  { transform: translate(-1px, -2px); }
+    100% { transform: translate(0, 0); }
+  }
+
+  /* ============================================================
+     VIGNETTE — radial shadow around the edges of the viewport
+     ============================================================ */
+  .vignette {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 9;
+    background: radial-gradient(
+      ellipse at center,
+      transparent 55%,
+      rgba(60, 45, 25, 0.06) 75%,
+      rgba(40, 30, 15, 0.18) 100%
+    );
+  }
+
+  /* Subtle warm light from upper-left, like a lamp over a desk */
+  .lamp-light {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 8;
+    background: radial-gradient(
+      ellipse at 30% 15%,
+      rgba(255, 248, 220, 0.25) 0%,
+      transparent 55%
+    );
+  }
+
+  /* ============================================================
+     THE PAGE — a physical sheet with depth
+     ============================================================ */
+  .page {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 42rem;
+    background: linear-gradient(
+      175deg,
+      #f7f2e8 0%,
+      #f3ecdd 40%,
+      #efe7d5 100%
+    );
+    padding: clamp(2.5rem, 7vw, 5rem) clamp(1.5rem, 6vw, 4.5rem);
+    box-shadow:
+      0 1px 2px rgba(44, 36, 24, 0.08),
+      0 4px 8px rgba(44, 36, 24, 0.06),
+      0 12px 24px rgba(44, 36, 24, 0.10),
+      0 24px 48px rgba(44, 36, 24, 0.12),
+      0 48px 96px rgba(44, 36, 24, 0.10);
+    border-radius: 1px;
+  }
+
+  /* A faint deckle edge on the right side — hand-torn paper feel */
+  .page::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 3px;
+    background: linear-gradient(
+      to bottom,
+      rgba(44, 36, 24, 0.04),
+      rgba(44, 36, 24, 0.08),
+      rgba(44, 36, 24, 0.04)
+    );
+  }
+
+  /* Faint horizontal fibres across the page */
+  .page::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 3px,
+      rgba(120, 100, 70, 0.012) 3px,
+      rgba(120, 100, 70, 0.012) 4px
+    );
+  }
+
+  /* ============================================================
+     TYPOGRAPHY
+     ============================================================ */
+  .kicker {
+    text-align: center;
+    font-size: 0.72rem;
+    letter-spacing: 0.35em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin-bottom: 1.5rem;
+  }
+
+  h1.title {
+    text-align: center;
+    font-size: clamp(1.9rem, 5vw, 2.8rem);
+    font-weight: normal;
+    line-height: 1.2;
+    color: var(--ink);
+    margin-bottom: 0.5rem;
+    letter-spacing: 0.01em;
+  }
+
+  .byline {
+    text-align: center;
+    font-style: italic;
+    font-size: 0.95rem;
+    color: var(--ink-soft);
+    margin-bottom: 0.4rem;
+  }
+
+  .dateline {
+    text-align: center;
+    font-size: 0.78rem;
+    letter-spacing: 0.15em;
+    color: var(--ink-faint);
+    margin-bottom: 2.5rem;
+  }
+
+  /* Ruled divider — a thin double rule with a diamond ornament */
+  .divider {
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+    margin: 2.5rem auto;
+    max-width: 18rem;
+  }
+
+  .divider::before,
+  .divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(to right, transparent, var(--rule));
+  }
+
+  .divider::after {
+    background: linear-gradient(to left, transparent, var(--rule));
+  }
+
+  .divider span {
+    font-size: 0.6rem;
+    color: var(--accent);
+    line-height: 1;
+    transform: rotate(45deg);
+    display: inline-block;
+    width: 0.55rem;
+    height: 0.55rem;
+    border: 1px solid var(--accent);
+    flex-shrink: 0;
+  }
+
+  /* Body copy */
+  .prose p {
+    font-size: clamp(1rem, 2.2vw, 1.08rem);
+    margin-bottom: 1.4em;
+    text-align: justify;
+    hyphens: auto;
+    -webkit-hyphens: auto;
+    color: var(--ink-soft);
+  }
+
+  .prose p:last-child {
+    margin-bottom: 0;
+  }
+
+  /* Drop cap — first paragraph only */
+  .prose > p:first-of-type::first-letter {
+    float: left;
+    font-size: 4.2em;
+    line-height: 0.82;
+    padding-right: 0.12em;
+    padding-top: 0.05em;
+    color: var(--accent);
+    font-weight: normal;
+  }
+
+  /* Italic subhead */
+  .subhead {
+    font-style: italic;
+    font-size: clamp(1.05rem, 2.4vw, 1.15rem);
+    color: var(--ink);
+    margin: 2.2rem 0 1.2rem;
+    text-align: center;
+    letter-spacing: 0.02em;
+  }
+
+  /* Pull quote */
+  .pull-quote {
+    margin: 2.5rem auto;
+    max-width: 28rem;
+    text-align: center;
+    font-style: italic;
+    font-size: clamp(1.1rem, 2.6vw, 1.25rem);
+    line-height: 1.6;
+    color: var(--ink);
+    position: relative;
+    padding: 1.5rem 0;
+  }
+
+  .pull-quote::before {
+    content: '\201C';
+    display: block;
+    font-size: 3.5rem;
+    line-height: 0.5;
+    color: var(--rule);
+    margin-bottom: 0.8rem;
+    font-style: normal;
+  }
+
+  /* Signature block */
+  .signature {
+    margin-top: 3rem;
+    text-align: right;
+  }
+
+  .signature .name {
+    font-size: 1.5rem;
+    font-style: italic;
+    color: var(--ink);
+    letter-spacing: 0.03em;
+    transform: rotate(-2deg);
+    display: inline-block;
+  }
+
+  .signature .role {
+    font-size: 0.75rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin-top: 0.4rem;
+  }
+
+  /* Footer colophon */
+  .colophon {
+    margin-top: 3.5rem;
+    text-align: center;
+    font-size: 0.7rem;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    line-height: 2;
+  }
+
+  .colophon .press-mark {
+    font-size: 0.9rem;
+    letter-spacing: 0.5em;
+    color: var(--accent);
+    display: block;
+    margin-bottom: 0.6rem;
+  }
+
+  /* ============================================================
+     RESPONSIVE TWEAKS
+     ============================================================ */
+  @media (max-width: 600px) {
+    .prose p {
+      text-align: left;
+      hyphens: none;
+      -webkit-hyphens: none;
+    }
+
+    .prose > p:first-of-type::first-letter {
+      font-size: 3.4em;
+    }
+
+    .signature {
+      text-align: center;
+    }
+
+    .signature .name {
+      transform: none;
+    }
+  }
+
+  /* Respect reduced motion preferences */
+  @media (prefers-reduced-motion: reduce) {
+    .grain {
+      animation: none;
+    }
+  }
+</style>
+</head>
+<body>
+
+  <!-- Paper grain: SVG feTurbulence noise, animated via CSS steps() -->
+  <svg class="grain" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <filter id="paper-noise">
+      <feTurbulence type="fractalNoise" baseFrequency="0.72" numOctaves="4" stitchTiles="stitch" result="noise"/>
+      <feColorMatrix in="noise" type="matrix"
+        values="0 0 0 0 0.42
+                0 0 0 0 0.36
+                0 0 0 0 0.28
+                0 0 0 0.35 0"/>
+    </filter>
+    <rect width="100%" height="100%" filter="url(#paper-noise)"/>
+  </svg>
+
+  <!-- Vignette + lamp light overlays -->
+  <div class="vignette" aria-hidden="true"></div>
+  <div class="lamp-light" aria-hidden="true"></div>
+
+  <!-- The page -->
+  <main class="page">
+    <p class="kicker">A Short Meditation</p>
+
+    <h1 class="title">The Weight of Paper</h1>
+    <p class="byline">By Eleanor Ashworth</p>
+    <p class="dateline">No. 47 &middot; The Quiet Press Review</p>
+
+    <div class="divider" role="separator"><span></span></div>
+
+    <article class="prose">
+      <p>There is a particular silence that belongs only to paper. Not the absence of sound, exactly, but its slow accumulation — the way a stack of uncut sheets settles onto a workbench and seems to exhale. I have spent more years than I care to count among reams of cotton rag, and still the first morning of a new press run finds me standing in the darkened room, listening to nothing, waiting for the hum of the machine to become a kind of weather.</p>
+
+      <p>The digital age has made us fluent in weightlessness. A document lives in a folder the size of a whisper; a library occupies no shelf at all. And yet something in the architecture of our attention resists this. We reach for the tactile before we reach for the convenient. A letter, even an ordinary one, carries the memory of the hand that folded it. The crease is a signature no algorithm can forge.</p>
+
+      <p class="subhead">On the Grammar of Texture</p>
+
+      <p>Consider the surface itself. Under magnification, good paper is a landscape — hills of cellulose fibre, valleys where the sizing thinned, tiny islands where two sheets kissed during pressing and shared a skin. This is not defect. It is the grammar of the material, the syntax by which ink decides where to sit and where to rest. A smooth synthetic sheet accepts everything and remembers nothing; textured paper negotiates.</p>
+
+      <blockquote class="pull-quote">
+        A page is not a container for words. It is a partner in their performance — the stage, the lighting, the hush of the audience before the curtain rises.
+      </blockquote>
+
+      <p>I think of the fine presses of the nineteenth century, working in rooms that smelled of linseed and rain. Their editions were small, sometimes fewer than two hundred copies, and each was numbered by hand. The owner of copy forty-three knew that forty-two existed, and forty-four, and that the sequence ended somewhere past midnight. There was a mathematics to scarcity that gave every reading a gravity.</p>
+
+      <p>We do not need to return to those rooms. But we might borrow their patience. In an era of instant regeneration, the decision to print slowly — to let a page dry, to choose a stock by feel rather than by specification — is an act of resistance. Small, perhaps, but legible. The kind of resistance that leaves a mark you can hold up to the light.</p>
+    </article>
+
+    <div class="divider" role="separator"><span></span></div>
+
+    <div class="signature">
+      <span class="name">Eleanor Ashworth</span>
+      <p class="role">Editor, The Quiet Press Review</p>
+    </div>
+
+    <footer class="colophon">
+      <span class="press-mark">&#9670;</span>
+      Set in Georgia &middot; Printed on Cotton Rag<br>
+      The Quiet Press Review &middot; MMXXVI
+    </footer>
+  </main>
+
+</body>
+</html>

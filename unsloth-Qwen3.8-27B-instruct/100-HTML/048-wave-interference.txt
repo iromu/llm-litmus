@@ -1,0 +1,22 @@
+Wave Interference — Ripple Tank Simulation
+==========================================
+
+Creative Prompt:
+Create a physics wave interference visualization with multiple wave sources emitting concentric ripples. Waves combine constructively (bright cyan) and destructively (dark) based on superposition. The color mapping uses blue for positive amplitude and warm tones for negative. Clicking adds a new wave source at the cursor (up to 8). Sources have different frequencies and hues. The background trails for smooth motion. The overall aesthetic is scientific, fluid, and educational — like a ripple tank simulation.
+
+Model: Qwen3.8-27B-instruct
+Thinking effort: high
+
+Techniques:
+- Canvas pixel-level wave rendering with superposition of sinusoidal sources
+- Distance-based wave equation with exponential decay envelope
+- Pixel buffer manipulation (Float32Array) sampled every 4px for performance
+- Precomputed 512-entry color LUT: navy→cyan→white for positive, maroon→amber→orange for negative
+- Constructive interference naturally highlights as white peaks via LUT saturation
+- Source point rendering with radial gradient glow + pulsing ring
+- Click/touch to add sources; FIFO removal at limit of 8
+- Trailing background fade (per-pixel alpha blend at 0.14) for smooth motion
+- Offscreen low-res canvas upscaled with bilinear smoothing for soft look
+- DPR-aware sizing capped at 2x
+
+Wall time: N/A | Tokens: N/A

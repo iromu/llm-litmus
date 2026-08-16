@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MORSE — Signal Transmission</title>
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #040e12; }
+  canvas { display: block; width: 100vw; height: 100vh; }
+  .hud {
+    position: fixed; bottom: 1.5rem; left: 50%; transform: translateX(-50%);
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.65rem; letter-spacing: 0.35em; color: rgba(94, 234, 212, 0.4);
+    text-transform: uppercase; pointer-events: none; user-select: none;
+    white-space: nowrap;
+  }
+  .hud b { color: rgba(94, 234, 212, 0.75); font-weight: 400; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div class="hud" aria-hidden="true"><b>HELLO WORLD</b> · MORSE TRANSMISSION · LOOP ∞</div>
+<script>
+(() => {
+  'use strict';
+
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d');
+
+  // ---------- constants ----------
+  const BG = [4, 14, 18];          // very dark teal
+  const FADE_ALPHA = 0.16;         // trailing fade per frame
+  const DOT_COLOR  = [110, 255, 214];   // cyan-green
+  const DASH_COLOR = [ 70, 230, 190];   // slightly deeper green-cyan
+  const LINE_COLOR = [ 60, 200, 180];   // faint connection lines
+  const LINK_DIST  = 130;          // px radius for connection lines
+  const MAX_LINKS  = 90;           // cap on drawn links per frame
+  const AMBIENT_RATE = 0.012;      // ambient signal spawn probability per frame
+  const BASE_UNIT  = 90;           // ms per morse unit (dot duration)
+  const PULSE_SPEED = 5.2;         // sine pulse frequency factor
+
+  // ---------- morse table ----------
+  const MORSE = {
+    A: '.-', B: '-...', C: '-.-.', D: '-..', E: '.', F: '..-.', G: '--.',
+    H: '....', I: '..', J: '.---', K: '-.-', L: '.-..', M: '--', N: '-.',
+    O: '---', P: '.--.', Q: '--.-', R: '.-.', S: '...', T: '-', U: '..-',
+    V: '...-', W: '.--', X: '-..-', Y: '-.--', Z: '--..',
+    '0': '-----', '1': '.----', '2': '..---', '3': '...--', '4': '....-',
+    '5': '.....', '6': '-....', '7': '--...', '8': '---..', '9': '----.'
+  };
+
+  function encodeMorse(text) {
+    const out = [];
+    for (const ch of text.toUpperCase()) {
+      if (ch === ' ') continue;
+      const code = MORSE[ch];
+      if (!code) continue;
+      for (const sym of code) out.push(sym);
+    }
+    return out;
+  }
+
+  const MESSAGE = encodeMorse('HELLO WORLD');
+
+  // ---------- state ----------
+  let W = 0, H = 0, DPR = 1;
+  let signals = [];
+  let queue = [];            // pending message symbols to emit
+  let nextEmitAt = 0;        // timestamp when next symbol should fire
+  let msgIndex = 0;          // index into MESSAGE for loop tracking
+  let lastTime = 0;
+  let ambientAccumulator = 0;
+
+  function resize() {
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = W * DPR;
+    canvas.height = H * DPR;
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    // paint solid bg once after resize so no stale pixels
+    ctx.fillStyle = `rgb(${BG[0]},${BG[1]},${BG[2]})`;
+    ctx.fillRect(0, 0, W, H);
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  // ---------- signal pool ----------
+  function spawnSignal(x, y, isDash, strength) {
+    signals.push({
+      x, y,
+      vx: (Math.random() - 0.5) * 0.15,
+      vy: -(0.55 + Math.random() * 0.5),       // upward drift
+      isDash,
+      size: isDash ? (14 + Math.random() * 6) : (5 + Math.random() * 3),
+      alpha: strength ?? 1,
+      maxAlpha: strength ?? 1,
+      life: 1,                                  // 1 → 0
+      decay: 0.0035 + Math.random() * 0.0025,
+      phase: Math.random() * Math.PI * 2,
+      hueShift: (Math.random() - 0.5) * 20,     // slight color variance
+      ambient: strength !== undefined && strength < 0.5
+    });
+  }
+
+  function emitMessageSymbol(sym, t) {
+    const isDash = sym === '-';
+    // spread emission across a band near the bottom center
+    const cx = W / 2;
+    const spread = Math.min(W * 0.35, 320);
+    const x = cx + (Math.random() - 0.5) * spread;
+    const y = H - 60 - Math.random() * 40;
+    spawnSignal(x, y, isDash, 1);
+  }
+
+  // ---------- timing ----------
+  function scheduleNext(t) {
+    const sym = MESSAGE[msgIndex % MESSAGE.length];
+    const units = sym === '-' ? 3 : 1;
+    nextEmitAt = t + units * BASE_UNIT * (0.85 + Math.random() * 0.3);
+    msgIndex++;
+  }
+
+  // ---------- update ----------
+  function update(dt, t) {
+    // emit scheduled message symbols
+    while (t >= nextEmitAt) {
+      const sym = MESSAGE[(msgIndex - 1) % MESSAGE.length];
+      emitMessageSymbol(sym, t);
+      scheduleNext(nextEmitAt);
+    }
+
+    // ambient random signals
+    ambientAccumulator += dt;
+    if (ambientAccumulator > 16) {
+      ambientAccumulator = 0;
+      if (Math.random() < AMBIENT_RATE * 60) {
+        spawnSignal(
+          Math.random() * W,
+          H * (0.3 + Math.random() * 0.6),
+          Math.random() < 0.35,
+          0.25 + Math.random() * 0.2
+        );
+      }
+    }
+
+    // integrate signals
+    for (let i = signals.length - 1; i >= 0; i--) {
+      const s = signals[i];
+      s.x += s.vx * dt * 0.06;
+      s.y += s.vy * dt * 0.06;
+      s.life -= s.decay * dt * 0.06;
+      s.alpha = s.maxAlpha * Math.max(0, s.life);
+      s.phase += PULSE_SPEED * dt * 0.001;
+      if (s.life <= 0 || s.y < -30) {
+        signals.splice(i, 1);
+      }
+    }
+
+    // cap pool
+    if (signals.length > 220) signals.splice(0, signals.length - 220);
+  }
+
+  // ---------- render ----------
+  function drawBackground() {
+    // trailing fade: translucent fill over previous frame
+    ctx.fillStyle = `rgba(${BG[0]},${BG[1]},${BG[2]},${FADE_ALPHA})`;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  function drawConnections() {
+    // only link non-ambient, brighter signals; cap count
+    const active = signals.filter(s => !s.ambient && s.alpha > 0.25);
+    if (active.length < 2) return;
+
+    ctx.lineWidth = 0.6;
+    let links = 0;
+    outer:
+    for (let i = 0; i < active.length; i++) {
+      for (let j = i + 1; j < active.length; j++) {
+        const a = active[i], b = active[j];
+        const dx = a.x - b.x, dy = a.y - b.y;
+        const d2 = dx * dx + dy * dy;
+        if (d2 > LINK_DIST * LINK_DIST) continue;
+        const d = Math.sqrt(d2);
+        const fade = (1 - d / LINK_DIST) * Math.min(a.alpha, b.alpha) * 0.22;
+        if (fade < 0.01) continue;
+        ctx.strokeStyle = `rgba(${LINE_COLOR[0]},${LINE_COLOR[1]},${LINE_COLOR[2]},${fade})`;
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
+        ctx.stroke();
+        if (++links >= MAX_LINKS) break outer;
+      }
+    }
+  }
+
+  function drawSignal(s, t) {
+    const pulse = 0.75 + 0.25 * Math.sin(s.phase);
+    const a = s.alpha * pulse;
+    if (a < 0.01) return;
+
+    const r = s.hueShift;
+    const cr = Math.round(DOT_COLOR[0] + r);
+    const cg = Math.round(DOT_COLOR[1] + r * 0.5);
+    const cb = Math.round(DOT_COLOR[2] + r * 0.3);
+
+    // outer glow
+    const glowR = s.isDash ? s.size * 2.6 : s.size * 3.2;
+    const grad = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, glowR);
+    grad.addColorStop(0, `rgba(${cr},${cg},${cb},${a * 0.55})`);
+    grad.addColorStop(0.4, `rgba(${cr},${cg},${cb},${a * 0.18})`);
+    grad.addColorStop(1, `rgba(${cr},${cg},${cb},0)`);
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, glowR, 0, Math.PI * 2);
+    ctx.fill();
+
+    // core shape
+    ctx.fillStyle = `rgba(${Math.min(255, cr + 60)},${Math.min(255, cg + 40)},${Math.min(255, cb + 30)},${a})`;
+    if (s.isDash) {
+      // dash pill (ellipse, horizontal)
+      ctx.beginPath();
+      ctx.ellipse(s.x, s.y, s.size, s.size * 0.42, 0, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      // dot circle
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // bright inner highlight
+    ctx.fillStyle = `rgba(255,255,255,${a * 0.5})`;
+    if (s.isDash) {
+      ctx.beginPath();
+      ctx.ellipse(s.x, s.y, s.size * 0.55, s.size * 0.2, 0, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, s.size * 0.45, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // ---------- main loop ----------
+  function frame(t) {
+    const dt = Math.min(t - lastTime, 50);
+    lastTime = t;
+
+    update(dt, t);
+    drawBackground();
+    drawConnections();
+    for (const s of signals) drawSignal(s, t);
+
+    requestAnimationFrame(frame);
+  }
+
+  // prime the first emission shortly after load
+  nextEmitAt = performance.now() + 400;
+  requestAnimationFrame((t) => { lastTime = t; requestAnimationFrame(frame); });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,25 @@
+# 030 — Kaleidoscope
+
+## Creative Prompt
+Create a digital kaleidoscope with 8-fold radial symmetry. Colorful dots move within a wedge and are mirrored across all segments, creating intricate symmetrical patterns. Connection lines between mirrored points add geometric structure. Radial guide lines emanate from the center. The colors cycle through the spectrum and shift over time. Clicking changes the hue offset and regenerates points. A subtle center glow anchors the composition. The background trails for smooth motion. The overall aesthetic is psychedelic, symmetric, and mesmerizing.
+
+## Model
+Qwen3.8-27B-instruct
+
+## Thinking Effort
+high
+
+## Techniques
+- Canvas 2D rendering with devicePixelRatio-aware sizing
+- 8-segment radial symmetry: each wedge drawn directly and Y-flipped (mirrored) per segment → 16 visual copies
+- 14 base points per wedge in polar coords, animated via layered sine oscillation (unique frequency + phase per point)
+- HSL hue cycling driven by global drift + per-point radial/hue offsets for spectral spread
+- Proximity-based connection lines (distance threshold as fraction of max radius) for geometric lattice structure
+- Faint radial guide lines + concentric rings for structural reference
+- Pulsing radial-gradient center glow with bright core
+- Trailing background fade (low-alpha fillRect) for smooth motion blur
+- Click interaction: position-derived hue jump + full point regeneration
+- No external dependencies; single self-contained HTML file
+
+## Stats
+Wall time: N/A | Tokens: N/A

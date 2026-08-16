@@ -1,0 +1,19 @@
+Creative Prompt:
+Create a colorful mosaic tile pattern with irregular rectangular tiles in shifting hues. Each tile has its own hue, saturation, lightness, and alpha, creating a rich, stained-glass-like composition. Tiles subtly shift in brightness over time. The mosaic covers the entire canvas. Clicking regenerates the mosaic with new colors. The overall aesthetic is colorful, textured, and Byzantine — like a digital stained glass window.
+
+Model: Qwen3.8-27B-instruct
+Thinking effort: high
+
+Techniques used:
+- Canvas mosaic grid with randomized row heights and column widths (irregular rectangular tiles)
+- Per-tile HSL color with alpha (full spectrum distribution via anchor-hue blending + random drift)
+- Sine-based brightness shimmer per tile (unique phase, speed, amplitude)
+- Inner linear-gradient sheen for glass depth
+- Radial vignette overlay for Byzantine depth
+- Trailing background fade (persistence-of-vision ghosting on regeneration)
+- Seeded PRNG (mulberry32) for reproducible palettes per seed
+- Click-to-regenerate with full clear flash
+- HiDPI-aware rendering (devicePixelRatio capped at 2x)
+- Responsive resize with mosaic rebuild
+
+Wall time: N/A | Tokens: N/A

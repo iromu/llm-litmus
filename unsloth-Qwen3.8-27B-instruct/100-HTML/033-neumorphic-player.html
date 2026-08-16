@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Neumorphic Player</title>
+<style>
+  :root {
+    --bg: #e4e9f2;
+    --bg-deep: #d8deea;
+    --surface: #e4e9f2;
+    --light-shadow: #ffffff;
+    --dark-shadow: #b8bfce;
+    --accent-1: #7c6cf0;
+    --accent-2: #5a8df6;
+    --accent-3: #9d6ff2;
+    --text-primary: #3d4460;
+    --text-secondary: #8a92ab;
+    --radius-lg: 32px;
+    --radius-md: 20px;
+    --radius-sm: 14px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    overflow: hidden;
+  }
+
+  /* Subtle ambient background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background:
+      radial-gradient(ellipse at 20% 50%, rgba(124, 108, 240, 0.06) 0%, transparent 50%),
+      radial-gradient(ellipse at 80% 20%, rgba(90, 141, 246, 0.05) 0%, transparent 50%);
+    pointer-events: none;
+  }
+
+  .player {
+    width: min(420px, calc(100vw - 32px));
+    background: var(--surface);
+    border-radius: var(--radius-lg);
+    padding: 36px 32px 32px;
+    box-shadow:
+      12px 12px 28px var(--dark-shadow),
+      -12px -12px 28px var(--light-shadow),
+      inset 0 0 0 1px rgba(255,255,255,0.4);
+    position: relative;
+  }
+
+  /* ── Album Art ─────────────────────────────── */
+  .album-art {
+    width: 220px;
+    height: 220px;
+    margin: 0 auto 28px;
+    border-radius: 50%;
+    position: relative;
+    box-shadow:
+      10px 10px 24px var(--dark-shadow),
+      -10px -10px 24px var(--light-shadow);
+    overflow: hidden;
+    cursor: pointer;
+  }
+
+  .album-art__gradient {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: conic-gradient(
+      from 45deg,
+      var(--accent-1),
+      var(--accent-2),
+      var(--accent-3),
+      #c084fc,
+      var(--accent-1)
+    );
+    animation: spin 20s linear infinite;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  .album-art__inner {
+    position: absolute;
+    inset: 12px;
+    border-radius: 50%;
+    background: var(--surface);
+    box-shadow:
+      inset 4px 4px 10px var(--dark-shadow),
+      inset -4px -4px 10px var(--light-shadow);
+  }
+
+  .album-art__disc {
+    position: absolute;
+    inset: 30px;
+    border-radius: 50%;
+    background: conic-gradient(
+      from 0deg,
+      rgba(124, 108, 240, 0.85),
+      rgba(90, 141, 246, 0.7),
+      rgba(157, 111, 242, 0.85),
+      rgba(192, 132, 252, 0.7),
+      rgba(124, 108, 240, 0.85)
+    );
+    box-shadow:
+      inset 2px 2px 6px rgba(255,255,255,0.3),
+      inset -2px -2px 6px rgba(0,0,0,0.15);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .album-art__hole {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--surface);
+    box-shadow:
+      inset 2px 2px 5px var(--dark-shadow),
+      inset -2px -2px 5px var(--light-shadow);
+  }
+
+  /* Shine sweep */
+  .album-art::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: linear-gradient(
+      135deg,
+      transparent 40%,
+      rgba(255, 255, 255, 0.35) 50%,
+      transparent 60%
+    );
+    background-size: 200% 200%;
+    animation: shine 4s ease-in-out infinite;
+    pointer-events: none;
+  }
+
+  @keyframes shine {
+    0%, 100% { background-position: 200% 200%; }
+    50% { background-position: -50% -50%; }
+  }
+
+  /* Paused state — stop rotation */
+  .player.paused .album-art__gradient {
+    animation-play-state: paused;
+  }
+
+  /* ── Track Info ────────────────────────────── */
+  .track-info {
+    text-align: center;
+    margin-bottom: 24px;
+  }
+
+  .track-info__title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    letter-spacing: -0.02em;
+    margin-bottom: 4px;
+  }
+
+  .track-info__artist {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+  }
+
+  /* ── Progress Bar ──────────────────────────── */
+  .progress-section {
+    margin-bottom: 24px;
+  }
+
+  .progress-bar {
+    width: 100%;
+    height: 8px;
+    border-radius: 4px;
+    background: var(--surface);
+    box-shadow:
+      inset 3px 3px 6px var(--dark-shadow),
+      inset -3px -3px 6px var(--light-shadow);
+    position: relative;
+    cursor: pointer;
+  }
+
+  .progress-bar__fill {
+    height: 100%;
+    border-radius: 4px;
+    background: linear-gradient(90deg, var(--accent-1), var(--accent-2));
+    width: 0%;
+    transition: width 0.1s linear;
+    position: relative;
+  }
+
+  .progress-bar__knob {
+    position: absolute;
+    right: -8px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--surface);
+    box-shadow:
+      3px 3px 8px var(--dark-shadow),
+      -3px -3px 8px var(--light-shadow);
+    transition: transform 0.15s ease;
+  }
+
+  .progress-bar:hover .progress-bar__knob {
+    transform: translateY(-50%) scale(1.15);
+  }
+
+  .time-stamps {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 8px;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+    font-weight: 500;
+  }
+
+  /* ── Controls ──────────────────────────────── */
+  .controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+
+  .btn {
+    border: none;
+    outline: none;
+    cursor: pointer;
+    background: var(--surface);
+    box-shadow:
+      6px 6px 14px var(--dark-shadow),
+      -6px -6px 14px var(--light-shadow);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .btn:active,
+  .btn.pressed {
+    box-shadow:
+      inset 4px 4px 10px var(--dark-shadow),
+      inset -4px -4px 10px var(--light-shadow);
+    transform: scale(0.96);
+  }
+
+  .btn--sm {
+    width: 44px;
+    height: 44px;
+  }
+
+  .btn--lg {
+    width: 64px;
+    height: 64px;
+  }
+
+  .btn svg {
+    width: 20px;
+    height: 20px;
+    fill: var(--text-primary);
+    transition: fill 0.15s ease;
+  }
+
+  .btn--lg svg {
+    width: 26px;
+    height: 26px;
+  }
+
+  /* Play button gradient */
+  .btn--play {
+    background: linear-gradient(135deg, var(--accent-1), var(--accent-2));
+    box-shadow:
+      6px 6px 16px rgba(124, 108, 240, 0.35),
+      -6px -6px 16px var(--light-shadow);
+  }
+
+  .btn--play:active,
+  .btn--play.pressed {
+    box-shadow:
+      inset 4px 4px 10px rgba(0, 0, 0, 0.2),
+      inset -4px -4px 10px rgba(255, 255, 255, 0.1);
+  }
+
+  .btn--play svg {
+    fill: #fff;
+  }
+
+  /* Active state for shuffle/repeat */
+  .btn.active {
+    box-shadow:
+      inset 4px 4px 10px var(--dark-shadow),
+      inset -4px -4px 10px var(--light-shadow);
+  }
+
+  .btn.active svg {
+    fill: var(--accent-1);
+  }
+
+  /* ── Secondary Controls ────────────────────── */
+  .secondary-controls {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .volume-control {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: 1;
+  }
+
+  .volume-btn {
+    width: 36px;
+    height: 36px;
+    flex-shrink: 0;
+  }
+
+  .volume-btn svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .volume-slider {
+    flex: 1;
+    height: 6px;
+    border-radius: 3px;
+    background: var(--surface);
+    box-shadow:
+      inset 2px 2px 5px var(--dark-shadow),
+      inset -2px -2px 5px var(--light-shadow);
+    position: relative;
+    cursor: pointer;
+  }
+
+  .volume-slider__fill {
+    height: 100%;
+    border-radius: 3px;
+    background: linear-gradient(90deg, var(--accent-1), var(--accent-2));
+    width: 70%;
+    position: relative;
+    transition: width 0.1s ease;
+  }
+
+  .volume-slider__knob {
+    position: absolute;
+    right: -6px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--surface);
+    box-shadow:
+      2px 2px 6px var(--dark-shadow),
+      -2px -2px 6px var(--light-shadow);
+    transition: transform 0.15s ease;
+  }
+
+  .volume-slider:hover .volume-slider__knob {
+    transform: translateY(-50%) scale(1.2);
+  }
+
+  .fav-btn {
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+  }
+
+  .fav-btn svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .fav-btn.faved svg {
+    fill: #f43f5e;
+  }
+
+  /* ── Responsive ────────────────────────────── */
+  @media (max-width: 400px) {
+    .player { padding: 28px 20px 24px; }
+    .album-art { width: 180px; height: 180px; }
+    .album-art__inner { inset: 10px; }
+    .album-art__disc { inset: 24px; }
+    .controls { gap: 12px; }
+    .btn--lg { width: 56px; height: 56px; }
+    .btn--sm { width: 40px; height: 40px; }
+  }
+
+  @media (max-height: 600px) {
+    .player { padding: 24px 24px 20px; }
+    .album-art { width: 150px; height: 150px; margin-bottom: 20px; }
+    .album-art__inner { inset: 8px; }
+    .album-art__disc { inset: 20px; }
+    .track-info { margin-bottom: 16px; }
+    .progress-section { margin-bottom: 16px; }
+    .controls { margin-bottom: 14px; }
+  }
+</style>
+</head>
+<body>
+
+<main class="player" id="player">
+  <!-- Album Art -->
+  <div class="album-art" id="albumArt" role="button" aria-label="Toggle play/pause" tabindex="0">
+    <div class="album-art__gradient"></div>
+    <div class="album-art__inner"></div>
+    <div class="album-art__disc">
+      <div class="album-art__hole"></div>
+    </div>
+  </div>
+
+  <!-- Track Info -->
+  <section class="track-info">
+    <h1 class="track-info__title">Midnight Reverie</h1>
+    <p class="track-info__artist">Luna Cascade</p>
+  </section>
+
+  <!-- Progress -->
+  <section class="progress-section">
+    <div class="progress-bar" id="progressBar" role="slider" aria-label="Seek" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" tabindex="0">
+      <div class="progress-bar__fill" id="progressFill">
+        <div class="progress-bar__knob"></div>
+      </div>
+    </div>
+    <div class="time-stamps">
+      <span id="currentTime">0:00</span>
+      <span id="totalTime">3:42</span>
+    </div>
+  </section>
+
+  <!-- Main Controls -->
+  <nav class="controls" aria-label="Playback controls">
+    <button class="btn btn--sm" id="shuffleBtn" aria-label="Shuffle" title="Shuffle">
+      <svg viewBox="0 0 24 24"><path d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/></svg>
+    </button>
+    <button class="btn btn--sm" id="prevBtn" aria-label="Previous track" title="Previous">
+      <svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
+    </button>
+    <button class="btn btn--lg btn--play" id="playBtn" aria-label="Play" title="Play/Pause">
+      <svg viewBox="0 0 24 24" id="playIcon"><path d="M8 5v14l11-7z"/></svg>
+    </button>
+    <button class="btn btn--sm" id="nextBtn" aria-label="Next track" title="Next">
+      <svg viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
+    </button>
+    <button class="btn btn--sm" id="repeatBtn" aria-label="Repeat" title="Repeat">
+      <svg viewBox="0 0 24 24"><path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/></svg>
+    </button>
+  </nav>
+
+  <!-- Secondary Controls -->
+  <div class="secondary-controls">
+    <div class="volume-control">
+      <button class="btn volume-btn" id="muteBtn" aria-label="Mute" title="Mute">
+        <svg viewBox="0 0 24 24" id="volIcon"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+      </button>
+      <div class="volume-slider" id="volumeSlider" role="slider" aria-label="Volume" aria-valuemin="0" aria-valuemax="100" aria-valuenow="70" tabindex="0">
+        <div class="volume-slider__fill" id="volumeFill">
+          <div class="volume-slider__knob"></div>
+        </div>
+      </div>
+    </div>
+    <button class="btn fav-btn" id="favBtn" aria-label="Favorite" title="Favorite">
+      <svg viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+    </button>
+  </div>
+</main>
+
+<script>
+(() => {
+  const player = document.getElementById('player');
+  const playBtn = document.getElementById('playBtn');
+  const playIcon = document.getElementById('playIcon');
+  const albumArt = document.getElementById('albumArt');
+  const progressFill = document.getElementById('progressFill');
+  const progressBar = document.getElementById('progressBar');
+  const currentTimeEl = document.getElementById('currentTime');
+  const totalTimeEl = document.getElementById('totalTime');
+  const prevBtn = document.getElementById('prevBtn');
+  const nextBtn = document.getElementById('nextBtn');
+  const shuffleBtn = document.getElementById('shuffleBtn');
+  const repeatBtn = document.getElementById('repeatBtn');
+  const muteBtn = document.getElementById('muteBtn');
+  const volIcon = document.getElementById('volIcon');
+  const volumeSlider = document.getElementById('volumeSlider');
+  const volumeFill = document.getElementById('volumeFill');
+  const favBtn = document.getElementById('favBtn');
+
+  // State
+  let isPlaying = false;
+  let progress = 0;       // 0–100
+  let volume = 70;        // 0–100
+  let isMuted = false;
+  let isFav = false;
+  let duration = 222;     // seconds (3:42)
+  let animFrame = null;
+  let lastTime = 0;
+
+  const PLAY_PATH = 'M8 5v14l11-7z';
+  const PAUSE_PATH = 'M6 19h4V5H6v14zm8-14v14h4V5h-4z';
+
+  function formatTime(sec) {
+    const m = Math.floor(sec / 60);
+    const s = Math.floor(sec % 60);
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  }
+
+  function updateProgress() {
+    progressFill.style.width = progress + '%';
+    const elapsed = (progress / 100) * duration;
+    currentTimeEl.textContent = formatTime(elapsed);
+    progressBar.setAttribute('aria-valuenow', Math.round(progress));
+  }
+
+  function tick(now) {
+    if (!isPlaying) return;
+    const dt = (now - lastTime) / 1000;
+    lastTime = now;
+    progress += (dt / duration) * 100;
+    if (progress >= 100) {
+      progress = 100;
+      updateProgress();
+      togglePlay(false);
+      return;
+    }
+    updateProgress();
+    animFrame = requestAnimationFrame(tick);
+  }
+
+  function togglePlay(forceState) {
+    isPlaying = forceState !== undefined ? forceState : !isPlaying;
+    if (isPlaying) {
+      playIcon.innerHTML = `<path d="${PAUSE_PATH}"/>`;
+      playBtn.setAttribute('aria-label', 'Pause');
+      player.classList.remove('paused');
+      lastTime = performance.now();
+      animFrame = requestAnimationFrame(tick);
+    } else {
+      playIcon.innerHTML = `<path d="${PLAY_PATH}"/>`;
+      playBtn.setAttribute('aria-label', 'Play');
+      player.classList.add('paused');
+      if (animFrame) cancelAnimationFrame(animFrame);
+    }
+  }
+
+  // Play/Pause
+  playBtn.addEventListener('click', () => togglePlay());
+  albumArt.addEventListener('click', () => togglePlay());
+  albumArt.addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); togglePlay(); }
+  });
+
+  // Prev / Next
+  prevBtn.addEventListener('click', () => {
+    progress = 0;
+    updateProgress();
+  });
+  nextBtn.addEventListener('click', () => {
+    progress = 0;
+    duration = 180 + Math.floor(Math.random() * 120);
+    totalTimeEl.textContent = formatTime(duration);
+    updateProgress();
+  });
+
+  // Shuffle / Repeat toggles
+  shuffleBtn.addEventListener('click', () => shuffleBtn.classList.toggle('active'));
+  repeatBtn.addEventListener('click', () => repeatBtn.classList.toggle('active'));
+
+  // Favorite
+  favBtn.addEventListener('click', () => {
+    isFav = !isFav;
+    favBtn.classList.toggle('faved', isFav);
+  });
+
+  // Mute
+  muteBtn.addEventListener('click', () => {
+    isMuted = !isMuted;
+    volIcon.innerHTML = isMuted
+      ? '<path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.59l4.29 4.29C14.93 19.74 16 20 17 20c1.55 0 2.96-.41 4.18-1.11l-1.67-1.67c-.66.29-1.4.48-2.51.48-2.76 0-5-2.24-5-5 0-.62.13-1.21.36-1.75L5.27 4.27 4.27 3zM12 4L9.91 6.09 12 8.18V4z"/>'
+      : '<path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>';
+    if (isMuted) volumeFill.style.width = '0%';
+    else volumeFill.style.width = volume + '%';
+  });
+
+  // Volume slider interaction
+  function setVolumeFromEvent(e) {
+    const rect = volumeSlider.getBoundingClientRect();
+    const x = (e.clientX ?? e.touches?.[0]?.clientX ?? 0) - rect.left;
+    volume = Math.max(0, Math.min(100, (x / rect.width) * 100));
+    volumeFill.style.width = (isMuted ? 0 : volume) + '%';
+    volumeSlider.setAttribute('aria-valuenow', Math.round(volume));
+    if (isMuted && volume > 0) {
+      isMuted = false;
+      volIcon.innerHTML = '<path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>';
+    }
+  }
+
+  let draggingVol = false;
+  volumeSlider.addEventListener('mousedown', e => { draggingVol = true; setVolumeFromEvent(e); });
+  document.addEventListener('mousemove', e => { if (draggingVol) setVolumeFromEvent(e); });
+  document.addEventListener('mouseup', () => { draggingVol = false; });
+  volumeSlider.addEventListener('touchstart', e => { draggingVol = true; setVolumeFromEvent(e); }, { passive: true });
+  document.addEventListener('touchmove', e => { if (draggingVol) setVolumeFromEvent(e); }, { passive: true });
+  document.addEventListener('touchend', () => { draggingVol = false; });
+
+  // Progress bar seek
+  function seekFromEvent(e) {
+    const rect = progressBar.getBoundingClientRect();
+    const x = (e.clientX ?? e.touches?.[0]?.clientX ?? 0) - rect.left;
+    progress = Math.max(0, Math.min(100, (x / rect.width) * 100));
+    updateProgress();
+  }
+
+  let draggingProg = false;
+  progressBar.addEventListener('mousedown', e => { draggingProg = true; seekFromEvent(e); });
+  document.addEventListener('mousemove', e => { if (draggingProg) seekFromEvent(e); });
+  document.addEventListener('mouseup', () => { draggingProg = false; });
+  progressBar.addEventListener('touchstart', e => { draggingProg = true; seekFromEvent(e); }, { passive: true });
+  document.addEventListener('touchmove', e => { if (draggingProg) seekFromEvent(e); }, { passive: true });
+  document.addEventListener('touchend', () => { draggingProg = false; });
+
+  // Keyboard support for sliders
+  progressBar.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight') { progress = Math.min(100, progress + 2); updateProgress(); }
+    if (e.key === 'ArrowLeft') { progress = Math.max(0, progress - 2); updateProgress(); }
+  });
+  volumeSlider.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight') { volume = Math.min(100, volume + 5); volumeFill.style.width = volume + '%'; }
+    if (e.key === 'ArrowLeft') { volume = Math.max(0, volume - 5); volumeFill.style.width = volume + '%'; }
+  });
+
+  // Init
+  totalTimeEl.textContent = formatTime(duration);
+  updateProgress();
+})();
+</script>
+</body>
+</html>

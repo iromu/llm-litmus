@@ -1,0 +1,31 @@
+Ripple Pond — Digital Art Gallery Piece
+========================================
+
+Creative Prompt:
+Create an interactive water ripple simulation on a dark blue pond surface. Clicking or touching creates ripples that propagate outward with realistic damping. The ripples cause pixel displacement (refraction-like distortion) and color shifting through blue tones, with brighter highlights at ripple peaks. Moving the mouse creates small ripples. The water surface has a deep radial gradient background. The title "Ripple Pond" is rendered in faint, widely-spaced text at the bottom. The overall aesthetic is tranquil, liquid, and meditative — like watching ripples spread across a still pond at night.
+
+Model: Qwen3.8-27B-instruct
+Thinking effort: high
+
+Techniques Used:
+- Canvas pixel-buffer ripple simulation using two-buffer wave equation (classic
+  neighbor-average minus previous value, with per-frame damping factor of 0.985)
+- Pixel-level refraction displacement: each output pixel samples the precomputed
+  base-color gradient offset by the local wave slope (dx/dy), producing a
+  lens-like distortion as waves pass
+- Color mapping: wave height modulates brightness (peaks brighten toward
+  cyan-white, troughs darken), plus a specular highlight term driven by
+  slope magnitude to simulate light catching ripple crests
+- Precomputed deep radial-gradient background (4-stop interpolation from
+  teal-blue center to near-black indigo edges) stored in a Uint8ClampedArray
+  for fast per-pixel lookup during render
+- Reduced-resolution simulation grid (~320px area cap) upscaled via
+  drawImage with high-quality smoothing for performance on any screen size
+- Mouse/touch interaction: click/tap injects a strong Gaussian-falloff burst;
+  drag interpolates small ripples along the pointer path; ambient random
+  drops every 2–4 seconds keep the pond alive without input
+- requestAnimationFrame render loop with continuous simulation even when idle
+- Responsive: sim grid recalculated on resize to maintain aspect ratio;
+  canvas scaled by devicePixelRatio (capped at 2x)
+
+Wall time: N/A | Tokens: N/A

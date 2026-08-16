@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Origami — Paper Cranes in Suspension</title>
+<style>
+  /* ============================================================
+     ORIGAMI — paper cranes suspended in warm air
+     Pure CSS 3D: clip-path triangles, preserve-3d, keyframes.
+     ============================================================ */
+
+  :root {
+    --bg-top: #f5efe6;
+    --bg-bottom: #e9dfd0;
+    --paper-1: #f7ede2;   /* pale washi */
+    --paper-2: #f2e2cf;   /* warm cream */
+    --paper-3: #ecd6bd;   /* honey sand */
+    --paper-4: #e3c4a3;   /* toasted tan */
+    --paper-5: #d9b18c;   /* deep caramel */
+    --ink: #8a7360;
+    --crane-scale: 1;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body { height: 100%; overflow: hidden; }
+
+  body {
+    background: radial-gradient(ellipse at 50% 38%, var(--bg-top) 0%, var(--bg-bottom) 78%);
+    font-family: Georgia, 'Times New Roman', serif;
+    display: grid;
+    place-items: center;
+  }
+
+  /* ---------- 3D stage ---------- */
+  .stage {
+    position: relative;
+    width: 100vmin;
+    height: 100vmin;
+    perspective: 1400px;
+    perspective-origin: 50% 42%;
+  }
+
+  /* The whole flock rotates slowly around the vertical axis */
+  .flock {
+    position: absolute;
+    inset: 0;
+    transform-style: preserve-3d;
+    animation: flock-spin 90s linear infinite;
+  }
+  @keyframes flock-spin {
+    from { transform: rotateX(-8deg) rotateY(0deg); }
+    to   { transform: rotateX(-8deg) rotateY(360deg); }
+  }
+
+  /* ---------- Crane anatomy ----------
+     Each crane is a group of triangular faces built with
+     clip-path polygons and positioned in 3D space.
+     Faces use slightly different paper tones so the folds
+     catch the light differently.                          */
+  .crane {
+    position: absolute;
+    left: 50%; top: 50%;
+    transform-style: preserve-3d;
+    /* per-crane placement + bobbing set via custom props */
+    transform:
+      translate3d(var(--cx), var(--cy), var(--cz))
+      scale(calc(var(--cs) * var(--crane-scale)))
+      rotateY(var(--ry))
+      rotateZ(var(--rz));
+    animation: crane-bob var(--bob-dur, 9s) ease-in-out infinite alternate;
+    animation-delay: var(--bob-delay, 0s);
+  }
+  @keyframes crane-bob {
+    from { transform:
+      translate3d(var(--cx), calc(var(--cy) - 1.2%), var(--cz))
+      scale(calc(var(--cs) * var(--crane-scale)))
+      rotateY(var(--ry)) rotateZ(calc(var(--rz) - 2.5deg)); }
+    to   { transform:
+      translate3d(var(--cx), calc(var(--cy) + 1.2%), var(--cz))
+      scale(calc(var(--cs) * var(--crane-scale)))
+      rotateY(var(--ry)) rotateZ(calc(var(--rz) + 2.5deg)); }
+  }
+
+  .face {
+    position: absolute;
+    left: 0; top: 0;
+    backface-visibility: visible;
+    /* soft inner shading sells the paper fold */
+    box-shadow: inset 0 0 0 1px rgba(138, 115, 96, 0.05);
+  }
+
+  /* ---- body (diamond fuselage) ---- */
+  .body-top {
+    width: 90px; height: 90px;
+    background: linear-gradient(135deg, var(--paper-1), var(--paper-3));
+    clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+    transform: translate(-45px, -45px) rotateX(90deg) translateZ(6px);
+  }
+  .body-bottom {
+    width: 90px; height: 90px;
+    background: linear-gradient(135deg, var(--paper-4), var(--paper-5));
+    clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+    transform: translate(-45px, -45px) rotateX(90deg) translateZ(-6px) scaleY(-1);
+  }
+
+  /* ---- wings (large swept triangles) ---- */
+  .wing-left {
+    width: 130px; height: 110px;
+    background: linear-gradient(160deg, var(--paper-2) 0%, var(--paper-4) 100%);
+    clip-path: polygon(0% 100%, 100% 0%, 78% 100%);
+    transform: translate(-65px, -55px)
+               rotateY(78deg) rotateX(14deg)
+               translateZ(0px);
+    animation: wing-flap-l 6s ease-in-out infinite alternate;
+    transform-origin: right bottom;
+  }
+  .wing-right {
+    width: 130px; height: 110px;
+    background: linear-gradient(200deg, var(--paper-2) 0%, var(--paper-4) 100%);
+    clip-path: polygon(0% 0%, 100% 100%, 22% 100%);
+    transform: translate(65px, -55px)
+               rotateY(-78deg) rotateX(14deg)
+               translateZ(0px);
+    animation: wing-flap-r 6s ease-in-out infinite alternate;
+    transform-origin: left bottom;
+  }
+  @keyframes wing-flap-l {
+    from { transform: translate(-65px, -55px) rotateY(78deg)  rotateX(14deg); }
+    to   { transform: translate(-65px, -55px) rotateY(78deg)  rotateX(34deg); }
+  }
+  @keyframes wing-flap-r {
+    from { transform: translate(65px, -55px) rotateY(-78deg) rotateX(14deg); }
+    to   { transform: translate(65px, -55px) rotateY(-78deg) rotateX(34deg); }
+  }
+
+  /* ---- neck (two stacked triangles rising forward) ---- */
+  .neck-base {
+    width: 44px; height: 44px;
+    background: linear-gradient(120deg, var(--paper-3), var(--paper-4));
+    clip-path: polygon(50% 0%, 100% 100%, 0% 100%);
+    transform: translate(-22px, -22px)
+               translate3d(30px, 0, 26px)
+               rotateX(-52deg);
+  }
+  .head {
+    width: 30px; height: 30px;
+    background: linear-gradient(120deg, var(--paper-1), var(--paper-3));
+    clip-path: polygon(50% 0%, 100% 100%, 0% 100%);
+    transform: translate(-15px, -15px)
+               translate3d(44px, 0, 40px)
+               rotateX(-70deg);
+  }
+  /* beak — small dark triangle */
+  .beak {
+    width: 18px; height: 14px;
+    background: var(--paper-5);
+    clip-path: polygon(50% 0%, 100% 100%, 0% 100%);
+    transform: translate(-9px, -7px)
+               translate3d(52px, 0, 47px)
+               rotateX(-80deg);
+  }
+
+  /* ---- tail (triangle sweeping up-back) ---- */
+  .tail {
+    width: 56px; height: 56px;
+    background: linear-gradient(240deg, var(--paper-3), var(--paper-5));
+    clip-path: polygon(50% 0%, 100% 100%, 0% 100%);
+    transform: translate(-28px, -28px)
+               translate3d(-34px, 0, -22px)
+               rotateX(58deg);
+  }
+
+  /* crease lines — thin pseudo-folds across the body */
+  .crease {
+    position: absolute;
+    left: 0; top: 0;
+    width: 90px; height: 2px;
+    background: linear-gradient(90deg, transparent, rgba(138,115,96,.28), transparent);
+    transform: translate(-45px, -1px) rotateX(90deg) translateZ(6.5px);
+  }
+  .crease.v {
+    width: 2px; height: 90px;
+    background: linear-gradient(180deg, transparent, rgba(138,115,96,.28), transparent);
+    transform: translate(-1px, -45px) rotateX(90deg) rotateZ(90deg) translateZ(6.5px);
+  }
+
+  /* ---------- Drifting petals ---------- */
+  .petal {
+    position: absolute;
+    left: 50%; top: 50%;
+    width: var(--ps, 26px);
+    height: var(--ps, 26px);
+    background: linear-gradient(140deg, var(--p1, var(--paper-2)), var(--p2, var(--paper-4)));
+    clip-path: polygon(50% 0%, 100% 62%, 50% 100%, 0% 62%);
+    opacity: var(--po, 0.85);
+    transform-style: preserve-3d;
+    animation:
+      petal-drift var(--pd, 16s) ease-in-out infinite alternate,
+      petal-tumble var(--pt, 11s) linear infinite;
+    animation-delay: var(--pdel, 0s), var(--pdel, 0s);
+  }
+  @keyframes petal-drift {
+    from { translate: calc(var(--px) - 4%) calc(var(--py) - 3%); }
+    to   { translate: calc(var(--px) + 4%) calc(var(--py) + 3%); }
+  }
+  @keyframes petal-tumble {
+    from { rotate: 0deg 0deg 0deg; }
+    to   { rotate: var(--tr, 360deg) var(--ty, 180deg) 720deg; }
+  }
+
+  /* ---------- Title ---------- */
+  .title {
+    position: fixed;
+    left: 0; right: 0; bottom: 4.5vh;
+    text-align: center;
+    pointer-events: none;
+    z-index: 5;
+  }
+  .title h1 {
+    font-size: clamp(1.4rem, 4vmin, 2.6rem);
+    font-weight: 400;
+    letter-spacing: 0.55em;
+    text-indent: 0.55em; /* balance tracking */
+    color: var(--ink);
+    opacity: 0.34;
+    text-transform: uppercase;
+  }
+  .title p {
+    margin-top: 0.5em;
+    font-size: clamp(0.6rem, 1.4vmin, 0.8rem);
+    letter-spacing: 0.3em;
+    text-indent: 0.3em;
+    color: var(--ink);
+    opacity: 0.22;
+    font-style: italic;
+  }
+
+  /* ---------- Soft ground shadow ---------- */
+  .shadow {
+    position: absolute;
+    left: 50%; top: 74%;
+    width: 46vmin; height: 9vmin;
+    transform: translate(-50%, -50%) rotateX(90deg);
+    background: radial-gradient(ellipse at center, rgba(138,115,96,0.16) 0%, transparent 68%);
+    filter: blur(6px);
+  }
+
+  /* ---------- Responsive scaling ---------- */
+  @media (max-width: 640px) {
+    :root { --crane-scale: 0.72; }
+    .stage { perspective: 1000px; }
+  }
+  @media (max-width: 400px) {
+    :root { --crane-scale: 0.58; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .flock, .crane, .wing-left, .wing-right, .petal {
+      animation-duration: 0.001s !important;
+      animation-iteration-count: 1 !important;
+    }
+  }
+</style>
+</head>
+<body>
+
+<main class="stage" aria-label="A flock of origami paper cranes floating in warm space">
+  <div class="shadow" aria-hidden="true"></div>
+
+  <div class="flock" id="flock">
+    <!-- Cranes are injected by JS with per-instance custom properties -->
+  </div>
+</main>
+
+<header class="title">
+  <h1>Origami</h1>
+  <p>seven cranes, one breath</p>
+</header>
+
+<script>
+(function () {
+  'use strict';
+
+  const flock = document.getElementById('flock');
+
+  /* ----------------------------------------------------------
+     Crane instances — position (in vmin-ish % of stage),
+     depth, scale, orientation, bob timing.
+     ---------------------------------------------------------- */
+  const CRANES = [
+    // hero crane, front-center
+    { cx: '0%',    cy: '-4%',  cz: '120px', cs: 1.15, ry: -18, rz: -4,  bob: 8.5, delay: 0 },
+    // mid ring
+    { cx: '16%',   cy: '-12%', cz: '30px',  cs: 0.9,  ry: 140, rz: 6,   bob: 10,  delay: -2.1 },
+    { cx: '-18%',  cy: '-8%',  cz: '60px',  cs: 0.95, ry: -150, rz: 8,  bob: 9,   delay: -4.4 },
+    { cx: '10%',   cy: '10%',  cz: '-40px', cs: 0.8,  ry: 30,  rz: -7,  bob: 11,  delay: -1.3 },
+    { cx: '-12%',  cy: '12%',  cz: '-70px', cs: 0.75, ry: -35, rz: 5,   bob: 12,  delay: -6.8 },
+    // back ring, smaller & fainter via scale
+    { cx: '22%',   cy: '2%',   cz: '-140px', cs: 0.6, ry: 95,  rz: -3,  bob: 13,  delay: -3.5 },
+    { cx: '-24%',  cy: '-16%', cz: '-110px', cs: 0.55, ry: -100, rz: 9, bob: 14,  delay: -8.2 },
+  ];
+
+  /* ----------------------------------------------------------
+     Petals — drifting paper confetti.
+     px/py are offsets in % of the stage; sizes in px.
+     ---------------------------------------------------------- */
+  const PETALS = [
+    { px: '26%',  py: '-28%', ps: 22, pd: 15, pt: 9,  tr: 360, ty: 180, po: 0.8,  del: 0,    p1: '#f2e2cf', p2: '#e3c4a3' },
+    { px: '-30%', py: '-22%', ps: 18, pd: 18, pt: 12, tr: -360, ty: 240, po: 0.7, del: -3,   p1: '#f7ede2', p2: '#ecd6bd' },
+    { px: '34%',  py: '18%',  ps: 26, pd: 14, pt: 10, tr: 540,  ty: -180, po: 0.85, del: -6, p1: '#ecd6bd', p2: '#d9b18c' },
+    { px: '-34%', py: '24%',  ps: 16, pd: 19, pt: 13, tr: -540, ty: 120, po: 0.65, del: -9,  p1: '#f2e2cf', p2: '#d9b18c' },
+    { px: '8%',   py: '-34%', ps: 20, pd: 16, pt: 11, tr: 360,  ty: -240, po: 0.75, del: -4, p1: '#f7ede2', p2: '#e3c4a3' },
+    { px: '-8%',  py: '30%',  ps: 24, pd: 17, pt: 14, tr: -360, ty: 300, po: 0.8,  del: -7,  p1: '#ecd6bd', p2: '#e3c4a3' },
+    { px: '40%',  py: '-8%',  ps: 14, pd: 20, pt: 8,  tr: 720,  ty: 180, po: 0.6,  del: -11, p1: '#f2e2cf', p2: '#ecd6bd' },
+    { px: '-42%', py: '4%',   ps: 15, pd: 21, pt: 9,  tr: -720, ty: -120, po: 0.6, del: -5,  p1: '#f7ede2', p2: '#e3c4a3' },
+    { px: '18%',  py: '34%',  ps: 18, pd: 15, pt: 12, tr: 360,  ty: 240, po: 0.7,  del: -2,  p1: '#ecd6bd', p2: '#d9b18c' },
+    { px: '-20%', py: '-34%', ps: 14, pd: 22, pt: 10, tr: -540, ty: -300, po: 0.55, del: -13, p1: '#f2e2cf', p2: '#d9b18c' },
+    { px: '44%',  py: '28%',  ps: 12, pd: 19, pt: 15, tr: 720,  ty: 120, po: 0.5,  del: -8,  p1: '#f7ede2', p2: '#ecd6bd' },
+    { px: '-46%', py: '-10%', ps: 13, pd: 23, pt: 11, tr: -360, ty: 240, po: 0.5,  del: -10, p1: '#ecd6bd', p2: '#e3c4a3' },
+  ];
+
+  /* ----------------------------------------------------------
+     Build a single crane from its face parts.
+     ---------------------------------------------------------- */
+  function buildCrane(cfg) {
+    const el = document.createElement('article');
+    el.className = 'crane';
+    el.setAttribute('aria-hidden', 'true');
+
+    // per-instance custom properties
+    el.style.setProperty('--cx', cfg.cx);
+    el.style.setProperty('--cy', cfg.cy);
+    el.style.setProperty('--cz', cfg.cz);
+    el.style.setProperty('--cs', cfg.cs);
+    el.style.setProperty('--ry', cfg.ry + 'deg');
+    el.style.setProperty('--rz', cfg.rz + 'deg');
+    el.style.setProperty('--bob-dur', cfg.bob + 's');
+    el.style.setProperty('--bob-delay', cfg.delay + 's');
+
+    const parts = [
+      ['face body-bottom'],
+      ['face body-top'],
+      ['face wing-left'],
+      ['face wing-right'],
+      ['face neck-base'],
+      ['face head'],
+      ['face beak'],
+      ['face tail'],
+      ['face crease'],
+      ['face crease v'],
+    ];
+    for (const cls of parts) {
+      const f = document.createElement('div');
+      f.className = cls.join(' ');
+      el.appendChild(f);
+    }
+    return el;
+  }
+
+  function buildPetal(cfg) {
+    const el = document.createElement('div');
+    el.className = 'petal';
+    el.setAttribute('aria-hidden', 'true');
+    el.style.setProperty('--px', cfg.px);
+    el.style.setProperty('--py', cfg.py);
+    el.style.setProperty('--ps', cfg.ps + 'px');
+    el.style.setProperty('--pd', cfg.pd + 's');
+    el.style.setProperty('--pt', cfg.pt + 's');
+    el.style.setProperty('--tr', cfg.tr + 'deg');
+    el.style.setProperty('--ty', cfg.ty + 'deg');
+    el.style.setProperty('--po', cfg.po);
+    el.style.setProperty('--pdel', cfg.del + 's');
+    el.style.setProperty('--p1', cfg.p1);
+    el.style.setProperty('--p2', cfg.p2);
+    return el;
+  }
+
+  // Petals behind cranes first (paint order in 3D is handled by z, but
+  // DOM order keeps the flat fallback sane).
+  PETALS.forEach(buildPetal).forEach(p => flock.appendChild(p));
+  CRANES.forEach(buildCrane).forEach(c => flock.appendChild(c));
+})();
+</script>
+
+</body>
+</html>

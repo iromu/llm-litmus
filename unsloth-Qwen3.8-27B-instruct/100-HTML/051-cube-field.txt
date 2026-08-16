@@ -1,0 +1,20 @@
+Creative Prompt:
+Create a 3D field of wireframe cubes arranged in a spherical cluster. Cubes have varying sizes, hues, and are rendered with depth-based alpha. The entire field rotates smoothly, following the mouse cursor for rotation control. Edges are drawn with colored lines, vertices as glowing dots. Clicking regenerates the cube configuration. The background is very dark blue with trailing fade. The overall aesthetic is futuristic, volumetric, and colorful — like a data center visualized as glowing crystals.
+
+Model: Qwen3.8-27B-instruct
+Thinking effort: high
+
+Techniques used:
+- Canvas 2D with manual 3D math (no WebGL): X/Y rotation matrices, perspective projection (focal-length divide)
+- Spherical distribution via uniform-on-sphere sampling (theta/phi from two randoms), radius biased toward a shell with interior scatter
+- Painter's algorithm: all cubes depth-sorted far-to-near each frame before drawing
+- Depth-based alpha falloff so distant cubes recede into the dark
+- Per-cube HSL hue offset around a shared base hue for a coherent-but-varied palette; per-cube slow tumble animation
+- Vertices rendered as two-pass glowing dots (soft outer glow + bright core), edge width scaled by perspective
+- Trailing fade achieved by painting a translucent dark-blue rect over the previous frame instead of clearing
+- Smooth mouse-follow rotation via lerp toward target angles plus a slow auto-spin drift
+- Click / touch / spacebar regenerate a new random configuration with a brief flash overlay
+- Radial vignette overlay for volumetric depth; HUD/title that fades out after 5 s
+- Responsive: full-viewport canvas with devicePixelRatio-aware sizing
+
+Wall time: N/A | Tokens: N/A

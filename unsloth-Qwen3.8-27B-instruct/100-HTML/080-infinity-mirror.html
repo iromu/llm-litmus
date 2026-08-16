@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Infinity Mirror</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 100%; height: 100%; overflow: hidden; }
+body { background: #000; }
+canvas { display: block; width: 100%; height: 100%; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let W, H, cx, cy;
+
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+  cx = W / 2;
+  cy = H / 2;
+}
+window.addEventListener('resize', resize);
+resize();
+
+const RING_COUNT = 40;
+const SHRINK = 0.85;
+
+function drawRings(time) {
+  const baseRadius = Math.min(W, H) * 0.48;
+
+  // Center glow suggesting endless depth
+  const centerGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, baseRadius * 0.15);
+  centerGrad.addColorStop(0, 'rgba(255, 255, 255, 0.6)');
+  centerGrad.addColorStop(0.3, `hsla(${(time * 30) % 360}, 80%, 60%, 0.3)`);
+  centerGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+  ctx.fillStyle = centerGrad;
+  ctx.beginPath();
+  ctx.arc(cx, cy, baseRadius * 0.15, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Draw rings from outermost to innermost
+  for (let i = 0; i < RING_COUNT; i++) {
+    const t = i / RING_COUNT;
+    const radius = baseRadius * Math.pow(SHRINK, i);
+    const hue = (i * 9 + time * 40) % 360;
+    const alpha = (1 - t) * 0.7;
+    const lineWidth = 2 + (1 - t) * 4;
+
+    // Slight wobble for organic feel
+    const wobble = Math.sin(time * 1.5 + i * 0.3) * 2;
+    const r = radius + wobble;
+
+    // Ring glow
+    ctx.strokeStyle = `hsla(${hue}, 85%, 55%, ${alpha * 0.3})`;
+    ctx.lineWidth = lineWidth + 6;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Ring core
+    ctx.strokeStyle = `hsla(${hue}, 90%, ${50 + 20 * (1 - t)}%, ${alpha})`;
+    ctx.lineWidth = lineWidth;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Inner highlight
+    ctx.strokeStyle = `hsla(${hue}, 60%, 80%, ${alpha * 0.2})`;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r - lineWidth * 0.4, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+}
+
+let time = 0;
+function animate() {
+  time += 0.016;
+
+  // Trailing fade
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.08)';
+  ctx.fillRect(0, 0, W, H);
+
+  drawRings(time);
+  requestAnimationFrame(animate);
+}
+
+ctx.fillStyle = '#000';
+ctx.fillRect(0, 0, W, H);
+animate();
+</script>
+</body>
+</html>

@@ -1,0 +1,28 @@
+# 052 — Ink Bleed
+
+## Creative Prompt
+Create an ink bleed simulation where colored ink drops spread on paper with fuzzy edges. Each drop consists of multiple particles that drift outward with Brownian motion, creating organic, feathery patterns like ink on wet paper. The paper background is warm cream. Colors are in the blue-purple spectrum. Clicking adds ink drops at the cursor. Drops fade slowly as they spread. The overall aesthetic is organic, artistic, and fluid — like watercolor or ink painting.
+
+## Model
+Qwen3.8-27B-instruct
+
+## Thinking Effort
+high
+
+## Techniques Used
+- Canvas particle-based ink simulation with Brownian motion (random acceleration per frame)
+- Particle life-cycle with decay (life decreases each frame; dead particles removed)
+- Multi-particle drop structure: 30 core + 18 fuzzy-edge + 8 dense-center particles per drop
+- Fuzzy edge rendering via larger secondary halo circles with lower alpha
+- Organic spread using velocity damping (0.985) plus sinusoidal wobble for non-linear drift
+- Warm paper-colored background with pre-rendered grain noise, fiber lines, and vignette
+- `multiply` composite blending so overlapping inks darken naturally like real pigment
+- Pointer/touch input with drag-to-flow throttling (~20 drops/sec while dragging)
+- Drop pool management (max 60 drops, max 12000 particles) to cap memory
+- Trailing fade achieved by re-drawing the paper texture each frame beneath particles
+- Fresh-drop radial glow for a brief "impact" moment
+- Spacebar shortcut for center-screen drops
+- Responsive: full-viewport canvas with devicePixelRatio scaling (capped at 2x)
+
+## Stats
+Wall time: N/A | Tokens: N/A

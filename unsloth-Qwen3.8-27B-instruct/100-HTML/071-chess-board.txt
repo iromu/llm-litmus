@@ -1,0 +1,16 @@
+Creative prompt: Create a 3D chess board with isometric perspective that follows the mouse. The board has 64 squares (8x8) with alternating light/dark colors. Each square has a thin 3D extrusion for depth. The board rotates in 3D based on mouse position. The background is dark with trailing fade. The overall aesthetic is classic, strategic, and dimensional — like a luxury chess set viewed from above.
+
+Model: Qwen3.8-27B-instruct
+Thinking effort: high
+
+Techniques used:
+- Canvas 2D with manual 3D projection (rotation matrices around Y then X axes, perspective divide by focal distance)
+- 8x8 grid generation with per-square world-space corners and painter's-algorithm depth sorting
+- Per-square face rendering: top face + four side faces with winding-based backface culling and per-face shading variation
+- Mouse-follow rotation with exponential smoothing (lerp factor 0.06) plus gentle idle drift so the board never sits still
+- Alternating cream / dark-walnut palette with subtle animated lighting gradient across the board
+- Trailing background fade via semi-transparent fill each frame (motion-blur effect)
+- Outer rim frame drawn as a second extruded layer beneath the board for a luxury-set silhouette
+- Responsive scaling (min(W,H)-based), devicePixelRatio-aware canvas, touch support
+
+Wall time: N/A | Tokens: N/A

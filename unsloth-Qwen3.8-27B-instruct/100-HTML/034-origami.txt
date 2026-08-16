@@ -1,0 +1,32 @@
+Origami — Paper Cranes in Suspension
+=====================================
+
+Creative prompt:
+Create a 3D origami paper crane scene with multiple cranes floating in space.
+Each crane is built from CSS 3D-transformed triangular faces (wings, body, tail,
+neck) with warm paper tones. Smaller paper "petals" drift and rotate around them
+with floating animations. The entire group rotates slowly, creating a sense of
+weightlessness. The background is warm cream/beige. The title "Origami" appears
+faintly at the bottom. The overall aesthetic is delicate, handcrafted, and serene
+— like paper sculptures suspended in air.
+
+Model: Qwen3.8-27B-instruct
+Thinking effort: high
+
+Techniques used:
+- CSS 3D transforms with transform-style: preserve-3d on the flock, each crane,
+  and every petal; perspective stage with perspective-origin for depth.
+- clip-path polygons form the triangular paper faces (diamond body, swept wings,
+  neck/head triangles, beak, tail), layered with per-face gradients across a
+  warm washi/honey/caramel palette so folds catch light differently.
+- Seven cranes positioned in 3D via per-instance custom properties (--cx/--cy/
+  --cz/--cs/--ry/--rz) with staggered bobbing keyframes; wing-flap keyframes
+  animate rotateX about the wing roots.
+- Twelve drifting petals use dual keyframe animation (drift + tumble) driven by
+  custom properties for position, size, duration, rotation axes, and opacity.
+- Whole-flock slow 90s rotateY spin for weightlessness; soft blurred ground
+  shadow ellipse; faint letter-spaced serif title.
+- Responsive scaling via vmin stage, clamp() typography, media-query scale
+  factors, and prefers-reduced-motion support. No external dependencies.
+
+Wall time: N/A | Tokens: N/A

@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Geometric Abstraction — Generative De Stijl</title>
+<style>
+  :root {
+    --red: #D32F2F;
+    --blue: #1976D2;
+    --yellow: #FDD835;
+    --white: #F5F5F5;
+    --black: #212121;
+    --bg: #1a1a1e;
+    --frame: #2c2c32;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    color: var(--white);
+    padding: 2rem 1rem;
+    gap: 1.5rem;
+  }
+
+  h1 {
+    font-size: clamp(1rem, 3vw, 1.4rem);
+    font-weight: 300;
+    letter-spacing: 0.35em;
+    text-transform: uppercase;
+    opacity: 0.85;
+  }
+
+  .subtitle {
+    font-size: 0.75rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    opacity: 0.4;
+    margin-top: -0.75rem;
+  }
+
+  /* The painting frame */
+  .frame {
+    width: min(80vmin, 640px);
+    aspect-ratio: 1;
+    background: var(--frame);
+    padding: clamp(10px, 2.5vmin, 24px);
+    border-radius: 2px;
+    box-shadow:
+      0 20px 60px rgba(0,0,0,0.5),
+      0 4px 16px rgba(0,0,0,0.3),
+      inset 0 1px 0 rgba(255,255,255,0.05);
+  }
+
+  /* The canvas itself */
+  .canvas {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    background: var(--black);
+    overflow: hidden;
+  }
+
+  /* Each block */
+  .block {
+    position: absolute;
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease;
+    cursor: pointer;
+    z-index: 1;
+  }
+
+  .block:hover {
+    transform: scale(1.045);
+    z-index: 10;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.45);
+  }
+
+  /* Inner content with inset margin for the classic De Stijl border effect */
+  .block-inner {
+    position: absolute;
+    inset: clamp(3px, 1vmin, 8px);
+    transition: background-color 0.4s ease;
+  }
+
+  /* Thin inner line accent on white blocks */
+  .block[data-color="white"] .block-inner::after {
+    content: '';
+    position: absolute;
+    inset: 15%;
+    border: 1px solid rgba(33,33,33,0.08);
+  }
+
+  /* Controls */
+  .controls {
+    display: flex;
+    gap: 0.75rem;
+  }
+
+  button {
+    font-family: inherit;
+    font-size: 0.7rem;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    padding: 0.7em 1.8em;
+    background: transparent;
+    color: var(--white);
+    border: 1px solid rgba(245,245,245,0.25);
+    border-radius: 1px;
+    cursor: pointer;
+    transition: all 0.25s ease;
+  }
+
+  button:hover {
+    background: rgba(245,245,245,0.08);
+    border-color: rgba(245,245,245,0.5);
+  }
+
+  button:active {
+    transform: scale(0.97);
+  }
+
+  button.primary {
+    background: var(--red);
+    border-color: var(--red);
+  }
+
+  button.primary:hover {
+    background: #b71c1c;
+    border-color: #b71c1c;
+  }
+
+  /* Generation counter */
+  .counter {
+    font-size: 0.65rem;
+    letter-spacing: 0.15em;
+    opacity: 0.3;
+    font-variant-numeric: tabular-nums;
+  }
+
+  @media (max-width: 480px) {
+    body { padding: 1.25rem 0.75rem; gap: 1rem; }
+    .frame { width: 92vw; }
+  }
+</style>
+</head>
+<body>
+
+<h1>Geometric Abstraction</h1>
+<p class="subtitle">Generative De Stijl Composition</p>
+
+<div class="frame">
+  <div class="canvas" id="canvas"></div>
+</div>
+
+<div class="controls">
+  <button class="primary" id="shuffleBtn">Shuffle</button>
+  <button id="resetBtn">Reset</button>
+</div>
+
+<p class="counter" id="counter">No. 1</p>
+
+<script>
+(function() {
+  'use strict';
+
+  const PALETTE = [
+    { name: 'red',    hex: '#D32F2F' },
+    { name: 'blue',   hex: '#1976D2' },
+    { name: 'yellow', hex: '#FDD835' },
+    { name: 'white',  hex: '#F5F5F5' },
+    { name: 'black',  hex: '#212121' }
+  ];
+
+  // Weighted palette: white and black dominate, colors are accents
+  const WEIGHTS = [
+    { name: 'white',  w: 0.38 },
+    { name: 'black',  w: 0.22 },
+    { name: 'red',    w: 0.14 },
+    { name: 'blue',   w: 0.14 },
+    { name: 'yellow', w: 0.12 }
+  ];
+
+  const canvas = document.getElementById('canvas');
+  const counterEl = document.getElementById('counter');
+  let generation = 0;
+
+  function pickColor() {
+    const r = Math.random();
+    let acc = 0;
+    for (const entry of WEIGHTS) {
+      acc += entry.w;
+      if (r < acc) return entry.name;
+    }
+    return 'white';
+  }
+
+  // Ensure at least one of each primary color appears
+  function ensureBalance(blocks) {
+    const present = new Set(blocks.map(b => b.color));
+    const primaries = ['red', 'blue', 'yellow'];
+    for (const p of primaries) {
+      if (!present.has(p)) {
+        // Pick a random block that isn't already this color and reassign
+        const candidates = blocks.filter(b => b.color !== p && b.color !== 'black');
+        if (candidates.length > 0) {
+          const target = candidates[Math.floor(Math.random() * candidates.length)];
+          target.color = p;
+        }
+      }
+    }
+  }
+
+  /**
+   * Recursive subdivision: split a rectangle into two children
+   * along its longer axis, with a random split ratio.
+   */
+  function subdivide(rects, depth, maxDepth) {
+    if (rects.length === 0) return;
+
+    // Stop subdividing at max depth or when rectangles get too small
+    const stopChance = depth >= maxDepth ? 1 : 0.25 + (depth / maxDepth) * 0.5;
+    const shouldStop = Math.random() < stopChance;
+
+    if (shouldStop || rects.length > 24) {
+      // Assign colors to remaining rectangles
+      for (const r of rects) {
+        r.color = pickColor();
+      }
+      return;
+    }
+
+    // Pick a random rect to split
+    const idx = Math.floor(Math.random() * rects.length);
+    const rect = rects[idx];
+    rects.splice(idx, 1);
+
+    // Split along the longer axis
+    const horizontal = rect.w >= rect.h;
+    const ratio = 0.25 + Math.random() * 0.5; // 25%–75%
+
+    if (horizontal) {
+      const leftW = rect.w * ratio;
+      rects.push({ x: rect.x, y: rect.y, w: leftW, h: rect.h });
+      rects.push({ x: rect.x + leftW, y: rect.y, w: rect.w - leftW, h: rect.h });
+    } else {
+      const topH = rect.h * ratio;
+      rects.push({ x: rect.x, y: rect.y, w: rect.w, h: topH });
+      rects.push({ x: rect.x, y: rect.y + topH, w: rect.w, h: rect.h - topH });
+    }
+
+    subdivide(rects, depth + 1, maxDepth);
+  }
+
+  function generateComposition() {
+    const rects = [{ x: 0, y: 0, w: 1, h: 1 }];
+    const maxDepth = 4 + Math.floor(Math.random() * 2); // 4–5 levels
+    subdivide(rects, 0, maxDepth);
+
+    // Filter out tiny slivers
+    const filtered = rects.filter(r => r.w > 0.04 && r.h > 0.04);
+
+    // Balance check
+    ensureBalance(filtered);
+
+    return filtered;
+  }
+
+  function render(blocks) {
+    canvas.innerHTML = '';
+    const frag = document.createDocumentFragment();
+
+    for (const b of blocks) {
+      const el = document.createElement('div');
+      el.className = 'block';
+      el.dataset.color = b.color;
+      el.style.left = (b.x * 100) + '%';
+      el.style.top = (b.y * 100) + '%';
+      el.style.width = (b.w * 100) + '%';
+      el.style.height = (b.h * 100) + '%';
+
+      const inner = document.createElement('div');
+      inner.className = 'block-inner';
+      inner.style.backgroundColor = PALETTE.find(p => p.name === b.color).hex;
+      el.appendChild(inner);
+
+      frag.appendChild(el);
+    }
+
+    canvas.appendChild(frag);
+  }
+
+  function shuffle() {
+    generation++;
+    counterEl.textContent = 'No. ' + generation;
+    const blocks = generateComposition();
+    render(blocks);
+  }
+
+  document.getElementById('shuffleBtn').addEventListener('click', shuffle);
+  document.getElementById('resetBtn').addEventListener('click', shuffle);
+
+  // Initial composition
+  shuffle();
+})();
+</script>
+
+</body>
+</html>

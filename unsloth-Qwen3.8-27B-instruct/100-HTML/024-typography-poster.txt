@@ -1,0 +1,24 @@
+# 024 — Typography Poster
+
+## Creative Prompt
+
+Create a typographic poster in a dark theme with floating words in various styles (filled, outline, tiny, small) with different colors (pink, cyan, yellow, purple) and staggered floating animations. A giant gradient letter "A" dominates the center with hue rotation and a subtle offset shadow. The layout includes top/bottom bars with metadata, a horizontal rule, a tagline, and a row of tag badges. A subtle film grain effect overlays everything. The overall aesthetic is experimental, bold, and typography-centric — like a design school poster.
+
+## Generation Metadata
+
+- Model: Qwen3.8-27B-instruct
+- Thinking effort: high
+
+## Techniques Used
+
+- CSS `@keyframes float` with per-element staggering via custom properties (`--delay`, `--dur`, `--amp`, `--tilt`) set inline on each word
+- Giant center "A": multi-stop linear-gradient clipped to text (`background-clip: text`) with a continuous `hue-rotate` filter animation plus dual offset `drop-shadow`s for the chromatic-aberration-style shadow
+- `-webkit-text-stroke` for outline-only word variants (transparent fill, stroked currentColor)
+- Inline SVG noise overlay using `feTurbulence` (fractalNoise, 4 octaves) + `feColorMatrix` desaturation, animated with a stepped jitter transform and `mix-blend-mode: overlay`
+- Flexbox rows for word placement (left / center / right alignment variants), `clamp()`-based responsive type scale across five size tiers (tiny → large)
+- Color-coded word categories (pink / cyan / yellow / purple) reused across words, tags, and bar accents
+- Passive pointer parallax drift on the giant letter (rAF lerp), gated behind `pointer: fine`; `prefers-reduced-motion` disables all animation
+
+## Stats
+
+Wall time: N/A | Tokens: N/A

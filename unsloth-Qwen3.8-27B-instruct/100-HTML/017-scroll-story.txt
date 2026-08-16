@@ -1,0 +1,25 @@
+# 017 — Scroll Story
+
+## Creative Prompt
+Create a vertical scroll storytelling page with CSS scroll-snap. Four full-screen sections guide the viewer through a narrative: (1) Intro with large gradient headline and scroll hint, (2) Statistics with animated gradient numbers, (3) Process steps with numbered list, (4) Call to action with button. A fixed progress indicator on the right shows current section with glowing dots. Sections have distinct radial gradient overlays. The overall aesthetic is dark, elegant, and minimal — like a premium product launch page. Backgrounds shift subtly between sections.
+
+## Model
+Qwen3.8-27B-instruct
+
+## Thinking Effort
+high
+
+## Techniques Used
+- CSS `scroll-snap-type: y mandatory` on a full-viewport scroll container with `scroll-snap-align: start` + `scroll-snap-stop: always` per section
+- `IntersectionObserver` (threshold 0.55) drives active-section state for both content reveal animations and the glowing progress dots
+- Fixed right-side dot navigation; clicking a dot calls `scrollIntoView({ behavior: "smooth" })`
+- Distinct radial-gradient overlays per section via `::before` pseudo-elements, plus an inline SVG noise texture (`::after`) for grain
+- Gradient text clipping (`background-clip: text`) with slow drifting `background-position` animation on the headline and stat numbers
+- Animated stat counters using `requestAnimationFrame` + easeOutCubic, triggered once when the stats section enters view
+- Staggered reveal transitions keyed off the `.active` class with incremental `transition-delay`s
+- Responsive typography throughout via `clamp()`; grid/flex layouts collapse gracefully at ≤640px
+- Bounce/mouse-wheel scroll-hint animation; hover lift effects on stat cards, process steps, and CTA button
+- `prefers-reduced-motion` support disables animations and smooth scrolling
+
+## Stats
+Wall time: N/A | Tokens: N/A

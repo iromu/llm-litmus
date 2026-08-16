@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lava Lamp — Organic Blob Simulation</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #0a0506;
+  }
+
+  body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: Georgia, 'Times New Roman', serif;
+  }
+
+  .scene {
+    position: relative;
+    width: 100vmin;
+    height: 100vmin;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  canvas {
+    display: block;
+    cursor: pointer;
+  }
+
+  .hint {
+    position: absolute;
+    bottom: 4%;
+    left: 50%;
+    transform: translateX(-50%);
+    color: rgba(255, 180, 120, 0.45);
+    font-size: clamp(11px, 1.6vmin, 15px);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    user-select: none;
+    pointer-events: none;
+    animation: fadeHint 6s ease-in-out infinite;
+  }
+
+  @keyframes fadeHint {
+    0%, 100% { opacity: 0.35; }
+    50% { opacity: 0.75; }
+  }
+</style>
+</head>
+<body>
+<main class="scene">
+  <canvas id="lamp"></canvas>
+  <p class="hint">click to add lava</p>
+</main>
+
+<script>
+(() => {
+  'use strict';
+
+  const canvas = document.getElementById('lamp');
+  const ctx = canvas.getContext('2d');
+
+  // ---------- Layout ----------
+  let W, H, dpr;
+  let lampCX, lampCY, lampRX, lampRY;   // ellipse of the glass interior
+  let baseY, capY;                       // y of base top / cap bottom (glass region)
+  let bulbGlowR;
+
+  function resize() {
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const size = Math.min(window.innerWidth, window.innerHeight) * 0.96;
+    W = size; H = size;
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    // Lamp proportions
+    lampRX = W * 0.21;
+    lampRY = H * 0.335;
+    lampCX = W / 2;
+    lampCY = H * 0.46;
+    baseY = lampCY + lampRY;      // where glass meets base
+    capY = lampCY - lampRY;       // where glass meets cap
+    bulbGlowR = lampRX * 1.6;
+  }
+
+  // ---------- Helpers ----------
+  const TAU = Math.PI * 2;
+  const rand = (a, b) => a + Math.random() * (b - a);
+  const lerp = (a, b, t) => a + (b - a) * t;
+
+  // Warm palette: deep red -> orange -> purple
+  const PALETTE = [
+    { h: 8,  s: 95, l1: 62, l2: 30 },   // hot red-orange
+    { h: 28, s: 92, l1: 58, l2: 26 },   // amber
+    { h: 350, s: 88, l1: 55, l2: 24 },  // crimson
+    { h: 320, s: 70, l1: 50, l2: 22 },  // magenta-purple
+    { h: 18, s: 90, l1: 60, l2: 28 },   // tangerine
+    { h: 345, s: 80, l1: 48, l2: 20 },  // deep rose
+  ];
+
+  // ---------- Blob ----------
+  let blobId = 0;
+  const blobs = [];
+
+  class Blob {
+    constructor(x, y, r, spawn) {
+      this.id = ++blobId;
+      this.x = x;
+      this.y = y;
+      this.r = r;
+      this.vx = rand(-0.15, 0.15);
+      this.vy = spawn ? rand(-0.4, -0.1) : rand(-0.2, 0.2);
+      this.phase = rand(0, TAU);
+      this.morphSpeed = rand(0.008, 0.02);
+      this.morphAmp = rand(0.14, 0.3);
+      this.wobbleFreq = rand(2, 4);
+      this.color = PALETTE[Math.floor(Math.random() * PALETTE.length)];
+      this.heat = 0;          // rises near the base
+      this.age = 0;
+      this.spawnT = spawn ? 1 : 0;
+      this.dead = false;
+      this.points = 10;       // polar sample count
+      // Per-point random offsets for organic shape
+      this.seed = Array.from({ length: 14 }, () => rand(0, TAU));
+    }
+
+    update(dt, t) {
+      this.age += dt;
+      if (this.spawnT < 1) this.spawnT = Math.min(1, this.spawnT + dt * 0.0012);
+
+      // Buoyancy: hotter near base -> rise; cooler near top -> sink slowly
+      const depth = (this.y - capY) / (baseY - capY); // 0 at top, 1 at base
+      this.heat = lerp(this.heat, depth, 0.02);
+      const buoyancy = (this.heat - 0.45) * 0.0035;
+      this.vy += buoyancy;
+      // Damping
+      this.vy *= 0.985;
+      this.vx *= 0.985;
+
+      // Gentle horizontal drift (sine wobble)
+      this.vx += Math.sin(t * 0.0004 + this.phase) * 0.0015;
+
+      this.x += this.vx * dt * 0.06;
+      this.y += this.vy * dt * 0.06;
+
+      // Elliptical confinement: keep inside glass with soft push-back
+      const dx = (this.x - lampCX) / (lampRX - this.r * 0.5);
+      const dy = (this.y - lampCY) / (lampRY - this.r * 0.5);
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist > 1) {
+        const nx = dx / dist, ny = dy / dist;
+        this.x = lampCX + nx * (lampRX - this.r * 0.5);
+        this.y = lampCY + ny * (lampRY - this.r * 0.5);
+        // Reflect velocity softly
+        const dot = this.vx * nx + this.vy * ny;
+        this.vx -= 1.4 * dot * nx;
+        this.vy -= 1.4 * dot * ny;
+        this.vx *= 0.6;
+        this.vy *= 0.6;
+      }
+
+      // Clamp radius range
+      this.r = Math.max(W * 0.018, Math.min(W * 0.075, this.r));
+    }
+
+    draw(ctx, t) {
+      const scale = this.spawnT;
+      const r = this.r * (0.4 + 0.6 * scale);
+      const cx = this.x, cy = this.y;
+
+      // Build polar points with sine morphing
+      const pts = [];
+      const n = this.points;
+      for (let i = 0; i < n; i++) {
+        const a = (i / n) * TAU;
+        const seed = this.seed[i % this.seed.length];
+        const m1 = Math.sin(a * this.wobbleFreq + t * this.morphSpeed + seed) * this.morphAmp;
+        const m2 = Math.cos(a * (this.wobbleFreq + 1) - t * this.morphSpeed * 0.7 + seed * 2) * this.morphAmp * 0.5;
+        const rr = r * (1 + m1 * 0.5 + m2 * 0.3);
+        pts.push({ x: cx + Math.cos(a) * rr, y: cy + Math.sin(a) * rr });
+      }
+
+      // Radial gradient fill
+      const c = this.color;
+      const g = ctx.createRadialGradient(cx - r * 0.25, cy - r * 0.3, r * 0.05, cx, cy, r * 1.3);
+      g.addColorStop(0, `hsla(${c.h}, ${c.s}%, ${Math.min(90, c.l1 + 20)}%, 0.95)`);
+      g.addColorStop(0.4, `hsla(${c.h}, ${c.s}%, ${c.l1}%, 0.88)`);
+      g.addColorStop(0.8, `hsla(${(c.h + 20) % 360}, ${c.s - 10}%, ${c.l2 + 8}%, 0.8)`);
+      g.addColorStop(1, `hsla(${(c.h + 30) % 360}, ${c.s}%, ${c.l2}%, 0.55)`);
+
+      ctx.beginPath();
+      // Smooth closed curve through midpoints using quadratic curves
+      const mid = (a, b) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+      let m0 = mid(pts[n - 1], pts[0]);
+      ctx.moveTo(m0.x, m0.y);
+      for (let i = 0; i < n; i++) {
+        const p = pts[i];
+        const next = pts[(i + 1) % n];
+        const m = mid(p, next);
+        ctx.quadraticCurveTo(p.x, p.y, m.x, m.y);
+      }
+      ctx.closePath();
+      ctx.fillStyle = g;
+      ctx.fill();
+
+      // Inner highlight (specular)
+      const hg = ctx.createRadialGradient(cx - r * 0.35, cy - r * 0.4, 0, cx - r * 0.35, cy - r * 0.4, r * 0.7);
+      hg.addColorStop(0, 'rgba(255, 240, 220, 0.25)');
+      hg.addColorStop(1, 'rgba(255, 240, 220, 0)');
+      ctx.fillStyle = hg;
+      ctx.fill();
+    }
+  }
+
+  // ---------- Merging & splitting ----------
+  function mergeAndSplit() {
+    // Merge: overlapping blobs combine
+    for (let i = 0; i < blobs.length; i++) {
+      for (let j = i + 1; j < blobs.length; j++) {
+        const a = blobs[i], b = blobs[j];
+        if (a.dead || b.dead) continue;
+        const dx = a.x - b.x, dy = a.y - b.y;
+        const d = Math.sqrt(dx * dx + dy * dy);
+        const overlap = (a.r + b.r) * 0.65;
+        if (d < overlap) {
+          // Merge smaller into larger
+          const big = a.r >= b.r ? a : b;
+          const small = a.r >= b.r ? b : a;
+          const totalMass = big.r * big.r + small.r * small.r;
+          big.r = Math.sqrt(totalMass) * 0.92; // slight shrinkage on merge
+          big.x = lerp(big.x, small.x, 0.3);
+          big.y = lerp(big.y, small.y, 0.3);
+          big.vx = lerp(big.vx, small.vx, 0.4);
+          big.vy = lerp(big.vy, small.vy, 0.4);
+          small.dead = true;
+        }
+      }
+    }
+
+    // Split: large blobs occasionally split in two
+    for (const b of blobs) {
+      if (b.dead) continue;
+      if (b.r > W * 0.055 && Math.random() < 0.003) {
+        const childR = b.r * 0.6;
+        const angle = rand(0, TAU);
+        const off = b.r * 0.5;
+        const child = new Blob(
+          b.x + Math.cos(angle) * off,
+          b.y + Math.sin(angle) * off,
+          childR, false
+        );
+        child.color = b.color;
+        child.vx = b.vx + Math.cos(angle) * 0.3;
+        child.vy = b.vy + Math.sin(angle) * 0.3;
+        b.r *= 0.75;
+        blobs.push(child);
+      }
+    }
+
+    // Remove dead
+    for (let i = blobs.length - 1; i >= 0; i--) {
+      if (blobs[i].dead) blobs.splice(i, 1);
+    }
+  }
+
+  // ---------- Lamp rendering ----------
+  function drawBackground(t) {
+    // Dark warm ambient
+    const bg = ctx.createRadialGradient(lampCX, lampCY, 0, lampCX, lampCY, W * 0.7);
+    bg.addColorStop(0, '#1a0e0a');
+    bg.addColorStop(0.5, '#0f0806');
+    bg.addColorStop(1, '#060304');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  function drawLampGlass(t) {
+    // Glass body — elliptical
+    ctx.save();
+    ctx.beginPath();
+    ctx.ellipse(lampCX, lampCY, lampRX, lampRY, 0, 0, TAU);
+
+    // Glass fill: subtle warm liquid
+    const liq = ctx.createLinearGradient(0, capY, 0, baseY);
+    liq.addColorStop(0, 'rgba(60, 20, 15, 0.55)');
+    liq.addColorStop(0.5, 'rgba(80, 30, 20, 0.45)');
+    liq.addColorStop(0.85, 'rgba(140, 50, 25, 0.6)');
+    liq.addColorStop(1, 'rgba(200, 80, 30, 0.7)');
+    ctx.fillStyle = liq;
+    ctx.fill();
+
+    // Glass rim highlight
+    ctx.strokeStyle = 'rgba(255, 200, 160, 0.18)';
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+
+    // Left specular streak
+    ctx.beginPath();
+    ctx.ellipse(lampCX - lampRX * 0.55, lampCY, lampRX * 0.12, lampRY * 0.75, -0.1, 0, TAU);
+    const spec = ctx.createLinearGradient(
+      lampCX - lampRX * 0.7, 0, lampCX - lampRX * 0.3, 0
+    );
+    spec.addColorStop(0, 'rgba(255, 230, 200, 0)');
+    spec.addColorStop(0.5, 'rgba(255, 230, 200, 0.12)');
+    spec.addColorStop(1, 'rgba(255, 230, 200, 0)');
+    ctx.fillStyle = spec;
+    ctx.fill();
+
+    ctx.restore();
+  }
+
+  function drawBase(t) {
+    // Metallic base (trapezoid-ish)
+    const bw = lampRX * 1.15;
+    const bh = H * 0.085;
+    const by = baseY - 2;
+
+    ctx.save();
+    // Base body
+    ctx.beginPath();
+    ctx.moveTo(lampCX - bw, by);
+    ctx.lineTo(lampCX + bw, by);
+    ctx.lineTo(lampCX + bw * 0.75, by + bh);
+    ctx.lineTo(lampCX - bw * 0.75, by + bh);
+    ctx.closePath();
+
+    const mg = ctx.createLinearGradient(lampCX - bw, 0, lampCX + bw, 0);
+    mg.addColorStop(0, '#2a1a12');
+    mg.addColorStop(0.2, '#5a3828');
+    mg.addColorStop(0.4, '#8a5a3a');
+    mg.addColorStop(0.5, '#c08050');
+    mg.addColorStop(0.6, '#8a5a3a');
+    mg.addColorStop(0.8, '#5a3828');
+    mg.addColorStop(1, '#2a1a12');
+    ctx.fillStyle = mg;
+    ctx.fill();
+
+    // Base top edge highlight
+    ctx.beginPath();
+    ctx.moveTo(lampCX - bw, by);
+    ctx.lineTo(lampCX + bw, by);
+    ctx.strokeStyle = 'rgba(255, 200, 150, 0.3)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Bulb glow at bottom of glass
+    const pulse = 0.85 + 0.15 * Math.sin(t * 0.002);
+    const glow = ctx.createRadialGradient(lampCX, baseY - lampRY * 0.15, 0, lampCX, baseY - lampRY * 0.15, bulbGlowR * pulse);
+    glow.addColorStop(0, 'rgba(255, 160, 60, 0.5)');
+    glow.addColorStop(0.3, 'rgba(255, 100, 40, 0.25)');
+    glow.addColorStop(0.7, 'rgba(200, 50, 20, 0.08)');
+    glow.addColorStop(1, 'rgba(200, 50, 20, 0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, W, H);
+
+    ctx.restore();
+  }
+
+  function drawCap(t) {
+    const cw = lampRX * 0.95;
+    const ch = H * 0.06;
+    const cy = capY + 2;
+
+    ctx.save();
+    // Cap dome
+    ctx.beginPath();
+    ctx.moveTo(lampCX - cw, cy);
+    ctx.quadraticCurveTo(lampCX - cw, cy - ch * 1.3, lampCX, cy - ch * 1.3);
+    ctx.quadraticCurveTo(lampCX + cw, cy - ch * 1.3, lampCX + cw, cy);
+    ctx.closePath();
+
+    const cg = ctx.createLinearGradient(lampCX - cw, 0, lampCX + cw, 0);
+    cg.addColorStop(0, '#1e1210');
+    cg.addColorStop(0.3, '#4a2e20');
+    cg.addColorStop(0.5, '#7a4a30');
+    cg.addColorStop(0.7, '#4a2e20');
+    cg.addColorStop(1, '#1e1210');
+    ctx.fillStyle = cg;
+    ctx.fill();
+
+    // Cap shine
+    ctx.beginPath();
+    ctx.ellipse(lampCX - cw * 0.3, cy - ch * 0.7, cw * 0.15, ch * 0.25, -0.3, 0, TAU);
+    ctx.fillStyle = 'rgba(255, 220, 180, 0.15)';
+    ctx.fill();
+
+    // Bottom edge line
+    ctx.beginPath();
+    ctx.moveTo(lampCX - cw, cy);
+    ctx.lineTo(lampCX + cw, cy);
+    ctx.strokeStyle = 'rgba(255, 200, 150, 0.25)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
+  function drawOuterGlow(t) {
+    // Soft ambient glow around the whole lamp
+    const pulse = 0.9 + 0.1 * Math.sin(t * 0.0015);
+    const g = ctx.createRadialGradient(lampCX, lampCY, lampRX * 0.5, lampCX, lampCY, lampRX * 2.8 * pulse);
+    g.addColorStop(0, 'rgba(180, 60, 20, 0.12)');
+    g.addColorStop(0.5, 'rgba(120, 40, 15, 0.05)');
+    g.addColorStop(1, 'rgba(60, 20, 10, 0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  // ---------- Main loop ----------
+  let lastTime = 0;
+
+  function frame(t) {
+    const dt = Math.min(50, t - lastTime);
+    lastTime = t;
+
+    drawBackground(t);
+    drawOuterGlow(t);
+    drawLampGlass(t);
+
+    // Update blobs
+    for (const b of blobs) b.update(dt, t);
+    mergeAndSplit();
+
+    // Depth sort by Y so lower blobs render behind
+    const sorted = [...blobs].sort((a, b) => a.y - b.y);
+
+    // Clip to glass ellipse for blob rendering
+    ctx.save();
+    ctx.beginPath();
+    ctx.ellipse(lampCX, lampCY, lampRX, lampRY, 0, 0, TAU);
+    ctx.clip();
+
+    // Trailing fade inside glass
+    ctx.fillStyle = 'rgba(40, 15, 10, 0.08)';
+    ctx.fillRect(0, 0, W, H);
+
+    for (const b of sorted) b.draw(ctx, t);
+
+    // Heat shimmer near base (subtle)
+    const shimmer = ctx.createLinearGradient(0, baseY - lampRY * 0.4, 0, baseY);
+    shimmer.addColorStop(0, 'rgba(255, 120, 40, 0)');
+    shimmer.addColorStop(1, `rgba(255, 140, 50, ${0.06 + 0.03 * Math.sin(t * 0.003)})`);
+    ctx.fillStyle = shimmer;
+    ctx.fillRect(0, 0, W, H);
+
+    ctx.restore();
+
+    drawBase(t);
+    drawCap(t);
+
+    requestAnimationFrame(frame);
+  }
+
+  // ---------- Interaction ----------
+  canvas.addEventListener('pointerdown', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left) * (W / rect.width);
+    const y = (e.clientY - rect.top) * (H / rect.height);
+
+    // Only spawn if click is inside the glass ellipse
+    const dx = (x - lampCX) / lampRX;
+    const dy = (y - lampCY) / lampRY;
+    if (dx * dx + dy * dy <= 1) {
+      const r = rand(W * 0.022, W * 0.04);
+      blobs.push(new Blob(x, y, r, true));
+      // Cap max blobs
+      if (blobs.length > 18) {
+        // Remove smallest oldest blob
+        let minIdx = 0;
+        for (let i = 1; i < blobs.length; i++) {
+          if (blobs[i].r < blobs[minIdx].r) minIdx = i;
+        }
+        blobs.splice(minIdx, 1);
+      }
+    }
+  });
+
+  // ---------- Init ----------
+  function init() {
+    resize();
+    // Seed initial blobs
+    const seedCount = 5;
+    for (let i = 0; i < seedCount; i++) {
+      const a = rand(0, TAU);
+      const rr = rand(0.2, 0.7);
+      const x = lampCX + Math.cos(a) * lampRX * rr;
+      const y = lampCY + Math.sin(a) * lampRY * rr;
+      const r = rand(W * 0.025, W * 0.05);
+      blobs.push(new Blob(x, y, r, false));
+    }
+    requestAnimationFrame(frame);
+  }
+
+  window.addEventListener('resize', () => {
+    const oldCX = lampCX, oldCY = lampCY, oldRX = lampRX, oldRY = lampRY;
+    resize();
+    // Rescale blob positions to new lamp
+    for (const b of blobs) {
+      const nx = (b.x - oldCX) / oldRX;
+      const ny = (b.y - oldCY) / oldRY;
+      b.x = lampCX + nx * lampRX;
+      b.y = lampCY + ny * lampRY;
+      b.r *= (lampRX / oldRX);
+    }
+  });
+
+  init();
+})();
+</script>
+</body>
+</html>

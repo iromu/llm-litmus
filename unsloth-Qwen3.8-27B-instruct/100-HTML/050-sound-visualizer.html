@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Spectrum — Generative Sound Visualizer</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #06060e;
+  }
+
+  canvas {
+    display: block;
+    width: 100vw;
+    height: 100vh;
+  }
+</style>
+</head>
+<body>
+<canvas id="viz" aria-label="Generative audio spectrum visualization"></canvas>
+<script>
+(() => {
+  "use strict";
+
+  const canvas = document.getElementById("viz");
+  const ctx = canvas.getContext("2d");
+
+  let W = 0, H = 0, DPR = 1;
+  let baselineY = 0;
+  let barAreaH = 0;
+
+  const BAR_COUNT = 64;
+  const bars = new Float32Array(BAR_COUNT);   // current heights (0..1)
+  const targets = new Float32Array(BAR_COUNT); // target heights for smoothing
+  const phases = new Float32Array(BAR_COUNT);  // per-bar oscillator phase offsets
+
+  for (let i = 0; i < BAR_COUNT; i++) {
+    phases[i] = Math.random() * Math.PI * 2;
+  }
+
+  /* ------------------------------------------------------------------ */
+  /*  Simulated audio engine                                             */
+  /*                                                                     */
+  /*  A fake "spectrum" built from layered sine oscillators whose        */
+  /*  frequencies and amplitudes drift over time, a periodic beat        */
+  /*  envelope that kicks the low end, and occasional noise bursts that  */
+  /*  spike random frequency bands.                                      */
+  /* ------------------------------------------------------------------ */
+
+  const BPM = 118;
+  const beatPeriod = 60 / BPM;               // seconds per beat
+  const TWO_PI = Math.PI * 2;
+
+  // Drifting oscillator parameters — each has its own rate & depth
+  const oscCount = 5;
+  const oscFreqs = [];      // spatial frequency across the 64 bars
+  const oscSpeeds = [];     // temporal speed
+  const oscDepths = [];     // amplitude modulation depth
+  const oscOffsets = [];    // static phase offsets
+
+  function seedOscillators() {
+    oscFreqs.length = oscSpeeds.length = oscDepths.length = oscOffsets.length = 0;
+    for (let i = 0; i < oscCount; i++) {
+      oscFreqs.push(0.8 + i * 1.9 + Math.random() * 0.6);   // cycles across bars
+      oscSpeeds.push(0.35 + Math.random() * 0.9);           // Hz-ish drift
+      oscDepths.push(0.18 + Math.random() * 0.22);
+      oscOffsets.push(Math.random() * TWO_PI);
+    }
+  }
+  seedOscillators();
+
+  // Beat envelope state
+  let beatPhase = 0;
+  let nextBeatAt = 0;
+  let beatEnergy = 0;          // decays after each kick
+  let bassKick = 0;            // extra low-end punch on downbeats
+  let barCounter = 0;
+
+  // Noise burst state
+  let burstActive = false;
+  let burstStart = 0;
+  let burstDur = 0;
+  let burstCenter = 0;
+  let burstWidth = 0;
+  let burstAmp = 0;
+  let nextBurstAt = 2 + Math.random() * 4;
+
+  // Slow "song section" energy — makes the whole thing breathe
+  let sectionT = 0;
+
+  function gauss(x, center, width) {
+    const d = (x - center) / width;
+    return Math.exp(-d * d);
+  }
+
+  function updateAudio(t, dt) {
+    // --- song-section energy swell (slow LFO, ~12s period) ---
+    sectionT += dt;
+    const section = 0.55 + 0.45 * Math.sin(sectionT * TWO_PI / 12) *
+                    (0.7 + 0.3 * Math.sin(sectionT * TWO_PI / 31));
+
+    // --- beat clock ---
+    beatPhase += dt / beatPeriod;
+    if (beatPhase >= 1) {
+      beatPhase -= 1;
+      barCounter++;
+      const isDownbeat = barCounter % 4 === 0;
+      beatEnergy = 1;
+      bassKick = isDownbeat ? 1 : 0.55;
+    }
+    beatEnergy *= Math.pow(0.03, dt);       // fast exponential decay
+    bassKick *= Math.pow(0.005, dt);
+
+    // --- noise burst scheduling ---
+    if (!burstActive && t > nextBurstAt) {
+      burstActive = true;
+      burstStart = t;
+      burstDur = 0.25 + Math.random() * 0.6;
+      burstCenter = 8 + Math.random() * (BAR_COUNT - 16);
+      burstWidth = 4 + Math.random() * 10;
+      burstAmp = 0.5 + Math.random() * 0.5;
+    }
+    if (burstActive && t - burstStart > burstDur) {
+      burstActive = false;
+      nextBurstAt = t + 1.5 + Math.random() * 5;
+    }
+
+    // --- build target spectrum ---
+    const base = 0.10 + 0.10 * section;
+    for (let i = 0; i < BAR_COUNT; i++) {
+      const x = i / (BAR_COUNT - 1);        // 0..1 across bars
+
+      // Layered drifting sines
+      let v = 0;
+      for (let o = 0; o < oscCount; o++) {
+        v += oscDepths[o] *
+             (0.5 + 0.5 * Math.sin(TWO_PI * (oscFreqs[o] * x + t * oscSpeeds[o]) + oscOffsets[o]));
+      }
+      v = base + v * 0.55 * section;
+
+      // Low-frequency bias: bass is louder than treble
+      const lowBias = Math.pow(1 - x, 1.6);
+      v += lowBias * (0.18 + 0.30 * beatEnergy + 0.45 * bassKick);
+
+      // Mid-range lift on off-beats
+      const midLift = gauss(x, 0.42, 0.18) * 0.12 * (1 - beatEnergy) * section;
+      v += midLift;
+
+      // Treble shimmer (high-freq wobble on the top end)
+      v += gauss(x, 0.85, 0.15) * 0.08 *
+           (0.5 + 0.5 * Math.sin(t * 7.3 + x * 40)) * section;
+
+      // Noise burst
+      if (burstActive) {
+        const p = (t - burstStart) / burstDur;
+        const env = Math.sin(p * Math.PI);                       // rise & fall
+        v += gauss(i, burstCenter, burstWidth) * burstAmp * env *
+             (0.6 + 0.4 * Math.sin(t * 23 + i * 1.7));
+      }
+
+      // Per-bar jitter so it never looks synthetic
+      v += (Math.random() - 0.5) * 0.05;
+
+      targets[i] = Math.max(0.02, Math.min(1, v));
+    }
+
+    // Smooth toward targets (attack faster than release → punchy feel)
+    for (let i = 0; i < BAR_COUNT; i++) {
+      const diff = targets[i] - bars[i];
+      const rate = diff > 0 ? 18 : 7;                            // attack vs release
+      bars[i] += diff * Math.min(1, rate * dt);
+    }
+  }
+
+  /* ------------------------------------------------------------------ */
+  /*  Rendering                                                          */
+  /* ------------------------------------------------------------------ */
+
+  // Hue mapping: warm (red/orange) at the left/bass → cool (blue/violet) at right/treble
+  function barHue(i, t) {
+    const x = i / (BAR_COUNT - 1);
+    // Base gradient warm→cool across the spectrum
+    let hue = 12 + x * 250;                                       // red → violet
+    // Slow global drift keeps colors alive
+    hue += Math.sin(t * 0.35) * 14;
+    // Slight per-bar phase offset
+    hue += Math.sin(phases[i] + t * 0.8) * 6;
+    return ((hue % 360) + 360) % 360;
+  }
+
+  function drawBar(x, yTop, w, h, hue, intensity, alphaScale) {
+    if (h <= 0.5) return;
+    const sat = 70 + 30 * intensity;
+    const lightBase = 38 + 26 * intensity;
+
+    // Main bar: vertical linear gradient (brighter at top)
+    const grad = ctx.createLinearGradient(0, yTop, 0, yTop + h);
+    grad.addColorStop(0,   `hsla(${hue}, ${sat}%, ${lightBase + 22}%, ${alphaScale})`);
+    grad.addColorStop(0.4, `hsla(${hue + 8}, ${sat}%, ${lightBase + 6}%, ${alphaScale})`);
+    grad.addColorStop(1,   `hsla(${hue + 16}, ${sat - 10}%, ${lightBase - 14}%, ${alphaScale * 0.85})`);
+    ctx.fillStyle = grad;
+    ctx.fillRect(x, yTop, w, h);
+
+    // Top highlight cap — a thin bright line where the bar peaks
+    const capH = Math.min(3, h * 0.12);
+    const capGrad = ctx.createLinearGradient(0, yTop, 0, yTop + capH);
+    capGrad.addColorStop(0, `hsla(${hue}, 100%, 88%, ${alphaScale})`);
+    capGrad.addColorStop(1, `hsla(${hue}, 100%, 70%, 0)`);
+    ctx.fillStyle = capGrad;
+    ctx.fillRect(x, yTop, w, capH);
+
+    // Glow: radial gradient centered just above the bar tip
+    const glowR = w * 2.2 + h * 0.12;
+    const gx = x + w / 2;
+    const gy = yTop;
+    const glow = ctx.createRadialGradient(gx, gy, 0, gx, gy, glowR);
+    const gAlpha = 0.10 + 0.22 * intensity;
+    glow.addColorStop(0,   `hsla(${hue}, 100%, 75%, ${gAlpha * alphaScale})`);
+    glow.addColorStop(0.4, `hsla(${hue}, 95%, 60%, ${gAlpha * 0.4 * alphaScale})`);
+    glow.addColorStop(1,   `hsla(${hue}, 90%, 50%, 0)`);
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(gx, gy, glowR, 0, TWO_PI);
+    ctx.fill();
+  }
+
+  function render(t) {
+    // Trailing fade: paint a translucent dark layer instead of clearing.
+    // The first frame after a resize uses a solid fill (handled by flag).
+    if (needsSolidClear) {
+      ctx.fillStyle = "#06060e";
+      ctx.fillRect(0, 0, W, H);
+      needsSolidClear = false;
+    } else {
+      ctx.fillStyle = "rgba(6, 6, 14, 0.30)";
+      ctx.fillRect(0, 0, W, H);
+    }
+
+    const gap = Math.max(1, Math.floor(W / BAR_COUNT * 0.22));
+    const barW = (W - gap * (BAR_COUNT - 1)) / BAR_COUNT;
+    const maxBarH = barAreaH;
+
+    // Subtle baseline glow line
+    const baseGlow = ctx.createLinearGradient(0, baselineY - 2, 0, baselineY + 10);
+    baseGlow.addColorStop(0, "rgba(120, 140, 255, 0)");
+    baseGlow.addColorStop(0.5, "rgba(120, 140, 255, 0.10)");
+    baseGlow.addColorStop(1, "rgba(120, 140, 255, 0)");
+    ctx.fillStyle = baseGlow;
+    ctx.fillRect(0, baselineY - 2, W, 12);
+
+    for (let i = 0; i < BAR_COUNT; i++) {
+      const v = bars[i];
+      const h = v * maxBarH;
+      const x = i * (barW + gap);
+      const yTop = baselineY - h;
+      const hue = barHue(i, t);
+      const intensity = v;
+
+      // Mirrored reflection below the baseline (faded, slightly compressed)
+      const refH = h * 0.55;
+      const refGrad = ctx.createLinearGradient(0, baselineY, 0, baselineY + refH);
+      refGrad.addColorStop(0, `hsla(${hue + 10}, 80%, 55%, ${0.16 * v + 0.02})`);
+      refGrad.addColorStop(1, `hsla(${hue + 10}, 80%, 40%, 0)`);
+      ctx.fillStyle = refGrad;
+      ctx.fillRect(x, baselineY + 1, barW, refH);
+
+      // Main bar with glow + highlight
+      drawBar(x, yTop, barW, h, hue, intensity, 1);
+    }
+
+    // Soft vignette to focus the eye on the center
+    const vg = ctx.createRadialGradient(W / 2, H * 0.45, Math.min(W, H) * 0.35,
+                                        W / 2, H * 0.5, Math.max(W, H) * 0.75);
+    vg.addColorStop(0, "rgba(0,0,0,0)");
+    vg.addColorStop(1, "rgba(0,0,0,0.35)");
+    ctx.fillStyle = vg;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  /* ------------------------------------------------------------------ */
+  /*  Layout / resize                                                    */
+  /* ------------------------------------------------------------------ */
+
+  let needsSolidClear = true;
+
+  function resize() {
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = Math.round(W * DPR);
+    canvas.height = Math.round(H * DPR);
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+
+    // Baseline sits a bit below center so reflections have room
+    baselineY = Math.round(H * 0.58);
+    barAreaH = Math.round(baselineY * 0.82);
+
+    needsSolidClear = true;
+  }
+
+  window.addEventListener("resize", resize);
+  resize();
+
+  /* ------------------------------------------------------------------ */
+  /*  Main loop                                                          */
+  /* ------------------------------------------------------------------ */
+
+  let lastTime = performance.now() / 1000;
+  let elapsed = 0;
+
+  function frame(nowMs) {
+    const now = nowMs / 1000;
+    let dt = now - lastTime;
+    lastTime = now;
+    dt = Math.min(dt, 0.05);                 // clamp big gaps (tab switch)
+    elapsed += dt;
+
+    updateAudio(elapsed, dt);
+    render(elapsed);
+    requestAnimationFrame(frame);
+  }
+
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

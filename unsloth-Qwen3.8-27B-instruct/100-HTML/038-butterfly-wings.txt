@@ -1,0 +1,26 @@
+# 038 — Iridescent Butterfly Wings
+
+## Creative Prompt
+Create an iridescent butterfly wing visualization with multiple butterflies floating in space. Each butterfly has two upper and two lower wings rendered with bezier curves, filled with multi-hue radial gradients that shift over time. Wing veins and decorative spots add detail. The wings flap with a sine-wave animation. The butterflies gently drift, and one follows the mouse cursor. Clicking regenerates the butterflies with new colors. Tiny scale-like particles float in the background. The overall aesthetic is delicate, iridescent, and ethereal — like a collection of jewel-toned butterflies.
+
+## Model
+Qwen3.8-27B-instruct
+
+## Thinking effort
+high
+
+## Techniques used
+- Canvas 2D bezier-curve wing shapes (upper + lower wings, mirrored per side)
+- Multi-stop radial gradients (5 stops) for iridescent wing fills, plus linear-gradient sheen bands sweeping across each wing
+- HSL color cycling over time: base hue + per-zone hue offsets shifted by a per-butterfly shimmer speed, so every butterfly's palette drifts independently
+- Quadratic-curve wing vein strokes and glowing outline strokes
+- Decorative spot circles (ring + solid variants) with radial-gradient glow
+- Sine-based wing flapping via x-axis fold scaling with slight per-side asymmetry
+- Mouse-following butterfly using frame-rate-independent exponential interpolation, orientation toward movement, and a fading particle trail
+- Lissajous-style gentle drift for ambient butterflies with soft screen wrap
+- Click-to-regenerate: all butterflies get fresh palettes, spots, sizes, and flap speeds
+- Floating dust/scale particles with twinkle, plus trailing background fade (translucent indigo wash) for motion trails
+- DPR-aware canvas sizing for crisp rendering on retina displays; responsive swarm count on small screens
+
+## Stats
+Wall time: N/A | Tokens: N/A

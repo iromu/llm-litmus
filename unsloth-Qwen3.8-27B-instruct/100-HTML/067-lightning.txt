@@ -1,0 +1,24 @@
+Lightning Storm Visualization — Creative Prompt Artifact
+========================================================
+
+Creative Prompt:
+Create a lightning storm visualization with jagged lightning bolts striking from the sky. Each bolt has a random segmented path with branches, rendered in bright blue-white with multiple glow layers. Bolts fade over time. A screen flash accompanies each strike. Lightning strikes automatically at random intervals. Clicking triggers a massive burst of multiple bolts. The background is very dark with trailing fade. The overall aesthetic is dramatic, electric, and powerful — like a thunderstorm at night.
+
+Model: Qwen3.8-27B-instruct
+Thinking effort: high
+
+Techniques Used:
+- Canvas 2D rendering with requestAnimationFrame loop
+- Random segmented bolt path generation (interpolated points with perpendicular jitter)
+- Branch generation from parent path points with angular deviation
+- Multi-layer glow rendering per bolt: wide outer glow → medium glow → bright core → hot white center
+- Radial gradient impact glow at bolt tips
+- Screen flash overlay using radial gradient with exponential alpha decay
+- Trailing background fade via semi-transparent fill each frame (motion blur effect)
+- Bolt pool management with max capacity and age-based removal
+- Auto-strike timer with randomized intervals (1–4s)
+- Click-triggered burst: 5 staggered strikes radiating from click point
+- Subtle ambient cloud layer (drifting radial gradients) and rain particles for atmosphere
+- Flicker modulation on bolt brightness for electrical feel
+
+Wall time: N/A | Tokens: N/A

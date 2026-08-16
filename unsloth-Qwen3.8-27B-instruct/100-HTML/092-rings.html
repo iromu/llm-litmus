@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rings</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 100%; height: 100%; overflow: hidden; }
+body { background: #050510; }
+canvas { display: block; width: 100%; height: 100%; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let W, H, cx, cy;
+
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+  cx = W / 2;
+  cy = H / 2;
+}
+window.addEventListener('resize', resize);
+resize();
+
+class OrbitalRing {
+  constructor(index) {
+    this.radius = 60 + index * (Math.min(W, H) * 0.04);
+    this.hue = (index * 40) % 360;
+    this.speed = (0.3 + Math.random() * 0.5) * (index % 2 === 0 ? 1 : -1);
+    this.thickness = 1.5 + Math.random() * 2;
+    this.orbitAngle = Math.random() * Math.PI; // tilt in 3D space
+    this.tilt = 0.3 + Math.random() * 0.5; // how much the ring is tilted
+    this.phase = Math.random() * Math.PI * 2;
+  }
+  draw(ctx, time) {
+    const hue = (this.hue + time * 15) % 360;
+    const r = this.radius;
+
+    // Simulate 3D by scaling Y based on tilt
+    const scaleY = Math.abs(Math.cos(this.orbitAngle + time * this.speed * 0.3)) * (1 - this.tilt) + this.tilt * 0.3;
+
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.scale(1, scaleY);
+
+    // Ring glow
+    ctx.strokeStyle = `hsla(${hue}, 80%, 55%, 0.15)`;
+    ctx.lineWidth = this.thickness * 4;
+    ctx.beginPath();
+    ctx.arc(0, 0, r, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Ring core
+    ctx.strokeStyle = `hsla(${hue}, 90%, 60%, 0.6)`;
+    ctx.lineWidth = this.thickness;
+    ctx.beginPath();
+    ctx.arc(0, 0, r, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Bright dot orbiting on the ring
+    const dotAngle = time * this.speed * 2 + this.phase;
+    const dx = Math.cos(dotAngle) * r;
+    const dy = Math.sin(dotAngle) * r;
+    const dotGrad = ctx.createRadialGradient(dx, dy, 0, dx, dy, 8);
+    dotGrad.addColorStop(0, `hsla(${hue}, 100%, 80%, 0.9)`);
+    dotGrad.addColorStop(1, `hsla(${hue}, 100%, 60%, 0)`);
+    ctx.fillStyle = dotGrad;
+    ctx.beginPath();
+    ctx.arc(dx, dy, 8, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+  }
+}
+
+const rings = [];
+for (let i = 0; i < 8; i++) {
+  rings.push(new OrbitalRing(i));
+}
+
+let lastTime = performance.now();
+function animate(now) {
+  const dt = (now - lastTime) / 1000;
+  lastTime = now;
+  const time = now / 1000;
+
+  // Trailing fade
+  ctx.fillStyle = 'rgba(5, 5, 16, 0.12)';
+  ctx.fillRect(0, 0, W, H);
+
+  // Center dot
+  const centerGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, 10);
+  centerGrad.addColorStop(0, 'rgba(255, 255, 255, 0.9)');
+  centerGrad.addColorStop(0.5, 'rgba(200, 200, 255, 0.3)');
+  centerGrad.addColorStop(1, 'rgba(150, 150, 255, 0)');
+  ctx.fillStyle = centerGrad;
+  ctx.beginPath();
+  ctx.arc(cx, cy, 10, 0, Math.PI * 2);
+  ctx.fill();
+
+  for (const ring of rings) {
+    ring.draw(ctx, time);
+  }
+
+  requestAnimationFrame(animate);
+}
+
+ctx.fillStyle = '#050510';
+ctx.fillRect(0, 0, W, H);
+requestAnimationFrame(animate);
+</script>
+</body>
+</html>

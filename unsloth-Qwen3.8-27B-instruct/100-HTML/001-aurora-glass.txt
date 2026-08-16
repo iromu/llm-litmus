@@ -1,0 +1,27 @@
+Creative Prompt
+===============
+
+Create a visually stunning glassmorphism landing page with an animated aurora borealis-inspired background. The page features a grid of glass cards with subtle backdrop blur, light border highlights, and a mouse-tracking shine effect. Stars twinkle in the background. The hero title uses a gradient text effect. Each glass card has an icon, title, description, and badge. The overall aesthetic is ethereal, luminous, and premium — like holding polished crystal.
+
+Constraints: single self-contained .html file (inline CSS + JS), no external dependencies, no CDNs, no frameworks, no external fonts/images; must work offline in any modern browser; responsive to any screen size.
+
+Interaction model: mouse hover on cards triggers lift, scale, glow, and a positional radial shine overlay that follows the cursor. Background aurora animates continuously.
+
+Model: Qwen3.8-27B-instruct
+Thinking effort: high
+
+Techniques used
+===============
+
+- CSS glassmorphism: backdrop-filter blur(18px) saturate(1.35) on cards, reduced to 12px on small screens for performance.
+- Multi-layered radial-gradient aurora: two fixed pseudo-element layers (.sky::before / .sky::after) with large blurred radial gradients drifting on independent 26s/34s keyframe cycles, plus a mix-blend-mode:screen "rays" layer shimmering at 12s.
+- CSS custom-property mouse tracking: pointermove handler writes --mx/--my per card (rAF-batched via a pending Map); the card's ::after radial-gradient highlight is positioned at var(--mx) var(--my).
+- Star particles via JavaScript: 70–180 stars (viewport-scaled) generated into a DocumentFragment, each with randomized size, position, twinkle duration/delay/opacity range via per-star CSS variables; ~18% get a soft halo box-shadow. Occasional shooting stars spawn every 4–11s with randomized angle/distance and self-remove on animationend.
+- Gradient text clipping: hero h1 uses a 5-stop linear-gradient with background-size 220% and -webkit-background-clip: text, panning over 9s.
+- Responsive grid: repeat(auto-fit, minmax(min(100%, 300px), 1fr)) with clamp()-based gaps and padding.
+- Hover transformations with cubic-bezier easing: springy cubic-bezier(0.22, 1.4, 0.36, 1) for lift/scale (translateY(-9px) scale(1.022)), smooth cubic-bezier(0.25, 0.8, 0.25, 1) for shadows/borders.
+- Pseudo-element light streaks: a rotated diagonal .streak div sweeps across each card on hover (translateX -120% -> 340%), plus a top-edge bevel highlight on ::before and a tinted bottom reflection line.
+- Per-card accent tints via color-mix(in srgb, var(--tint) N%, transparent) for badges, icon glows, and the tinted shine overlay.
+- Accessibility/robustness: prefers-reduced-motion disables all animation; semantic <main>/<header>/<article>/<footer>; aria-hidden on decorative layers; staggered entrance reveal animations.
+
+Wall time: N/A | Tokens: N/A

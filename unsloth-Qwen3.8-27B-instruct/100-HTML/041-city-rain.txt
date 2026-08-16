@@ -1,0 +1,20 @@
+Creative Prompt
+===============
+Create a rainy night cityscape with silhouetted buildings, lit windows, and falling rain. Buildings have varying heights, widths, and window patterns with some lit (warm yellow) and some dark. Rain falls as slanted lines with subtle wind. Splashes appear when raindrops hit the ground. A mist overlay adds atmosphere. The background is a dark blue-black with trailing fade. The overall aesthetic is moody, cinematic, and atmospheric — like a Blade Runner-inspired rain scene.
+
+Model: Qwen3.8-27B-instruct
+Thinking effort: high
+
+Techniques
+==========
+- Canvas building rendering with linear gradient shading for silhouettes
+- Per-building window grid generation with random warm/dark lighting, subtle shimmer, and low-probability flicker
+- Rain streak lines with layered-sine gusting wind offset and depth-based parallax
+- Splash particle system on ground contact (pooled, with expanding elliptical rings + droplet spray)
+- Drifting translucent mist bands via horizontal gradient sweeps
+- Trailing background fade (translucent repaint instead of full clear) for motion-blur trails
+- Wet-street reflection pass sampling lit windows below the ground line
+- Blinking rooftop beacons, distant haze layer, CSS radial vignette
+- Responsive: buildings/rain/mist regenerate on debounced resize; DPR-aware canvas scaling
+
+Wall time: N/A | Tokens: N/A

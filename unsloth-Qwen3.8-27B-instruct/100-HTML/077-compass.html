@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Compass</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 100%; height: 100%; overflow: hidden; }
+body { background: #0a0f1a; }
+canvas { display: block; width: 100%; height: 100%; cursor: none; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let W, H, cx, cy;
+let mouseX = 0, mouseY = 0;
+let targetAngle = 0;
+let currentAngle = 0;
+
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+  cx = W / 2;
+  cy = H / 2;
+}
+window.addEventListener('resize', resize);
+resize();
+
+canvas.addEventListener('mousemove', e => {
+  const rect = canvas.getBoundingClientRect();
+  mouseX = e.clientX - rect.left;
+  mouseY = e.clientY - rect.top;
+});
+canvas.addEventListener('touchmove', e => {
+  e.preventDefault();
+  const rect = canvas.getBoundingClientRect();
+  mouseX = e.touches[0].clientX - rect.left;
+  mouseY = e.touches[0].clientY - rect.top;
+}, { passive: false });
+
+function drawCompass(time) {
+  const radius = Math.min(W, H) * 0.3;
+
+  // Outer glow
+  const glowGrad = ctx.createRadialGradient(cx, cy, radius * 0.8, cx, cy, radius * 1.5);
+  glowGrad.addColorStop(0, 'rgba(40, 80, 160, 0.15)');
+  glowGrad.addColorStop(1, 'rgba(40, 80, 160, 0)');
+  ctx.fillStyle = glowGrad;
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius * 1.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Outer ring
+  ctx.strokeStyle = 'rgba(100, 150, 220, 0.6)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Inner ring
+  ctx.strokeStyle = 'rgba(100, 150, 220, 0.3)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius * 0.85, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Tick marks at 5-degree intervals
+  for (let deg = 0; deg < 360; deg += 5) {
+    const rad = (deg - 90) * Math.PI / 180;
+    const isMajor = deg % 45 === 0;
+    const isMid = deg % 15 === 0;
+    const innerR = isMajor ? radius * 0.88 : isMid ? radius * 0.91 : radius * 0.94;
+    const outerR = radius * 0.97;
+    const x1 = cx + Math.cos(rad) * innerR;
+    const y1 = cy + Math.sin(rad) * innerR;
+    const x2 = cx + Math.cos(rad) * outerR;
+    const y2 = cy + Math.sin(rad) * outerR;
+
+    ctx.strokeStyle = isMajor ? 'rgba(150, 200, 255, 0.8)' : 'rgba(100, 150, 220, 0.4)';
+    ctx.lineWidth = isMajor ? 2 : 1;
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+  }
+
+  // Cardinal direction labels
+  const cardinals = [
+    { label: 'N', angle: -90 },
+    { label: 'E', angle: 0 },
+    { label: 'S', angle: 90 },
+    { label: 'W', angle: 180 }
+  ];
+  ctx.font = `bold ${radius * 0.1}px Georgia, serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  for (const c of cardinals) {
+    const rad = (c.angle - 90) * Math.PI / 180;
+    const r = radius * 0.78;
+    const x = cx + Math.cos(rad) * r;
+    const y = cy + Math.sin(rad) * r;
+    ctx.fillStyle = c.label === 'N' ? 'rgba(255, 100, 100, 0.9)' : 'rgba(180, 210, 255, 0.8)';
+    ctx.fillText(c.label, x, y);
+  }
+
+  // Degree numbers every 30 degrees
+  ctx.font = `${radius * 0.05}px Courier New, monospace`;
+  ctx.fillStyle = 'rgba(120, 160, 220, 0.5)';
+  for (let deg = 0; deg < 360; deg += 30) {
+    if (deg % 90 === 0) continue;
+    const rad = (deg - 90) * Math.PI / 180;
+    const r = radius * 0.72;
+    const x = cx + Math.cos(rad) * r;
+    const y = cy + Math.sin(rad) * r;
+    ctx.fillText(deg.toString(), x, y);
+  }
+
+  // Needle
+  const needleLen = radius * 0.6;
+  const needleWidth = radius * 0.04;
+
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(currentAngle);
+
+  // North half (red)
+  ctx.fillStyle = 'rgba(255, 60, 60, 0.85)';
+  ctx.beginPath();
+  ctx.moveTo(0, -needleLen);
+  ctx.lineTo(-needleWidth, 0);
+  ctx.lineTo(needleWidth, 0);
+  ctx.closePath();
+  ctx.fill();
+
+  // South half (blue)
+  ctx.fillStyle = 'rgba(60, 100, 255, 0.7)';
+  ctx.beginPath();
+  ctx.moveTo(0, needleLen);
+  ctx.lineTo(-needleWidth, 0);
+  ctx.lineTo(needleWidth, 0);
+  ctx.closePath();
+  ctx.fill();
+
+  // Center pivot
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+  ctx.beginPath();
+  ctx.arc(0, 0, needleWidth * 1.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.restore();
+
+  // Subtle pulse on the compass
+  const pulse = 0.5 + 0.5 * Math.sin(time * 2);
+  ctx.strokeStyle = `rgba(80, 140, 220, ${0.1 + pulse * 0.1})`;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius * (1.02 + pulse * 0.02), 0, Math.PI * 2);
+  ctx.stroke();
+}
+
+let time = 0;
+function animate() {
+  time += 0.016;
+
+  // Trailing fade
+  ctx.fillStyle = 'rgba(10, 15, 26, 0.15)';
+  ctx.fillRect(0, 0, W, H);
+
+  // Calculate target angle from mouse
+  const dx = mouseX - cx;
+  const dy = mouseY - cy;
+  targetAngle = Math.atan2(dy, dx) + Math.PI / 2;
+
+  // Smooth interpolation
+  let diff = targetAngle - currentAngle;
+  while (diff > Math.PI) diff -= Math.PI * 2;
+  while (diff < -Math.PI) diff += Math.PI * 2;
+  currentAngle += diff * 0.08;
+
+  drawCompass(time);
+  requestAnimationFrame(animate);
+}
+
+ctx.fillStyle = '#0a0f1a';
+ctx.fillRect(0, 0, W, H);
+animate();
+</script>
+</body>
+</html>

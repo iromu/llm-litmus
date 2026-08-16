@@ -1,0 +1,27 @@
+# 033 — Neumorphic Music Player
+
+## Creative Prompt
+Create a music player with a soft neumorphism (neuromorphic) design style. The player features a gradient album art with an animated shine sweep, song title and artist, a progress bar with knob, time stamps, main controls (previous, play/pause, next), and secondary controls (shuffle, repeat, volume slider with bar, favorite). All buttons have neumorphic shadows (light top-left, dark bottom-right) and depress on click. The play button has a gradient fill. The progress bar animates to simulate playback. The color palette is soft gray/white with purple-blue gradient accents. The aesthetic is soft, tactile, and premium — like a high-end audio app.
+
+## Model
+Qwen3.8-27B-instruct
+
+## Thinking Effort
+high
+
+## Techniques Used
+- CSS neumorphism with dual box-shadow (light `#ffffff` top-left + dark `#b8bfce` bottom-right) on every surface
+- Inset shadow states for pressed/depressed interaction feedback (`box-shadow: inset ...`)
+- Circular album art with conic-gradient disc, rotating animation, and pseudo-element shine sweep (`background-size: 200%` + keyframed position)
+- Gradient-filled play/pause button with distinct active-state shadow
+- Animated progress bar driven by `requestAnimationFrame` for smooth continuous playback simulation
+- Custom volume slider with gradient fill bar and draggable knob (mouse + touch)
+- Seekable progress bar via pointer events with drag support
+- Keyboard accessibility (arrow keys on sliders, Enter/Space on album art)
+- Responsive sizing via `min()`, media queries for narrow/short viewports
+- ARIA roles and labels throughout for screen readers
+- Soft ambient radial-gradient background layer for depth
+- Purple-blue accent palette (`#7c6cf0` → `#5a8df6` → `#9d6ff2`) on neutral `#e4e9f2` base
+
+## Stats
+Wall time: N/A | Tokens: N/A

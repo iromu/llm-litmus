@@ -1,0 +1,17 @@
+Creative Prompt:
+Create a honeycomb hexagon grid with glowing golden hexagonal cells. Each hexagon has a radial gradient fill in warm gold/amber hues and pulses gently. The grid covers the entire canvas with staggered rows. Hexagons have slightly varied sizes, hues, and pulse phases for organic variation. The background is dark with trailing fade. Clicking regenerates the grid. The overall aesthetic is geometric, warm, and organic — like a glowing honeycomb viewed up close.
+
+Model: Qwen3.8-27B-instruct
+Thinking effort: high
+
+Techniques:
+- Canvas 2D pointy-top hexagonal grid with staggered rows (offset every other row by half a cell width)
+- Per-hexagon radial gradient fill (bright core → transparent edge) using HSLA warm gold/amber hues (hue 36–50°)
+- Independent sinusoidal pulse per hexagon with randomized speed, phase, and amplitude for organic breathing
+- Size jitter (±10%) and hue/saturation/lightness variation per cell for natural diversity
+- Additive compositing (globalCompositeOperation: "lighter") so overlapping glows bloom where cells meet
+- Trailing fade via semi-transparent dark overlay each frame (alpha 0.18) creating motion-blur persistence
+- DPR-aware canvas sizing (capped at 2×) for crisp rendering on retina displays
+- Click-to-regenerate with fresh random parameters; auto-fading hint label
+
+Wall time: N/A | Tokens: N/A

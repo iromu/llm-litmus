@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Iridescent Butterfly Wings</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #0a0614; }
+  canvas { display: block; cursor: crosshair; }
+  .hint {
+    position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%);
+    font-family: Georgia, 'Times New Roman', serif;
+    font-style: italic; font-size: 13px; letter-spacing: 0.12em;
+    color: rgba(220, 200, 255, 0.45);
+    pointer-events: none; user-select: none;
+    transition: opacity 2s ease; text-align: center; white-space: nowrap;
+  }
+  .hint.fade { opacity: 0; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<p class="hint" id="hint">click anywhere to summon new butterflies</p>
+<script>
+(() => {
+'use strict';
+
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const hint = document.getElementById('hint');
+let W = 0, H = 0, DPR = 1;
+
+function resize() {
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  W = window.innerWidth;
+  H = window.innerHeight;
+  canvas.width = W * DPR;
+  canvas.height = H * DPR;
+  canvas.style.width = W + 'px';
+  canvas.style.height = H + 'px';
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
+window.addEventListener('resize', resize);
+resize();
+
+/* ---------- utilities ---------- */
+const TAU = Math.PI * 2;
+const rand = (a, b) => a + Math.random() * (b - a);
+const pick = arr => arr[(Math.random() * arr.length) | 0];
+
+// smooth mouse target with lerp
+const mouse = { x: W / 2, y: H / 2, tx: W / 2, ty: H / 2 };
+window.addEventListener('mousemove', e => { mouse.tx = e.clientX; mouse.ty = e.clientY; });
+window.addEventListener('touchmove', e => {
+  const t = e.touches[0];
+  if (t) { mouse.tx = t.clientX; mouse.ty = t.clientY; }
+}, { passive: true });
+
+/* ---------- palette generation ---------- */
+// Each butterfly gets a base hue; iridescence comes from hue offsets that
+// shift over time via HSL cycling.
+function makePalette() {
+  const baseHue = rand(0, 360);
+  return {
+    baseHue,
+    spread: rand(40, 90),          // hue distance between wing zones
+    sat: rand(65, 92),
+    lightBase: rand(48, 62),
+    veinLight: rand(70, 85),
+    spotCount: 2 + ((Math.random() * 3) | 0),
+    shimmerSpeed: rand(0.4, 1.1),  // how fast the hue cycles
+    phase: rand(0, TAU),
+  };
+}
+
+/* ---------- wing geometry (bezier, unit space) ---------- */
+// Upper wing: starts at body (0,0), sweeps up and out.
+// Lower wing: starts near body, sweeps down and out.
+// All in local coords where +x is outward, +y is downward.
+function upperWingPath(c) {
+  c.moveTo(0, 0);
+  c.bezierCurveTo(0.15, -0.55, 0.75, -0.95, 1.05, -0.75);   // leading edge up-out
+  c.bezierCurveTo(1.35, -0.55, 1.30, -0.15, 1.05, 0.05);    // outer tip rounding
+  c.bezierCurveTo(0.85, 0.22, 0.45, 0.28, 0.12, 0.10);      // trailing edge back
+  c.bezierCurveTo(0.04, 0.06, 0.0, 0.03, 0, 0);             // close to body
+  c.closePath();
+}
+function lowerWingPath(c) {
+  c.moveTo(0, 0.08);
+  c.bezierCurveTo(0.20, 0.18, 0.55, 0.30, 0.72, 0.55);      // leading edge down-out
+  c.bezierCurveTo(0.85, 0.78, 0.72, 1.05, 0.48, 1.02);      // tail lobe
+  c.bezierCurveTo(0.28, 0.98, 0.10, 0.72, 0.04, 0.45);      // inner curve
+  c.bezierCurveTo(0.01, 0.28, 0.0, 0.16, 0, 0.08);
+  c.closePath();
+}
+
+// Veins: arrays of [startFrac, endFrac] along the wing, drawn as gentle curves.
+// Each vein: from near-body point to an outer point, with a control bend.
+const UPPER_VEINS = [
+  [[0.10, -0.05], [0.95, -0.70], [0.50, -0.62]],
+  [[0.10, -0.02], [1.10, -0.55], [0.60, -0.42]],
+  [[0.10,  0.02], [1.15, -0.25], [0.62, -0.12]],
+  [[0.10,  0.06], [1.00,  0.02], [0.55,  0.10]],
+  [[0.12,  0.09], [0.70,  0.20], [0.40,  0.22]],
+];
+const LOWER_VEINS = [
+  [[0.08, 0.15], [0.68, 0.55], [0.38, 0.50]],
+  [[0.08, 0.22], [0.75, 0.80], [0.48, 0.78]],
+  [[0.08, 0.30], [0.55, 1.00], [0.32, 0.92]],
+  [[0.08, 0.38], [0.30, 0.95], [0.14, 0.80]],
+];
+
+/* ---------- decorative spots per butterfly ---------- */
+function makeSpots(pal) {
+  const spots = [];
+  for (let i = 0; i < pal.spotCount; i++) {
+    spots.push({
+      zone: Math.random() < 0.6 ? 'upper' : 'lower',
+      u: rand(0.35, 0.95),     // param across wing
+      v: rand(-0.55, 0.55),    // offset
+      r: rand(0.045, 0.11),
+      ring: Math.random() < 0.5,
+      hueOff: rand(-30, 30),
+    });
+  }
+  return spots;
+}
+
+/* ---------- butterfly ---------- */
+class Butterfly {
+  constructor(isMouse) {
+    this.isMouse = !!isMouse;
+    this.pal = makePalette();
+    this.spots = makeSpots(this.pal);
+    this.size = isMouse ? rand(34, 44) : rand(26, 52);
+    this.flapSpeed = rand(1.6, 3.2);
+    this.flapPhase = rand(0, TAU);
+    this.driftA = rand(0.3, 0.9);       // drift amplitude factor
+    this.driftS = rand(0.15, 0.45);     // drift speed
+    this.driftP = rand(0, TAU);
+    this.rot = rand(-0.5, 0.5);
+    this.rotDrift = rand(-0.15, 0.15);
+    if (!this.isMouse) {
+      this.x = rand(W * 0.15, W * 0.85);
+      this.y = rand(H * 0.15, H * 0.85);
+    } else {
+      this.x = mouse.x; this.y = mouse.y;
+    }
+    this.trail = [];
+  }
+
+  regenerate() {
+    this.pal = makePalette();
+    this.spots = makeSpots(this.pal);
+    this.size = this.isMouse ? rand(34, 44) : rand(26, 52);
+    this.flapSpeed = rand(1.6, 3.2);
+    this.trail.length = 0;
+  }
+
+  update(t, dt) {
+    if (this.isMouse) {
+      // smooth interpolation toward cursor
+      const k = 1 - Math.pow(0.001, dt); // frame-rate independent lerp
+      this.x += (mouse.x - this.x) * k;
+      this.y += (mouse.y - this.y) * k;
+      // orient toward movement direction
+      const dx = mouse.x - this.x, dy = mouse.y - this.y;
+      const sp = Math.hypot(dx, dy);
+      if (sp > 4) {
+        const target = Math.atan2(dy, dx) * 0.35;
+        this.rot += (target - this.rot) * (1 - Math.pow(0.01, dt));
+      }
+      // trail
+      this.trail.push({ x: this.x, y: this.y, a: 1 });
+      if (this.trail.length > 26) this.trail.shift();
+    } else {
+      // gentle Lissajous drift
+      this.x += Math.cos(t * this.driftS + this.driftP) * this.driftA * dt * 30;
+      this.y += Math.sin(t * this.driftS * 1.3 + this.driftP * 2) * this.driftA * dt * 22;
+      // soft wrap
+      const m = 80;
+      if (this.x < -m) this.x = W + m;
+      if (this.x > W + m) this.x = -m;
+      if (this.y < -m) this.y = H + m;
+      if (this.y > H + m) this.y = -m;
+      this.rot = Math.sin(t * 0.4 + this.driftP) * 0.35;
+    }
+    for (const p of this.trail) p.a -= dt * 1.4;
+    this.trail = this.trail.filter(p => p.a > 0);
+  }
+
+  draw(t) {
+    const s = this.size;
+    const flap = Math.sin(t * this.flapSpeed + this.flapPhase);
+    // wing fold: 0..1 -> wings flat .. folded forward (scale x)
+    const fold = 0.35 + 0.65 * (0.5 + 0.5 * flap); // 0.35..1.0
+    const hueShift = t * this.pal.shimmerSpeed * 40 + this.pal.phase;
+
+    // --- trail (mouse butterfly only) ---
+    if (this.isMouse) {
+      for (let i = 0; i < this.trail.length; i++) {
+        const p = this.trail[i];
+        const a = p.a * 0.10;
+        if (a <= 0.003) continue;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, s * 0.16 * p.a, 0, TAU);
+        ctx.fillStyle = `hsla(${(this.pal.baseHue + hueShift) % 360}, 80%, 70%, ${a})`;
+        ctx.fill();
+      }
+    }
+
+    ctx.save();
+    ctx.translate(this.x, this.y);
+    ctx.rotate(this.rot);
+
+    const P = this.pal;
+    const hU = (P.baseHue + hueShift) % 360;               // upper hue
+    const hL = (P.baseHue + P.spread + hueShift * 0.6) % 360; // lower hue
+
+    // subtle glow underlay
+    ctx.save();
+    ctx.globalAlpha = 0.22;
+    ctx.shadowColor = `hsl(${hU}, 90%, 60%)`;
+    ctx.shadowBlur = s * 0.9;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, s * fold * 1.15, s * 0.9, 0, 0, TAU);
+    ctx.fillStyle = `hsl(${hU}, 70%, 55%)`;
+    ctx.fill();
+    ctx.restore();
+
+    // draw both sides; right side mirrored, flapping slightly offset
+    for (const side of [-1, 1]) {
+      const f = side === 1 ? fold : fold * 0.94; // tiny asymmetry for life
+      ctx.save();
+      ctx.scale(side * f, 1);
+
+      /* ---- upper wing ---- */
+      ctx.save();
+      ctx.scale(s, s);
+      const gU = ctx.createRadialGradient(0.25, -0.25, 0.05, 0.55, -0.3, 1.15);
+      gU.addColorStop(0.00, `hsl(${hU}, ${P.sat}%, ${P.lightBase + 22}%)`);
+      gU.addColorStop(0.30, `hsl(${(hU + 25) % 360}, ${P.sat}%, ${P.lightBase}%)`);
+      gU.addColorStop(0.60, `hsl(${(hU + 70) % 360}, ${Math.min(95, P.sat + 8)}%, ${P.lightBase - 8}%)`);
+      gU.addColorStop(0.85, `hsl(${(hU + 130) % 360}, ${P.sat}%, ${P.lightBase - 18}%)`);
+      gU.addColorStop(1.00, `hsl(${(hU + 180) % 360}, ${P.sat - 10}%, ${P.lightBase - 30}%)`);
+      ctx.beginPath();
+      upperWingPath(ctx);
+      ctx.fillStyle = gU;
+      ctx.fill();
+
+      // iridescent sheen band sweeping across the wing
+      const sheenPos = 0.5 + 0.45 * Math.sin(t * 1.7 + this.flapPhase + side);
+      const gSheen = ctx.createLinearGradient(0, -0.9, 1.3, 0.2);
+      gSheen.addColorStop(Math.max(0, sheenPos - 0.25), 'rgba(255,255,255,0)');
+      gSheen.addColorStop(sheenPos, 'rgba(255,255,255,0.28)');
+      gSheen.addColorStop(Math.min(1, sheenPos + 0.25), 'rgba(255,255,255,0)');
+      ctx.beginPath();
+      upperWingPath(ctx);
+      ctx.fillStyle = gSheen;
+      ctx.fill();
+
+      // veins
+      ctx.strokeStyle = `hsla(${hU}, ${P.sat}%, ${P.veinLight}%, 0.5)`;
+      ctx.lineWidth = 0.012;
+      ctx.lineCap = 'round';
+      for (const v of UPPER_VEINS) {
+        ctx.beginPath();
+        ctx.moveTo(v[0][0], v[0][1]);
+        ctx.quadraticCurveTo(v[2][0], v[2][1], v[1][0], v[1][1]);
+        ctx.stroke();
+      }
+      // wing outline
+      ctx.beginPath();
+      upperWingPath(ctx);
+      ctx.strokeStyle = `hsla(${(hU + 40) % 360}, 90%, ${P.veinLight}%, 0.55)`;
+      ctx.lineWidth = 0.018;
+      ctx.stroke();
+
+      // decorative spots on upper wing
+      for (const sp of this.spots) {
+        if (sp.zone !== 'upper') continue;
+        const sx = 0.15 + sp.u * 0.85;
+        const sy = -0.45 + sp.v * 0.5;
+        const sr = sp.r;
+        const sh = (hU + sp.hueOff + 60) % 360;
+        if (sp.ring) {
+          ctx.beginPath();
+          ctx.arc(sx, sy, sr, 0, TAU);
+          ctx.strokeStyle = `hsla(${sh}, 90%, ${P.veinLight}%, 0.75)`;
+          ctx.lineWidth = 0.02;
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.arc(sx, sy, sr * 0.55, 0, TAU);
+          ctx.fillStyle = `hsla(${sh}, 95%, ${P.lightBase + 15}%, 0.85)`;
+          ctx.fill();
+        } else {
+          const gS = ctx.createRadialGradient(sx, sy, 0, sx, sy, sr);
+          gS.addColorStop(0, `hsla(${sh}, 95%, 85%, 0.95)`);
+          gS.addColorStop(0.6, `hsla(${sh}, 90%, ${P.lightBase + 5}%, 0.8)`);
+          gS.addColorStop(1, `hsla(${sh}, 90%, ${P.lightBase - 10}%, 0)`);
+          ctx.beginPath();
+          ctx.arc(sx, sy, sr, 0, TAU);
+          ctx.fillStyle = gS;
+          ctx.fill();
+        }
+      }
+      ctx.restore(); // upper scale
+
+      /* ---- lower wing ---- */
+      ctx.save();
+      ctx.scale(s, s);
+      const gL = ctx.createRadialGradient(0.2, 0.35, 0.05, 0.45, 0.55, 0.95);
+      gL.addColorStop(0.00, `hsl(${hL}, ${P.sat}%, ${P.lightBase + 18}%)`);
+      gL.addColorStop(0.35, `hsl(${(hL + 30) % 360}, ${P.sat}%, ${P.lightBase - 2}%)`);
+      gL.addColorStop(0.70, `hsl(${(hL + 80) % 360}, ${P.sat}%, ${P.lightBase - 14}%)`);
+      gL.addColorStop(1.00, `hsl(${(hL + 150) % 360}, ${P.sat - 12}%, ${P.lightBase - 28}%)`);
+      ctx.beginPath();
+      lowerWingPath(ctx);
+      ctx.fillStyle = gL;
+      ctx.fill();
+
+      // sheen
+      const sheenL = 0.5 + 0.45 * Math.sin(t * 1.4 + this.flapPhase + 1.5 + side);
+      const gSheenL = ctx.createLinearGradient(0, 0.1, 0.9, 1.1);
+      gSheenL.addColorStop(Math.max(0, sheenL - 0.25), 'rgba(255,255,255,0)');
+      gSheenL.addColorStop(sheenL, 'rgba(255,255,255,0.22)');
+      gSheenL.addColorStop(Math.min(1, sheenL + 0.25), 'rgba(255,255,255,0)');
+      ctx.beginPath();
+      lowerWingPath(ctx);
+      ctx.fillStyle = gSheenL;
+      ctx.fill();
+
+      // veins
+      ctx.strokeStyle = `hsla(${hL}, ${P.sat}%, ${P.veinLight}%, 0.45)`;
+      ctx.lineWidth = 0.012;
+      for (const v of LOWER_VEINS) {
+        ctx.beginPath();
+        ctx.moveTo(v[0][0], v[0][1]);
+        ctx.quadraticCurveTo(v[2][0], v[2][1], v[1][0], v[1][1]);
+        ctx.stroke();
+      }
+      ctx.beginPath();
+      lowerWingPath(ctx);
+      ctx.strokeStyle = `hsla(${(hL + 40) % 360}, 90%, ${P.veinLight}%, 0.5)`;
+      ctx.lineWidth = 0.018;
+      ctx.stroke();
+
+      // spots on lower wing
+      for (const sp of this.spots) {
+        if (sp.zone !== 'lower') continue;
+        const sx = 0.12 + sp.u * 0.6;
+        const sy = 0.35 + sp.v * 0.4;
+        const sr = sp.r * 0.85;
+        const sh = (hL + sp.hueOff + 60) % 360;
+        const gS = ctx.createRadialGradient(sx, sy, 0, sx, sy, sr);
+        gS.addColorStop(0, `hsla(${sh}, 95%, 82%, 0.9)`);
+        gS.addColorStop(0.6, `hsla(${sh}, 90%, ${P.lightBase}%, 0.7)`);
+        gS.addColorStop(1, `hsla(${sh}, 90%, ${P.lightBase - 12}%, 0)`);
+        ctx.beginPath();
+        ctx.arc(sx, sy, sr, 0, TAU);
+        ctx.fillStyle = gS;
+        ctx.fill();
+      }
+      ctx.restore(); // lower scale
+
+      ctx.restore(); // side mirror
+    }
+
+    /* ---- body ---- */
+    const bh = (hU + hL) / 2;
+    const gB = ctx.createLinearGradient(0, -s * 0.55, 0, s * 0.6);
+    gB.addColorStop(0, `hsl(${bh}, 30%, 22%)`);
+    gB.addColorStop(0.5, `hsl(${bh}, 45%, 34%)`);
+    gB.addColorStop(1, `hsl(${bh}, 30%, 18%)`);
+    ctx.beginPath();
+    ctx.ellipse(0, 0, s * 0.055, s * 0.5, 0, 0, TAU);
+    ctx.fillStyle = gB;
+    ctx.fill();
+    // head
+    ctx.beginPath();
+    ctx.arc(0, -s * 0.52, s * 0.075, 0, TAU);
+    ctx.fillStyle = `hsl(${bh}, 35%, 26%)`;
+    ctx.fill();
+    // antennae
+    ctx.strokeStyle = `hsla(${bh}, 40%, 40%, 0.8)`;
+    ctx.lineWidth = Math.max(1, s * 0.018);
+    ctx.lineCap = 'round';
+    for (const sd of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(0, -s * 0.55);
+      ctx.quadraticCurveTo(sd * s * 0.16, -s * 0.78, sd * s * 0.24, -s * 0.72);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(sd * s * 0.24, -s * 0.72, Math.max(1.2, s * 0.022), 0, TAU);
+      ctx.fillStyle = `hsla(${(bh + 60) % 360}, 80%, 70%, 0.9)`;
+      ctx.fill();
+    }
+    // thorax highlight
+    ctx.beginPath();
+    ctx.ellipse(0, -s * 0.12, s * 0.035, s * 0.16, 0, 0, TAU);
+    ctx.fillStyle = 'rgba(255,255,255,0.14)';
+    ctx.fill();
+
+    ctx.restore();
+  }
+}
+
+/* ---------- dust particles (scale-like) ---------- */
+const DUST_N = 90;
+const dust = [];
+function seedDust() {
+  dust.length = 0;
+  for (let i = 0; i < DUST_N; i++) {
+    dust.push({
+      x: rand(0, W), y: rand(0, H),
+      r: rand(0.6, 2.4),
+      vx: rand(-6, 6), vy: rand(-10, -2),
+      hue: rand(0, 360),
+      tw: rand(0.5, 2.5), ph: rand(0, TAU),
+    });
+  }
+}
+seedDust();
+
+function updateDust(dt, t) {
+  for (const d of dust) {
+    d.x += d.vx * dt;
+    d.y += d.vy * dt;
+    if (d.y < -10) { d.y = H + 10; d.x = rand(0, W); }
+    if (d.x < -10) d.x = W + 10;
+    if (d.x > W + 10) d.x = -10;
+  }
+}
+function drawDust(t) {
+  for (const d of dust) {
+    const a = 0.12 + 0.22 * (0.5 + 0.5 * Math.sin(t * d.tw + d.ph));
+    ctx.beginPath();
+    ctx.arc(d.x, d.y, d.r, 0, TAU);
+    ctx.fillStyle = `hsla(${(d.hue + t * 12) % 360}, 70%, 75%, ${a})`;
+    ctx.fill();
+  }
+}
+
+/* ---------- swarm management ---------- */
+let butterflies = [];
+function buildSwarm() {
+  const n = W < 640 ? 5 : 8;
+  butterflies = [];
+  for (let i = 0; i < n; i++) butterflies.push(new Butterfly(false));
+  butterflies.push(new Butterfly(true)); // mouse follower last (drawn on top)
+}
+buildSwarm();
+
+/* ---------- interaction: click regenerates ---------- */
+let hintFaded = false;
+function fadeHint() {
+  if (!hintFaded) { hintFaded = true; hint.classList.add('fade'); }
+}
+window.addEventListener('click', () => {
+  for (const b of butterflies) b.regenerate();
+  fadeHint();
+});
+window.addEventListener('touchstart', fadeHint, { passive: true });
+setTimeout(fadeHint, 9000);
+
+/* ---------- main loop ---------- */
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min((now - last) / 1000, 0.05);
+  last = now;
+  const t = now / 1000;
+
+  // trailing background fade — deep indigo wash
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.fillStyle = 'rgba(10, 6, 20, 0.28)';
+  ctx.fillRect(0, 0, W, H);
+
+  // faint ambient vignette gradient (cheap: two radial blobs)
+  ctx.globalCompositeOperation = 'lighter';
+  const amb = ctx.createRadialGradient(W * 0.5, H * 0.45, 0, W * 0.5, H * 0.45, Math.max(W, H) * 0.7);
+  amb.addColorStop(0, `hsla(${(260 + t * 6) % 360}, 60%, 30%, 0.05)`);
+  amb.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = amb;
+  ctx.fillRect(0, 0, W, H);
+  ctx.globalCompositeOperation = 'source-over';
+
+  updateDust(dt, t);
+  drawDust(t);
+
+  // update + draw far-to-near (mouse butterfly last)
+  for (const b of butterflies) b.update(t, dt);
+  for (const b of butterflies) b.draw(t);
+
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+})();
+</script>
+</body>
+</html>

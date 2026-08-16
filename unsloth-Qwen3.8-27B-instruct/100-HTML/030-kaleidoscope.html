@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kaleidoscope — 8-Fold Radial Symmetry</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #05050a;
+    cursor: crosshair;
+  }
+
+  canvas {
+    display: block;
+    width: 100vw;
+    height: 100vh;
+  }
+
+  .hint {
+    position: fixed;
+    bottom: 1.4rem;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: system-ui, -apple-system, sans-serif;
+    font-size: 0.72rem;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.35);
+    pointer-events: none;
+    user-select: none;
+    animation: fadeHint 6s ease-out forwards;
+    white-space: nowrap;
+  }
+
+  @keyframes fadeHint {
+    0%, 60% { opacity: 1; }
+    100% { opacity: 0; }
+  }
+</style>
+</head>
+<body>
+<canvas id="k"></canvas>
+<span class="hint" role="note">click to shift the spectrum</span>
+
+<script>
+(() => {
+  'use strict';
+
+  const canvas = document.getElementById('k');
+  const ctx = canvas.getContext('2d');
+
+  // ── Configuration ────────────────────────────────────────────────
+  const SEGMENTS      = 8;          // radial symmetry order
+  const WEDGE         = (Math.PI * 2) / SEGMENTS;
+  const POINTS_PER_WEDGE = 14;      // dots inside one wedge
+  const TRAIL_ALPHA   = 0.085;      // background fade per frame (lower = longer trails)
+  const HUE_DRIFT     = 0.12;       // degrees per frame
+  const CONNECT_DIST  = 0.34;       // fraction of max radius for connection lines
+  const GUIDE_OPACITY = 0.055;
+
+  // ── State ────────────────────────────────────────────────────────
+  let W, H, CX, CY, R;              // dimensions & center radius
+  let hueOffset   = 0;              // global hue rotation
+  let clickHue    = 0;              // extra hue jump on click
+  let points      = [];             // base points in one wedge
+  let time        = 0;
+
+  // ── Sizing ───────────────────────────────────────────────────────
+  function resize() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width  = W * dpr;
+    canvas.height = H * dpr;
+    canvas.style.width  = W + 'px';
+    canvas.style.height = H + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    CX = W / 2;
+    CY = H / 2;
+    R  = Math.min(W, H) * 0.46;
+    // paint solid bg so first frames aren't transparent
+    ctx.fillStyle = '#05050a';
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  // ── Point generation ─────────────────────────────────────────────
+  // Each point lives in polar coords inside [0, WEDGE] × [0.08R, 0.95R].
+  // It oscillates organically via layered sines with unique phase/freq.
+  function generatePoints() {
+    points = [];
+    for (let i = 0; i < POINTS_PER_WEDGE; i++) {
+      points.push({
+        r0: 0.10 + 0.85 * Math.random(),   // base radial fraction
+        a0: Math.random() * WEDGE,          // base angle within wedge
+        rAmp: 0.04 + 0.10 * Math.random(),  // radial oscillation amplitude
+        aAmp: 0.015 + 0.045 * Math.random(),// angular oscillation amplitude
+        rFreq: 0.3 + 0.9 * Math.random(),   // radial frequency
+        aFreq: 0.2 + 0.7 * Math.random(),   // angular frequency
+        rPhase: Math.random() * Math.PI * 2,
+        aPhase: Math.random() * Math.PI * 2,
+        size: 1.2 + 2.6 * Math.random(),    // dot radius px
+        hueShift: Math.random() * 60 - 30   // local hue variation
+      });
+    }
+  }
+
+  // Compute animated polar position of point p at current time.
+  function pointPos(p, t) {
+    const rFrac = p.r0 + p.rAmp * Math.sin(t * p.rFreq + p.rPhase);
+    const aOff  = p.aAmp * Math.sin(t * p.aFreq + p.aPhase);
+    const r = rFrac * R;
+    const a = p.a0 + aOff;
+    return { x: r * Math.cos(a), y: r * Math.sin(a), r };
+  }
+
+  // ── Mirroring ────────────────────────────────────────────────────
+  // For each segment k ∈ [0, SEGMENTS):
+  //   • direct copy rotated by k·WEDGE
+  //   • mirrored copy reflected across the wedge's bisector
+  // This gives 2×SEGMENTS visual copies → true kaleidoscope.
+  function mirrorAngle(a, k) {
+    // rotate into segment k, then reflect across its midline
+    const segStart = k * WEDGE;
+    const rel = a - segStart;            // angle relative to segment start
+    const mid  = WEDGE / 2;
+    const mirrored = mid - (rel - mid);  // reflect about midline
+    return segStart + mirrored;
+  }
+
+  function drawAllMirrored(drawFn) {
+    for (let k = 0; k < SEGMENTS; k++) {
+      const rot = k * WEDGE;
+      // direct
+      ctx.save();
+      ctx.rotate(rot);
+      drawFn(false);
+      ctx.restore();
+      // mirrored
+      ctx.save();
+      ctx.rotate(rot + WEDGE);
+      ctx.scale(1, -1);                  // flip Y → reflection
+      drawFn(true);
+      ctx.restore();
+    }
+  }
+
+  // ── Rendering helpers ────────────────────────────────────────────
+  function hsl(h, s, l, a) {
+    return `hsla(${((h % 360) + 360) % 360}, ${s}%, ${l}%, ${a})`;
+  }
+
+  function drawCenterGlow() {
+    const pulse = 0.85 + 0.15 * Math.sin(time * 0.4);
+    const grad = ctx.createRadialGradient(CX, CY, 0, CX, CY, R * 0.30 * pulse);
+    grad.addColorStop(0,   hsl(hueOffset + 180, 80, 60, 0.18));
+    grad.addColorStop(0.4, hsl(hueOffset + 200, 70, 40, 0.07));
+    grad.addColorStop(1,   'transparent');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(CX, CY, R * 0.30 * pulse, 0, Math.PI * 2);
+    ctx.fill();
+
+    // bright core
+    const core = ctx.createRadialGradient(CX, CY, 0, CX, CY, 6);
+    core.addColorStop(0, hsl(hueOffset, 30, 95, 0.9));
+    core.addColorStop(1, 'transparent');
+    ctx.fillStyle = core;
+    ctx.beginPath();
+    ctx.arc(CX, CY, 6, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  function drawGuides() {
+    ctx.strokeStyle = `rgba(255,255,255,${GUIDE_OPACITY})`;
+    ctx.lineWidth = 0.5;
+    for (let k = 0; k < SEGMENTS; k++) {
+      const a = k * WEDGE;
+      ctx.beginPath();
+      ctx.moveTo(CX, CY);
+      ctx.lineTo(CX + R * 1.02 * Math.cos(a), CY + R * 1.02 * Math.sin(a));
+      ctx.stroke();
+    }
+    // faint concentric rings
+    for (let ring = 1; ring <= 3; ring++) {
+      const rr = R * ring / 3.4;
+      ctx.beginPath();
+      ctx.arc(CX, CY, rr, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(255,255,255,${GUIDE_OPACITY * 0.5})`;
+      ctx.stroke();
+    }
+  }
+
+  // ── Main draw pass (one wedge worth of geometry) ─────────────────
+  function drawWedgeContent(isMirror) {
+    const positions = points.map(p => pointPos(p, time));
+
+    // Connection lines between nearby points (geometric structure)
+    const maxDist = R * CONNECT_DIST;
+    ctx.lineWidth = 0.6;
+    for (let i = 0; i < positions.length; i++) {
+      for (let j = i + 1; j < positions.length; j++) {
+        const dx = positions[i].x - positions[j].x;
+        const dy = positions[i].y - positions[j].y;
+        const d  = Math.sqrt(dx * dx + dy * dy);
+        if (d < maxDist) {
+          const alpha = (1 - d / maxDist) * 0.35;
+          const h = hueOffset + points[i].hueShift + (points[i].r0 * 120);
+          ctx.strokeStyle = hsl(h, 70, 55, alpha);
+          ctx.beginPath();
+          ctx.moveTo(positions[i].x, positions[i].y);
+          ctx.lineTo(positions[j].x, positions[j].y);
+          ctx.stroke();
+        }
+      }
+    }
+
+    // Dots with glow
+    for (let i = 0; i < positions.length; i++) {
+      const p = points[i];
+      const pos = positions[i];
+      const h = hueOffset + p.hueShift + (p.r0 * 140) + time * 3;
+      const depth = pos.r / R;                 // 0..1 toward edge
+      const lightness = 50 + 20 * (1 - depth); // brighter near center
+
+      // outer glow
+      const glowR = p.size * 3.5;
+      const g = ctx.createRadialGradient(pos.x, pos.y, 0, pos.x, pos.y, glowR);
+      g.addColorStop(0, hsl(h, 85, lightness, 0.5));
+      g.addColorStop(1, 'transparent');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(pos.x, pos.y, glowR, 0, Math.PI * 2);
+      ctx.fill();
+
+      // core dot
+      ctx.fillStyle = hsl(h, 90, lightness + 15, 0.95);
+      ctx.beginPath();
+      ctx.arc(pos.x, pos.y, p.size, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // ── Frame loop ───────────────────────────────────────────────────
+  function frame() {
+    time += 0.016;
+    hueOffset += HUE_DRIFT;
+
+    // trailing fade
+    ctx.fillStyle = `rgba(5, 5, 10, ${TRAIL_ALPHA})`;
+    ctx.fillRect(0, 0, W, H);
+
+    ctx.save();
+    ctx.translate(CX, CY);
+
+    drawGuides();
+    drawAllMirrored(drawWedgeContent);
+
+    ctx.restore();
+
+    drawCenterGlow();
+
+    requestAnimationFrame(frame);
+  }
+
+  // ── Interaction ──────────────────────────────────────────────────
+  function onPointerDown(e) {
+    // Shift hue by a random-ish amount derived from click position
+    const nx = e.clientX / W;
+    const ny = e.clientY / H;
+    clickHue += 40 + 80 * Math.abs(nx - 0.5) + 60 * Math.abs(ny - 0.5);
+    hueOffset = clickHue;
+    generatePoints();
+  }
+
+  window.addEventListener('pointerdown', onPointerDown);
+  window.addEventListener('resize', resize);
+
+  // ── Init ─────────────────────────────────────────────────────────
+  resize();
+  generatePoints();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

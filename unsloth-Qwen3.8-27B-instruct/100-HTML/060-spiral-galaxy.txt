@@ -1,0 +1,24 @@
+Spiral Galaxy — Deep Field
+===========================
+
+Creative Prompt:
+Create a spiral galaxy with thousands of stars arranged in spiral arms. 4 spiral arms emanate from the center with scatter, creating a realistic galactic structure. Stars have differential rotation (inner stars rotate faster). The central bulge has warm yellow/orange stars, arms have cool blue/purple stars. Stars twinkle with varying brightness. The galaxy rotates slowly. Clicking regenerates the galaxy. The background is very dark with trailing fade. The overall aesthetic is astronomical, majestic, and vast — like a deep space telescope view.
+
+Model: Qwen3.8-27B-instruct
+Thinking effort: high
+
+Techniques:
+- Canvas particle system with 5000–6500 star particles (density scales with viewport)
+- Logarithmic spiral arm distribution (theta = offset + tightness * ln(r/r0)) with Box-Muller Gaussian scatter
+- Differential rotation: omega ∝ 1/r (flat rotation curve), inner stars orbit faster
+- Color temperature gradient: warm core (yellow/orange) → transition zone → cool arms (blue/purple/violet)
+- Sine-based per-star twinkle with randomized speed, phase, and amplitude
+- Depth-sorted rendering (painter's algorithm) for parallax feel
+- Radial gradient core glow + bright central point
+- Trailing fade via semi-transparent black overlay each frame (motion persistence)
+- Seeded PRNG (mulberry32) for reproducible click-to-regenerate
+- Static background star field with independent twinkle
+- Perspective tilt factor for slight 3D obliquity
+- DPR-aware canvas for crisp rendering on retina displays
+
+Wall time: N/A | Tokens: N/A

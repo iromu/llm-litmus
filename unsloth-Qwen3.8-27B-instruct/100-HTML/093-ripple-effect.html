@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ripple Effect</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 100%; height: 100%; overflow: hidden; }
+body { background: #0a1020; }
+canvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
+.hint {
+  position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+  font-family: 'Courier New', monospace; font-size: 11px; color: rgba(100,150,220,0.3);
+  letter-spacing: 3px; pointer-events: none; user-select: none; text-transform: uppercase;
+}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div class="hint">click to create ripples</div>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let W, H;
+
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+window.addEventListener('resize', resize);
+resize();
+
+const MAX_RIPPLES = 50;
+const ripples = [];
+
+class Ripple {
+  constructor(x, y) {
+    this.x = x;
+    this.y = y;
+    this.radius = 0;
+    this.maxRadius = 150 + Math.random() * 200;
+    this.speed = 1.5 + Math.random() * 2;
+    this.hue = Math.random() * 360;
+    this.life = 1;
+    this.decay = 0.008 + Math.random() * 0.008;
+  }
+  update() {
+    this.radius += this.speed;
+    this.life -= this.decay;
+  }
+  draw(ctx) {
+    if (this.life <= 0) return;
+    const alpha = this.life * 0.8;
+    const progress = this.radius / this.maxRadius;
+
+    // Main ring
+    ctx.strokeStyle = `hsla(${this.hue}, 80%, 60%, ${alpha})`;
+    ctx.lineWidth = 2 + (1 - progress) * 3;
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Glow ring
+    ctx.strokeStyle = `hsla(${this.hue}, 90%, 70%, ${alpha * 0.3})`;
+    ctx.lineWidth = 8 + (1 - progress) * 10;
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Inner secondary ring
+    if (this.radius > 20) {
+      ctx.strokeStyle = `hsla(${(this.hue + 30) % 360}, 70%, 55%, ${alpha * 0.4})`;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.radius * 0.6, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+  }
+}
+
+function addRipple(x, y) {
+  if (ripples.length >= MAX_RIPPLES) ripples.shift();
+  ripples.push(new Ripple(x, y));
+}
+
+canvas.addEventListener('click', e => {
+  const rect = canvas.getBoundingClientRect();
+  addRipple(e.clientX - rect.left, e.clientY - rect.top);
+});
+canvas.addEventListener('touchstart', e => {
+  e.preventDefault();
+  const rect = canvas.getBoundingClientRect();
+  for (const t of e.touches) {
+    addRipple(t.clientX - rect.left, t.clientY - rect.top);
+  }
+});
+
+// Auto-generate a ripple occasionally
+setInterval(() => {
+  addRipple(W * 0.2 + Math.random() * W * 0.6, H * 0.2 + Math.random() * H * 0.6);
+}, 3000);
+
+let time = 0;
+function animate() {
+  time += 0.016;
+
+  // Trailing fade
+  ctx.fillStyle = 'rgba(10, 16, 32, 0.1)';
+  ctx.fillRect(0, 0, W, H);
+
+  for (let i = ripples.length - 1; i >= 0; i--) {
+    ripples[i].update();
+    ripples[i].draw(ctx);
+    if (ripples[i].life <= 0 || ripples[i].radius > ripples[i].maxRadius) {
+      ripples.splice(i, 1);
+    }
+  }
+
+  requestAnimationFrame(animate);
+}
+
+ctx.fillStyle = '#0a1020';
+ctx.fillRect(0, 0, W, H);
+animate();
+</script>
+</body>
+</html>

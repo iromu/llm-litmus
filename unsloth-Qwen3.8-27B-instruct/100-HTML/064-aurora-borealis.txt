@@ -1,0 +1,22 @@
+Aurora Borealis — Digital Art Gallery Prompt
+==============================================
+
+Creative Prompt:
+Create an aurora borealis (northern lights) visualization with colorful bands of light rippling across a dark night sky. Multiple aurora bands in green, teal, and purple hues undulate with dual-sine wave motion. Each band has multiple layers with slightly offset positions for depth. Stars twinkle above. A dark ground silhouette with gentle hills anchors the scene. The overall aesthetic is atmospheric, natural, and breathtaking — like viewing the northern lights in the Arctic.
+
+Model: Qwen3.8-27B-instruct
+Thinking effort: high
+
+Techniques Used:
+- Canvas multi-band aurora rendering with dual sine/sine-wave combination (two independent frequencies per band plus a vertical oscillation term)
+- Filled aurora shapes with linear gradient transparency (HSL color stops fading to zero alpha)
+- Layered bands (2–4 sub-layers per band) with offset Y positions, amplitude scaling, and phase offsets for volumetric depth
+- Additive blending (globalCompositeOperation = 'lighter') for luminous overlap between bands
+- Star field with per-star twinkle speed/phase and subtle drift
+- Ground silhouette built from stacked sinusoidal hill curves with increasing darkness toward foreground
+- Trailing background fade (low-alpha fill each frame) for smooth motion persistence
+- HSL color cycling via a global hueShift that eases toward a new target on regeneration
+- Click-to-regenerate interaction: new random band configuration, colors, and hill geometry
+
+Stats:
+Wall time: N/A | Tokens: N/A

@@ -1,0 +1,28 @@
+Bokeh Dreams — Creative Prompt Artifact
+========================================
+
+Model: Qwen3.8-27B-instruct
+Thinking effort: high
+
+Creative Prompt
+---------------
+Create a soft bokeh circle visualization with large blurred colored orbs drifting gently across a dark gradient background. Each circle has a radial gradient with a brighter inner spot, simulating lens bokeh. Circles have various sizes, blur amounts, alpha levels, and hue/saturation values, creating a rich, dreamlike depth of field effect. They drift slowly with sine-wave acceleration and wrap around screen edges. Clicking spawns a burst of new circles at the cursor position with explosive velocity. The title "Bokeh Dreams" is rendered in faint overlay text. The overall feel is calm, dreamy, and photographic.
+
+Techniques Used
+---------------
+- Canvas 2D rendering with multi-stop radial gradients (6 stops) for lens-like light falloff
+- Additive blending (globalCompositeOperation: 'lighter') for realistic light overlap
+- Phase-based sine/cosine drift acceleration for organic motion
+- Screen-edge wrapping with margin compensation
+- Click-to-burst spawning with outward radial velocity and exponential decay
+- Hue variety across 6 curated color ranges (warm amber, soft red, cool blue, violet, yellow, green)
+- Limited circle count (200 max) with oldest-circle replacement strategy
+- Animated dark gradient background with slow hue shift
+- CSS vignette overlay for photographic depth
+- SVG noise grain overlay for film texture
+- Faint serif title with breathing opacity animation
+- Device-pixel-ratio aware canvas sizing (capped at 2x)
+
+Stats
+-----
+Wall time: N/A | Tokens: N/A

@@ -1,0 +1,23 @@
+# 008 — Zen Garden
+
+## Creative Prompt
+Create a digital zen rock garden with a warm sand-colored background, raked sand patterns (horizontal lines and concentric ellipses around rocks), and five hand-crafted stone shapes rendered as SVG paths with subtle highlight strokes. Bamboo stalks on the right side, a stepping-stone path on the left, and minimalist "Zen Garden" text centered at the bottom. The rocks have a drop shadow and hover lift effect. Mouse movement causes the rocks to drift subtly in response to cursor position, like a gentle breeze. The overall mood is serene, balanced, and meditative.
+
+## Model
+Qwen3.8-27B-instruct
+
+## Thinking Effort
+high
+
+## Techniques Used
+- Five organic SVG rock shapes built from cubic Bézier paths, each with highlight stroke arcs and soft ellipse shading for dimensionality
+- Raked sand: an SVG `<pattern>` of horizontal double-lines (dark groove + light ridge) tiled across the full viewport, plus a radial glow gradient for warmth
+- Concentric raked circles: layered SVG ellipses with decreasing opacity behind each rock cluster
+- CSS `filter: drop-shadow()` (stacked, two-layer) for rock depth; on hover the rock lifts via `translateY(-10px)` with a springy cubic-bezier and a deeper shadow
+- Bamboo stalks: pure-CSS divs with a horizontal linear-gradient for cylindrical shading, node joints drawn with a repeating-linear-gradient pseudo-element, leaf clusters via stacked radial-gradients, and a slow per-stalk sway keyframe animation
+- Stepping stones: irregular border-radius blobs with inset shadows, alternating rotation/scale for an organic path
+- Mouse-driven parallax: each rock carries a `data-depth` factor; a requestAnimationFrame loop eases normalized cursor position (lerp 0.045) into small opposite translations, giving a gentle breeze drift; touchmove supported
+- Responsive: clamp()-based sizing, media queries for narrow/short viewports, fluid bamboo widths
+
+## Stats
+Wall time: N/A | Tokens: N/A

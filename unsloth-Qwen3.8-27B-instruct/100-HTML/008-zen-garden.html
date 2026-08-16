@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zen Garden</title>
+<style>
+  /* ============ Reset & Base ============ */
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --sand-light: #e8d5b0;
+    --sand-mid:   #dcc49a;
+    --sand-dark:  #c9ad7d;
+    --sand-line:  #b89a6a;
+    --stone-dark: #4a4540;
+    --stone-mid:  #6b6259;
+    --stone-lite: #8a7f73;
+    --bamboo-green: #7a9b5e;
+    --bamboo-dark:  #5c7a45;
+    --ink: #3d3529;
+  }
+
+  html, body {
+    width: 100%; height: 100%;
+    overflow: hidden;
+    background: var(--sand-mid);
+    font-family: Georgia, 'Times New Roman', serif;
+  }
+
+  /* ============ Scene Layout ============ */
+  .garden {
+    position: relative;
+    width: 100vw; height: 100vh;
+    background: linear-gradient(160deg, var(--sand-light) 0%, var(--sand-mid) 45%, var(--sand-dark) 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Subtle vignette for depth */
+  .garden::after {
+    content: '';
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse at center, transparent 55%, rgba(90, 70, 40, 0.18) 100%);
+    pointer-events: none;
+    z-index: 50;
+  }
+
+  /* ============ Raked Sand SVG (full background) ============ */
+  .sand-svg {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    z-index: 1;
+  }
+
+  /* ============ Stepping Stones (left path) ============ */
+  .stones-path {
+    position: absolute;
+    left: 6%;
+    top: 12%;
+    bottom: 12%;
+    width: 12%;
+    min-width: 90px;
+    z-index: 3;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .step-stone {
+    width: 70%;
+    aspect-ratio: 1.3 / 1;
+    border-radius: 48% 52% 50% 50% / 55% 48% 52% 45%;
+    background: radial-gradient(ellipse at 35% 30%, #9a8f80 0%, #7d7264 45%, #5f5548 100%);
+    box-shadow:
+      0 4px 8px rgba(60, 45, 25, 0.35),
+      inset 0 -3px 6px rgba(0,0,0,0.25),
+      inset 0 2px 4px rgba(255,255,255,0.15);
+    opacity: 0.92;
+    transition: transform 0.4s ease;
+  }
+  .step-stone:nth-child(even) {
+    border-radius: 52% 48% 45% 55% / 50% 55% 45% 50%;
+    transform: rotate(4deg) scaleX(0.92);
+  }
+  .step-stone:nth-child(odd) {
+    transform: rotate(-3deg) scaleX(0.88);
+  }
+
+  /* ============ Bamboo (right side) ============ */
+  .bamboo-group {
+    position: absolute;
+    right: 4%;
+    top: 0;
+    bottom: 0;
+    width: 14%;
+    min-width: 110px;
+    z-index: 4;
+    display: flex;
+    justify-content: center;
+    gap: 1.2vw;
+    padding-top: 2vh;
+  }
+
+  .bamboo {
+    position: relative;
+    width: clamp(14px, 1.6vw, 26px);
+    height: 100%;
+    background: linear-gradient(90deg,
+      var(--bamboo-dark) 0%,
+      var(--bamboo-green) 30%,
+      #94b573 50%,
+      var(--bamboo-green) 70%,
+      var(--bamboo-dark) 100%
+    );
+    border-radius: 40% / 2%;
+    box-shadow: 2px 0 6px rgba(50, 60, 30, 0.3);
+  }
+
+  /* Node joints via repeating gradient overlay */
+  .bamboo::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: repeating-linear-gradient(
+      to bottom,
+      transparent 0%,
+      transparent calc(var(--node-gap, 12vh) - 4px),
+      rgba(40, 55, 25, 0.45) calc(var(--node-gap, 12vh) - 4px),
+      rgba(40, 55, 25, 0.45) calc(var(--node-gap, 12vh)),
+      rgba(255, 255, 255, 0.12) calc(var(--node-gap, 12vh)),
+      rgba(255, 255, 255, 0.12) calc(var(--node-gap, 12vh) + 2px),
+      transparent calc(var(--node-gap, 12vh) + 2px)
+    );
+    border-radius: inherit;
+  }
+
+  /* Leaves as pseudo-element clusters */
+  .bamboo::after {
+    content: '';
+    position: absolute;
+    top: 8%;
+    left: -40%;
+    width: 180%;
+    height: 14%;
+    background:
+      radial-gradient(ellipse 60% 30% at 20% 50%, rgba(90, 120, 60, 0.85) 0%, transparent 70%),
+      radial-gradient(ellipse 55% 25% at 55% 30%, rgba(105, 140, 70, 0.8) 0%, transparent 70%),
+      radial-gradient(ellipse 50% 28% at 80% 60%, rgba(80, 110, 55, 0.8) 0%, transparent 70%);
+    filter: blur(1px);
+  }
+
+  .bamboo:nth-child(1) { --node-gap: 11vh; height: 96%; opacity: 0.95; }
+  .bamboo:nth-child(2) { --node-gap: 13vh; height: 100%; opacity: 1; }
+  .bamboo:nth-child(3) { --node-gap: 10vh; height: 92%; opacity: 0.9; }
+  .bamboo:nth-child(4) { --node-gap: 14vh; height: 98%; opacity: 0.95; }
+
+  /* Gentle sway animation */
+  @keyframes bambooSway {
+    0%, 100% { transform: rotate(0deg); }
+    50%      { transform: rotate(0.8deg); }
+  }
+  .bamboo { animation: bambooSway 6s ease-in-out infinite; transform-origin: bottom center; }
+  .bamboo:nth-child(2) { animation-delay: -1.5s; animation-duration: 7s; }
+  .bamboo:nth-child(3) { animation-delay: -3s;   animation-duration: 5.5s; }
+  .bamboo:nth-child(4) { animation-delay: -4.5s; animation-duration: 6.5s; }
+
+  /* ============ Rock Groups ============ */
+  .rocks-layer {
+    position: absolute; inset: 0;
+    z-index: 10;
+    pointer-events: none;
+  }
+
+  .rock-group {
+    position: absolute;
+    pointer-events: auto;
+    cursor: default;
+    will-change: transform;
+    transition: transform 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  }
+
+  .rock-group svg {
+    display: block;
+    overflow: visible;
+    filter: drop-shadow(0 10px 14px rgba(50, 38, 20, 0.4))
+            drop-shadow(0 2px 4px rgba(50, 38, 20, 0.25));
+    transition: filter 0.4s ease, transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  .rock-group:hover svg {
+    transform: translateY(-10px);
+    filter: drop-shadow(0 22px 28px rgba(50, 38, 20, 0.45))
+            drop-shadow(0 6px 10px rgba(50, 38, 20, 0.3));
+  }
+
+  /* Concentric raked rings behind each rock group */
+  .rings {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 2;
+  }
+
+  /* ============ Title ============ */
+  .zen-title {
+    position: absolute;
+    bottom: 4.5vh;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 60;
+    text-align: center;
+    color: var(--ink);
+    user-select: none;
+    pointer-events: none;
+  }
+
+  .zen-title h1 {
+    font-size: clamp(1.4rem, 3.2vw, 2.4rem);
+    font-weight: 400;
+    letter-spacing: 0.55em;
+    text-indent: 0.55em; /* balance letter-spacing */
+    text-transform: uppercase;
+    opacity: 0.75;
+  }
+
+  .zen-title .divider {
+    width: clamp(60px, 10vw, 120px);
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--ink), transparent);
+    margin: 0.9em auto 0;
+    opacity: 0.4;
+  }
+
+  .zen-title .sub {
+    margin-top: 0.7em;
+    font-size: clamp(0.6rem, 1.1vw, 0.78rem);
+    letter-spacing: 0.35em;
+    text-indent: 0.35em;
+    font-style: italic;
+    opacity: 0.45;
+  }
+
+  /* ============ Responsive ============ */
+  @media (max-width: 700px) {
+    .stones-path { left: 3%; width: 10%; min-width: 60px; }
+    .bamboo-group { right: 2%; width: 12%; min-width: 80px; gap: 0.8vw; }
+    .bamboo { width: clamp(10px, 2.4vw, 18px); }
+    .zen-title h1 { letter-spacing: 0.35em; text-indent: 0.35em; }
+  }
+
+  @media (max-height: 500px) {
+    .zen-title { bottom: 2vh; }
+    .zen-title h1 { font-size: 1.1rem; }
+  }
+</style>
+</head>
+<body>
+<main class="garden" id="garden" aria-label="Digital zen rock garden">
+
+  <!-- ===== Raked sand pattern (horizontal lines) ===== -->
+  <svg class="sand-svg" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none" aria-hidden="true">
+    <defs>
+      <pattern id="rakeLines" x="0" y="0" width="100%" height="26" patternUnits="userSpaceOnUse">
+        <line x1="0" y1="13" x2="100%" y2="13" stroke="#b89a6a" stroke-width="1.1" opacity="0.38"/>
+        <line x1="0" y1="13.8" x2="100%" y2="13.8" stroke="#f5e9cf" stroke-width="0.5" opacity="0.3"/>
+      </pattern>
+      <radialGradient id="sandGlow" cx="50%" cy="42%" r="75%">
+        <stop offset="0%" stop-color="#f2e4c4" stop-opacity="0.5"/>
+        <stop offset="100%" stop-color="#c9ad7d" stop-opacity="0"/>
+      </radialGradient>
+    </defs>
+    <rect width="100%" height="100%" fill="url(#rakeLines)"/>
+    <rect width="100%" height="100%" fill="url(#sandGlow)"/>
+  </svg>
+
+  <!-- ===== Concentric raked ellipses around rock groups ===== -->
+  <svg class="rings" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet" viewBox="0 0 1000 600" aria-hidden="true">
+    <g fill="none" stroke="#b89a6a" stroke-width="1.2">
+      <!-- Rings around main cluster (center-right) -->
+      <ellipse cx="560" cy="300" rx="150" ry="88"  opacity="0.30"/>
+      <ellipse cx="560" cy="300" rx="190" ry="112" opacity="0.24"/>
+      <ellipse cx="560" cy="300" rx="235" ry="140" opacity="0.18"/>
+      <ellipse cx="560" cy="300" rx="285" ry="172" opacity="0.12"/>
+      <!-- Rings around left pair -->
+      <ellipse cx="330" cy="380" rx="105" ry="62"  opacity="0.28"/>
+      <ellipse cx="330" cy="380" rx="140" ry="84"  opacity="0.20"/>
+      <ellipse cx="330" cy="380" rx="178" ry="108" opacity="0.13"/>
+      <!-- Rings around small upper stone -->
+      <ellipse cx="450" cy="185" rx="78"  ry="46"  opacity="0.26"/>
+      <ellipse cx="450" cy="185" rx="108" ry="64"  opacity="0.17"/>
+      <ellipse cx="450" cy="185" rx="140" ry="84"  opacity="0.10"/>
+    </g>
+  </svg>
+
+  <!-- ===== Stepping-stone path (left) ===== -->
+  <nav class="stones-path" aria-label="Stepping stone path">
+    <div class="step-stone"></div>
+    <div class="step-stone"></div>
+    <div class="step-stone"></div>
+    <div class="step-stone"></div>
+    <div class="step-stone"></div>
+    <div class="step-stone"></div>
+  </nav>
+
+  <!-- ===== Bamboo stalks (right) ===== -->
+  <aside class="bamboo-group" aria-label="Bamboo stalks">
+    <div class="bamboo"></div>
+    <div class="bamboo"></div>
+    <div class="bamboo"></div>
+    <div class="bamboo"></div>
+  </aside>
+
+  <!-- ===== Rocks (drift with mouse) ===== -->
+  <div class="rocks-layer" id="rocksLayer">
+
+    <!-- Large anchor stone (center-right) -->
+    <figure class="rock-group" data-depth="1.0" style="left: 46%; top: 24%;" aria-label="Large stone">
+      <svg width="190" height="150" viewBox="0 0 190 150">
+        <path d="M 28 118 C 10 96, 14 58, 40 38 C 62 20, 96 12, 124 22 C 152 32, 172 58, 168 88 C 164 116, 142 138, 108 142 C 74 146, 44 138, 28 118 Z"
+              fill="#5a5248"/>
+        <path d="M 40 44 C 60 26, 92 18, 118 26 C 142 34, 158 54, 162 78"
+              fill="none" stroke="#8f8577" stroke-width="3" stroke-linecap="round" opacity="0.55"/>
+        <path d="M 46 108 C 40 88, 44 64, 58 50"
+              fill="none" stroke="#7a7062" stroke-width="2" stroke-linecap="round" opacity="0.4"/>
+        <ellipse cx="70" cy="52" rx="26" ry="14" fill="#756c5e" opacity="0.5" transform="rotate(-18 70 52)"/>
+      </svg>
+    </figure>
+
+    <!-- Medium companion stone (right of large) -->
+    <figure class="rock-group" data-depth="0.7" style="left: 60%; top: 34%;" aria-label="Medium stone">
+      <svg width="120" height="100" viewBox="0 0 120 100">
+        <path d="M 18 78 C 6 60, 10 34, 32 22 C 52 12, 78 14, 94 30 C 110 46, 112 68, 98 82 C 82 98, 48 96, 18 78 Z"
+              fill="#635a4e"/>
+        <path d="M 30 28 C 48 16, 72 18, 88 32"
+              fill="none" stroke="#948a7a" stroke-width="2.5" stroke-linecap="round" opacity="0.5"/>
+        <ellipse cx="48" cy="40" rx="18" ry="10" fill="#7d7365" opacity="0.45" transform="rotate(-12 48 40)"/>
+      </svg>
+    </figure>
+
+    <!-- Left pair — tall stone -->
+    <figure class="rock-group" data-depth="0.85" style="left: 27%; top: 48%;" aria-label="Tall stone">
+      <svg width="90" height="140" viewBox="0 0 90 140">
+        <path d="M 22 124 C 8 104, 10 66, 26 40 C 38 20, 58 14, 70 30 C 82 46, 84 84, 74 110 C 66 130, 38 138, 22 124 Z"
+              fill="#524a40"/>
+        <path d="M 28 44 C 36 26, 54 20, 64 32"
+              fill="none" stroke="#8a8072" stroke-width="2.5" stroke-linecap="round" opacity="0.5"/>
+        <path d="M 26 108 C 20 88, 22 62, 32 46"
+              fill="none" stroke="#6e6557" stroke-width="1.8" stroke-linecap="round" opacity="0.35"/>
+      </svg>
+    </figure>
+
+    <!-- Left pair — low stone -->
+    <figure class="rock-group" data-depth="0.6" style="left: 34%; top: 58%;" aria-label="Low stone">
+      <svg width="110" height="70" viewBox="0 0 110 70">
+        <path d="M 14 52 C 4 40, 8 22, 28 14 C 48 6, 76 8, 92 20 C 104 30, 104 46, 92 56 C 76 68, 34 66, 14 52 Z"
+              fill="#6a6155"/>
+        <path d="M 26 20 C 44 10, 70 12, 86 24"
+              fill="none" stroke="#9a9080" stroke-width="2.2" stroke-linecap="round" opacity="0.5"/>
+      </svg>
+    </figure>
+
+    <!-- Small upper accent stone -->
+    <figure class="rock-group" data-depth="1.2" style="left: 41%; top: 22%;" aria-label="Small stone">
+      <svg width="70" height="60" viewBox="0 0 70 60">
+        <path d="M 12 44 C 4 34, 8 18, 24 12 C 40 6, 56 12, 62 26 C 66 38, 58 50, 42 54 C 28 58, 18 52, 12 44 Z"
+              fill="#5e564a"/>
+        <path d="M 22 16 C 34 10, 48 14, 56 24"
+              fill="none" stroke="#8d8375" stroke-width="2" stroke-linecap="round" opacity="0.5"/>
+      </svg>
+    </figure>
+
+  </div>
+
+  <!-- ===== Title ===== -->
+  <header class="zen-title">
+    <h1>Zen Garden</h1>
+    <div class="divider"></div>
+    <p class="sub">stillness in motion</p>
+  </header>
+
+</main>
+
+<script>
+(function () {
+  'use strict';
+
+  const rocks = Array.from(document.querySelectorAll('.rock-group'));
+  let targetX = 0, targetY = 0;   // normalized -1..1
+  let curX = 0, curY = 0;         // eased values
+  let rafId = null;
+
+  function onMove(e) {
+    const w = window.innerWidth, h = window.innerHeight;
+    targetX = (e.clientX / w) * 2 - 1;
+    targetY = (e.clientY / h) * 2 - 1;
+    if (!rafId) rafId = requestAnimationFrame(tick);
+  }
+
+  function tick() {
+    // Ease toward target for a gentle breeze feel
+    curX += (targetX - curX) * 0.045;
+    curY += (targetY - curY) * 0.045;
+
+    for (const rock of rocks) {
+      const depth = parseFloat(rock.dataset.depth) || 1;
+      const dx = -curX * 14 * depth;   // drift opposite to cursor
+      const dy = -curY * 9 * depth;
+      rock.style.transform = `translate(${dx.toFixed(2)}px, ${dy.toFixed(2)}px)`;
+    }
+
+    // Keep animating while easing hasn't settled
+    if (Math.abs(targetX - curX) > 0.001 || Math.abs(targetY - curY) > 0.001) {
+      rafId = requestAnimationFrame(tick);
+    } else {
+      rafId = null;
+    }
+  }
+
+  window.addEventListener('mousemove', onMove, { passive: true });
+
+  // Touch support: treat touchmove like mousemove
+  window.addEventListener('touchmove', function (e) {
+    if (e.touches.length) onMove(e.touches[0]);
+  }, { passive: true });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,40 @@
+Folding Fan — Creative Prompt Artifact
+=======================================
+
+Creative prompt:
+Create animated folding fans that open and close gently. Each fan has multiple
+ribs (spokes) with fabric panels between them, rendered in warm hues. The fan
+opens and closes with a sine-wave animation. Ribs are drawn as lines with
+varying width and color, and fabric panels are semi-transparent filled
+triangles. A pivot dot and handle complete the design. Clicking regenerates
+the fans. The background is dark with trailing fade. The overall aesthetic is
+elegant, traditional, and kinetic — like hand-painted Japanese fans.
+
+Model: Qwen3.8-27B-instruct
+Thinking effort: high
+
+Techniques used:
+- Canvas 2D fan rendering with trigonometric rib placement (cos/sin around a
+  pivot), rib count randomized 7–12 per fan.
+- Radial fan fabric panels as semi-transparent filled triangles between
+  adjacent ribs, shaded with radial gradients (darker toward the pivot) and
+  subtle per-panel alpha shimmer.
+- Rib lines with per-rib linear gradients and varying width (thicker mid-ribs,
+  thinner edge ribs) plus small bead caps at the tips.
+- Sine-wave open/close animation: each fan's angular span oscillates between a
+  near-closed angle and a fully-open span via a cosine-driven 0..1 oscillator
+  with per-fan phase and speed.
+- Pivot dot rendered as a brass-like radial-gradient sphere with specular
+  highlight; handle drawn as a tapered stem with a cap, oriented opposite the
+  fan opening.
+- Decorative painted border arcs near the rim for a hand-painted feel.
+- Click (pointerdown) regeneration with new hues, positions, sizes, and
+  orientations; fan count adapts to viewport width.
+- Trailing background fade via a translucent dark wash each frame instead of
+  a full clear, combined with 'lighter' composite mode for luminous warmth.
+- Warm traditional palette: vermilion, persimmon, amber/gold, and rosewood
+  hue bands.
+- Responsive: devicePixelRatio-aware canvas sizing, fan count scales with
+  screen size, hint text uses clamp().
+
+Wall time: N/A | Tokens: N/A

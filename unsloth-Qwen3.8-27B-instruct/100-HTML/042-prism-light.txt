@@ -1,0 +1,22 @@
+Prism Light — Refraction Study
+===============================
+
+Creative Prompt:
+Create a light refraction visualization showing white light entering a triangular prism and splitting into rainbow-colored beams. The prism follows the mouse cursor. Twelve beams emanate from the prism, each with a unique hue, following slightly different paths to simulate refraction. Each beam has segments that bend, creating a scattered rainbow effect. Beams have endpoint glow. Clicking regenerates the beam configuration at the click position. The background is dark with trailing fade. The overall aesthetic is scientific, colorful, and luminous — like a physics demo meets light art.
+
+Model: Qwen3.8-27B-instruct
+Thinking effort: high
+
+Techniques:
+- Canvas multi-segment beam rendering with per-segment angle perturbation (static random + animated sinusoidal wobble)
+- HSL hue cycling for continuous rainbow effect across 12 distributed beams
+- Beam glow via layered strokes (core + wide soft halo) using globalCompositeOperation 'lighter'
+- Radial gradient endpoint glows with breathing animation
+- Triangular prism shape with glass gradient fill, facet lines, and outer glow, following mouse with exponential easing
+- White incoming light beam with linear gradient core + source glow
+- Click-driven beam regeneration with expanding pulse ring
+- Trailing background fade via translucent dark overlay each frame
+- Ambient floating dust particles for depth
+- DPR-aware canvas sizing, touch support, responsive HUD
+
+Wall time: N/A | Tokens: N/A

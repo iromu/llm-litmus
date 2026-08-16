@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lumina — A Scroll Story</title>
+<style>
+  /* ============ Reset & Base ============ */
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg-deep: #06060e;
+    --ink: #f4f2ff;
+    --ink-dim: rgba(244, 242, 255, 0.55);
+    --ink-faint: rgba(244, 242, 255, 0.28);
+    --accent-a: #7c6cff;
+    --accent-b: #4dd6ff;
+    --accent-c: #ff6ec7;
+    --dot-size: 10px;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background: var(--bg-deep);
+    color: var(--ink);
+    font-family: "Avenir Next", "Segoe UI", system-ui, -apple-system, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+
+  ::selection { background: rgba(124, 108, 255, 0.35); }
+
+  /* ============ Scroll Container ============ */
+  .story {
+    height: 100vh;
+    height: 100dvh;
+    overflow-y: auto;
+    scroll-snap-type: y mandatory;
+    scrollbar-width: none;
+  }
+  .story::-webkit-scrollbar { display: none; }
+
+  section.panel {
+    position: relative;
+    height: 100vh;
+    height: 100dvh;
+    width: 100%;
+    scroll-snap-align: start;
+    scroll-snap-stop: always;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  /* Subtle radial overlays — distinct per section */
+  .panel::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+
+  #intro::before {
+    background:
+      radial-gradient(ellipse 90% 65% at 50% 115%, rgba(124, 108, 255, 0.22), transparent 65%),
+      radial-gradient(ellipse 60% 45% at 85% -10%, rgba(77, 214, 255, 0.10), transparent 60%);
+  }
+
+  #stats::before {
+    background:
+      radial-gradient(ellipse 80% 60% at 15% 50%, rgba(77, 214, 255, 0.14), transparent 62%),
+      radial-gradient(ellipse 55% 45% at 90% 90%, rgba(124, 108, 255, 0.14), transparent 60%);
+  }
+
+  #process::before {
+    background:
+      radial-gradient(ellipse 75% 60% at 85% 40%, rgba(255, 110, 199, 0.12), transparent 62%),
+      radial-gradient(ellipse 60% 50% at 10% 95%, rgba(124, 108, 255, 0.12), transparent 60%);
+  }
+
+  #cta::before {
+    background:
+      radial-gradient(ellipse 95% 70% at 50% 50%, rgba(124, 108, 255, 0.16), transparent 65%),
+      radial-gradient(ellipse 50% 40% at 50% 110%, rgba(255, 110, 199, 0.14), transparent 60%);
+  }
+
+  /* Faint grain for texture */
+  .panel::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.05;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)' opacity='0.6'/%3E%3C/svg%3E");
+  }
+
+  .panel > .content {
+    position: relative;
+    z-index: 2;
+    width: min(92vw, 1080px);
+    text-align: center;
+  }
+
+  /* ============ Reveal Animation ============ */
+  .reveal {
+    opacity: 0;
+    transform: translateY(34px);
+    transition: opacity 0.9s cubic-bezier(0.22, 1, 0.36, 1),
+                transform 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .panel.active .reveal { opacity: 1; transform: translateY(0); }
+  .panel.active .reveal.d1 { transition-delay: 0.12s; }
+  .panel.active .reveal.d2 { transition-delay: 0.24s; }
+  .panel.active .reveal.d3 { transition-delay: 0.36s; }
+  .panel.active .reveal.d4 { transition-delay: 0.48s; }
+
+  /* ============ Section 1: Intro ============ */
+  .eyebrow {
+    display: inline-block;
+    font-size: clamp(0.7rem, 1.4vw, 0.85rem);
+    letter-spacing: 0.42em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+    border: 1px solid rgba(244, 242, 255, 0.14);
+    border-radius: 999px;
+    padding: 0.65em 1.6em;
+    margin-bottom: clamp(1.6rem, 4vh, 2.6rem);
+    backdrop-filter: blur(6px);
+  }
+
+  h1.headline {
+    font-size: clamp(3rem, 11vw, 8.5rem);
+    line-height: 1.02;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    background: linear-gradient(115deg, #fff 0%, var(--accent-a) 38%, var(--accent-b) 68%, var(--accent-c) 100%);
+    background-size: 220% 220%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+    animation: gradientDrift 9s ease-in-out infinite alternate;
+  }
+
+  @keyframes gradientDrift {
+    0%   { background-position: 0% 50%; }
+    100% { background-position: 100% 50%; }
+  }
+
+  .subline {
+    margin-top: clamp(1.2rem, 3vh, 2rem);
+    font-size: clamp(1rem, 2.2vw, 1.3rem);
+    font-weight: 300;
+    color: var(--ink-dim);
+    max-width: 34ch;
+    margin-left: auto;
+    margin-right: auto;
+    line-height: 1.6;
+  }
+
+  .scroll-hint {
+    position: absolute;
+    bottom: clamp(1.6rem, 5vh, 3rem);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.7rem;
+    color: var(--ink-faint);
+    font-size: 0.72rem;
+    letter-spacing: 0.34em;
+    text-transform: uppercase;
+  }
+
+  .scroll-hint .mouse {
+    width: 26px;
+    height: 42px;
+    border: 1.5px solid rgba(244, 242, 255, 0.3);
+    border-radius: 14px;
+    position: relative;
+  }
+  .scroll-hint .mouse::before {
+    content: "";
+    position: absolute;
+    top: 7px;
+    left: 50%;
+    width: 3px;
+    height: 8px;
+    margin-left: -1.5px;
+    border-radius: 3px;
+    background: var(--accent-b);
+    animation: wheelDrop 1.8s ease-in-out infinite;
+  }
+  @keyframes wheelDrop {
+    0%   { transform: translateY(0); opacity: 1; }
+    70%  { transform: translateY(14px); opacity: 0; }
+    100% { transform: translateY(0); opacity: 0; }
+  }
+
+  .bounce-arrow {
+    display: block;
+    width: 1px;
+    height: 34px;
+    background: linear-gradient(to bottom, transparent, rgba(244,242,255,0.4));
+    animation: bounceHint 2.2s ease-in-out infinite;
+  }
+  @keyframes bounceHint {
+    0%, 100% { transform: translateY(0); opacity: 0.5; }
+    50%      { transform: translateY(9px); opacity: 1; }
+  }
+
+  /* ============ Section 2: Stats ============ */
+  .section-label {
+    font-size: clamp(0.7rem, 1.4vw, 0.82rem);
+    letter-spacing: 0.42em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin-bottom: clamp(2rem, 6vh, 3.4rem);
+  }
+
+  .stat-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: clamp(1.4rem, 4vw, 3rem);
+  }
+
+  .stat {
+    padding: clamp(1.4rem, 3.5vw, 2.4rem) clamp(0.8rem, 2vw, 1.4rem);
+    border-radius: 20px;
+    border: 1px solid rgba(244, 242, 255, 0.08);
+    background: rgba(255, 255, 255, 0.02);
+    backdrop-filter: blur(8px);
+    transition: border-color 0.4s ease, transform 0.4s ease, background 0.4s ease;
+  }
+  .stat:hover {
+    border-color: rgba(124, 108, 255, 0.4);
+    transform: translateY(-4px);
+    background: rgba(124, 108, 255, 0.05);
+  }
+
+  .stat .num {
+    font-size: clamp(2.4rem, 6.5vw, 4.6rem);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1;
+    background: linear-gradient(120deg, var(--accent-b), var(--accent-a) 55%, var(--accent-c));
+    background-size: 200% 200%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+    animation: gradientDrift 7s ease-in-out infinite alternate;
+  }
+  .stat:nth-child(2) .num { animation-delay: -2.4s; }
+  .stat:nth-child(3) .num { animation-delay: -4.8s; }
+
+  .stat .label {
+    margin-top: 0.9rem;
+    font-size: clamp(0.78rem, 1.5vw, 0.95rem);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+  }
+
+  /* ============ Section 3: Process ============ */
+  .steps {
+    list-style: none;
+    display: grid;
+    gap: clamp(0.9rem, 2.4vh, 1.4rem);
+    max-width: 720px;
+    margin: 0 auto;
+    text-align: left;
+  }
+
+  .step {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: clamp(1rem, 3vw, 1.8rem);
+    align-items: center;
+    padding: clamp(1rem, 2.6vw, 1.5rem) clamp(1.2rem, 3vw, 2rem);
+    border-radius: 18px;
+    border: 1px solid rgba(244, 242, 255, 0.07);
+    background: rgba(255, 255, 255, 0.015);
+    transition: border-color 0.35s ease, background 0.35s ease, transform 0.35s ease;
+    cursor: default;
+  }
+  .step:hover {
+    border-color: rgba(255, 110, 199, 0.35);
+    background: rgba(255, 110, 199, 0.04);
+    transform: translateX(6px);
+  }
+
+  .step .index {
+    font-size: clamp(1.5rem, 4vw, 2.2rem);
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    background: linear-gradient(160deg, var(--accent-c), var(--accent-a));
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+    min-width: 2.2ch;
+    text-align: center;
+  }
+
+  .step h3 {
+    font-size: clamp(1rem, 2.4vw, 1.25rem);
+    font-weight: 600;
+    margin-bottom: 0.3rem;
+  }
+  .step p {
+    font-size: clamp(0.85rem, 1.8vw, 0.98rem);
+    color: var(--ink-dim);
+    line-height: 1.55;
+    font-weight: 300;
+  }
+
+  /* ============ Section 4: CTA ============ */
+  .cta-title {
+    font-size: clamp(2.4rem, 8vw, 5.5rem);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.05;
+    background: linear-gradient(120deg, #fff, var(--accent-b) 60%, var(--accent-a));
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+  }
+
+  .cta-sub {
+    margin: clamp(1.2rem, 3vh, 2rem) auto clamp(2rem, 5vh, 3rem);
+    max-width: 36ch;
+    color: var(--ink-dim);
+    font-size: clamp(0.95rem, 2vw, 1.15rem);
+    font-weight: 300;
+    line-height: 1.65;
+  }
+
+  .cta-btn {
+    position: relative;
+    display: inline-block;
+    font: inherit;
+    font-size: clamp(0.95rem, 2vw, 1.1rem);
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    color: var(--ink);
+    padding: 1.05em 2.8em;
+    border-radius: 999px;
+    border: 1px solid rgba(244, 242, 255, 0.25);
+    background: linear-gradient(120deg, rgba(124, 108, 255, 0.25), rgba(77, 214, 255, 0.18));
+    cursor: pointer;
+    overflow: hidden;
+    transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+                box-shadow 0.35s ease, border-color 0.35s ease;
+  }
+  .cta-btn::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(120deg, var(--accent-a), var(--accent-b));
+    opacity: 0;
+    transition: opacity 0.35s ease;
+    z-index: -1;
+  }
+  .cta-btn:hover {
+    transform: translateY(-3px) scale(1.02);
+    border-color: transparent;
+    box-shadow: 0 12px 44px -8px rgba(124, 108, 255, 0.55),
+                0 4px 18px -6px rgba(77, 214, 255, 0.4);
+  }
+  .cta-btn:hover::before { opacity: 1; }
+  .cta-btn:active { transform: translateY(-1px) scale(0.99); }
+  .cta-btn:focus-visible { outline: 2px solid var(--accent-b); outline-offset: 4px; }
+
+  .fine-print {
+    margin-top: clamp(1.4rem, 4vh, 2.2rem);
+    font-size: 0.75rem;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+
+  /* ============ Progress Dots ============ */
+  nav.progress {
+    position: fixed;
+    top: 50%;
+    right: clamp(1rem, 3vw, 2.2rem);
+    transform: translateY(-50%);
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    gap: 1.35rem;
+  }
+
+  .progress button {
+    appearance: none;
+    border: 0;
+    background: none;
+    padding: 0;
+    cursor: pointer;
+    width: var(--dot-size);
+    height: var(--dot-size);
+    border-radius: 50%;
+    background: rgba(244, 242, 255, 0.22);
+    transition: background 0.35s ease, box-shadow 0.35s ease, transform 0.35s ease;
+    position: relative;
+  }
+  .progress button:hover { background: rgba(244, 242, 255, 0.5); }
+  .progress button:focus-visible { outline: 2px solid var(--accent-b); outline-offset: 4px; }
+
+  .progress button.active {
+    background: linear-gradient(135deg, var(--accent-a), var(--accent-b));
+    box-shadow: 0 0 14px 2px rgba(124, 108, 255, 0.75),
+                0 0 34px 6px rgba(77, 214, 255, 0.3);
+    transform: scale(1.35);
+  }
+
+  .progress button .tip {
+    position: absolute;
+    right: calc(100% + 12px);
+    top: 50%;
+    transform: translateY(-50%) translateX(6px);
+    white-space: nowrap;
+    font-size: 0.68rem;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease, transform 0.3s ease;
+  }
+  .progress button:hover .tip,
+  .progress button.active .tip {
+    opacity: 1;
+    transform: translateY(-50%) translateX(0);
+  }
+
+  /* ============ Responsive ============ */
+  @media (max-width: 640px) {
+    .stat-grid { grid-template-columns: 1fr; gap: 1rem; }
+    nav.progress { right: 0.8rem; gap: 1.1rem; }
+    .progress button .tip { display: none; }
+    .step:hover { transform: none; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+  }
+</style>
+</head>
+<body>
+
+<main class="story" id="story">
+
+  <!-- 1 · Intro -->
+  <section class="panel active" id="intro" aria-label="Introduction">
+    <div class="content">
+      <span class="eyebrow reveal">Introducing Lumina</span>
+      <h1 class="headline reveal d1">Light,<br>Reimagined.</h1>
+      <p class="subline reveal d2">A quiet story about building something that glows from the inside out. Scroll to begin.</p>
+    </div>
+    <div class="scroll-hint" aria-hidden="true">
+      <span class="mouse"></span>
+      <span>Scroll</span>
+      <span class="bounce-arrow"></span>
+    </div>
+  </section>
+
+  <!-- 2 · Stats -->
+  <section class="panel" id="stats" aria-label="By the numbers">
+    <div class="content">
+      <p class="section-label reveal">By the numbers</p>
+      <div class="stat-grid">
+        <div class="stat reveal d1">
+          <div class="num" data-target="128" data-suffix="">0</div>
+          <div class="label">Experiments run</div>
+        </div>
+        <div class="stat reveal d2">
+          <div class="num" data-target="97" data-suffix="%">0</div>
+          <div class="label">Signal clarity</div>
+        </div>
+        <div class="stat reveal d3">
+          <div class="num" data-target="4" data-suffix="×">0</div>
+          <div class="label">Faster than before</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3 · Process -->
+  <section class="panel" id="process" aria-label="The process">
+    <div class="content">
+      <p class="section-label reveal">How it comes together</p>
+      <ol class="steps">
+        <li class="step reveal d1">
+          <span class="index">01</span>
+          <div>
+            <h3>Listen</h3>
+            <p>We start in silence — observing how light actually behaves, not how we assume it should.</p>
+          </div>
+        </li>
+        <li class="step reveal d2">
+          <span class="index">02</span>
+          <div>
+            <h3>Distill</h3>
+            <p>Every idea is reduced to its essence until only the irreplaceable part remains.</p>
+          </div>
+        </li>
+        <li class="step reveal d3">
+          <span class="index">03</span>
+          <div>
+            <h3>Craft</h3>
+            <p>Materials are chosen by hand and tuned until the surface feels inevitable.</p>
+          </div>
+        </li>
+        <li class="step reveal d4">
+          <span class="index">04</span>
+          <div>
+            <h3>Release</h3>
+            <p>The work leaves our hands only when it can stand on its own glow.</p>
+          </div>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- 4 · CTA -->
+  <section class="panel" id="cta" aria-label="Call to action">
+    <div class="content">
+      <h2 class="cta-title reveal">Step into<br>the light.</h2>
+      <p class="cta-sub reveal d1">Lumina arrives this season. Join the first circle and see what happens when restraint meets radiance.</p>
+      <button class="cta-btn reveal d2" type="button">Reserve yours</button>
+      <p class="fine-print reveal d3">Limited first edition · Ships worldwide</p>
+    </div>
+  </section>
+
+</main>
+
+<!-- Fixed progress indicator -->
+<nav class="progress" aria-label="Section navigation">
+  <button type="button" data-target="intro" aria-label="Go to Introduction"><span class="tip">Intro</span></button>
+  <button type="button" data-target="stats" aria-label="Go to Statistics"><span class="tip">Numbers</span></button>
+  <button type="button" data-target="process" aria-label="Go to Process"><span class="tip">Process</span></button>
+  <button type="button" data-target="cta" aria-label="Go to Call to action"><span class="tip">Begin</span></button>
+</nav>
+
+<script>
+(function () {
+  "use strict";
+
+  const panels = Array.from(document.querySelectorAll(".panel"));
+  const dots = Array.from(document.querySelectorAll(".progress button"));
+  const counters = Array.from(document.querySelectorAll(".num[data-target]"));
+  let counted = false;
+
+  /* ---- Active section tracking via IntersectionObserver ---- */
+  function setActive(id) {
+    panels.forEach((p) => p.classList.toggle("active", p.id === id));
+    dots.forEach((d) => d.classList.toggle("active", d.dataset.target === id));
+    if (id === "stats") countUp();
+  }
+
+  const observer = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting && entry.intersectionRatio >= 0.55) {
+          setActive(entry.target.id);
+        }
+      });
+    },
+    { threshold: [0.55], root: document.getElementById("story") }
+  );
+  panels.forEach((p) => observer.observe(p));
+
+  /* ---- Dot click → smooth scroll to section ---- */
+  dots.forEach((dot) => {
+    dot.addEventListener("click", () => {
+      const target = document.getElementById(dot.dataset.target);
+      if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  });
+
+  /* ---- Animated stat counters (run once when stats become visible) ---- */
+  function countUp() {
+    if (counted) return;
+    counted = true;
+    counters.forEach((el) => {
+      const target = parseInt(el.dataset.target, 10);
+      const suffix = el.dataset.suffix || "";
+      const duration = 1400;
+      const start = performance.now();
+      function tick(now) {
+        const t = Math.min((now - start) / duration, 1);
+        const eased = 1 - Math.pow(1 - t, 3); // easeOutCubic
+        el.textContent = Math.round(target * eased) + suffix;
+        if (t < 1) requestAnimationFrame(tick);
+      }
+      requestAnimationFrame(tick);
+    });
+  }
+
+  /* ---- CTA button feedback ---- */
+  const ctaBtn = document.querySelector(".cta-btn");
+  ctaBtn.addEventListener("click", () => {
+    const original = ctaBtn.textContent;
+    ctaBtn.textContent = "You're on the list ✦";
+    ctaBtn.disabled = true;
+    setTimeout(() => {
+      ctaBtn.textContent = original;
+      ctaBtn.disabled = false;
+    }, 2400);
+  });
+})();
+</script>
+</body>
+</html>

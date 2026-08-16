@@ -1,0 +1,20 @@
+Creative Prompt:
+Create a smoke simulation with billowing smoke particles that rise, expand, and fade. Smoke is emitted from the mouse cursor and from random points at the bottom. Particles are rendered as soft radial gradients in gray tones, creating a realistic smoke effect. Particles drift upward with wind-like random acceleration and grow in size as they fade. The background is very dark with trailing fade. The overall aesthetic is atmospheric, moody, and realistic — like smoke drifting in a dark room.
+
+Model: Qwen3.8-27B-instruct
+Thinking effort: high
+
+Techniques:
+- Canvas 2D particle system with object pool (max 300 particles)
+- Soft radial-gradient sprites in gray tones for volumetric smoke look
+- Additive blending ("lighter" composite) for glow accumulation between overlapping puffs
+- Brownian-motion turbulence via per-particle phase-shifted sine/cosine fields
+- Slowly varying global wind field (layered sines) for coherent drift
+- Size expansion + quadratic alpha decay over particle lifetime
+- Mouse-follow emission with velocity-interpolated trail spawning
+- Ambient bottom-edge emission + occasional larger plume bursts
+- Trailing fade via semi-transparent dark overlay each frame (motion blur)
+- Subtle animated vignette for depth
+- DPR-aware canvas sizing, touch support, responsive
+
+Wall time: N/A | Tokens: N/A

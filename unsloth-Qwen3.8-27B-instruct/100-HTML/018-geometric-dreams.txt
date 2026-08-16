@@ -1,0 +1,27 @@
+# 018 — Geometric Dreams
+
+## Creative Prompt
+
+Create an interactive 3D geometric shape visualization that morphs between platonic solids (tetrahedron, cube, octahedron, icosahedron). The shape is rendered as a wireframe with glowing colored edges and vertices on a dark background. The rotation follows the mouse cursor. Clicking or tapping morphs the shape into the next solid with a smooth ease-in-out transition. Edges and vertices have hue cycling based on position and time. The projection uses a simple 3D-to-2D perspective transform. The overall aesthetic is futuristic, minimalist, and hypnotic.
+
+## Model
+Qwen3.8-27B-instruct
+
+## Thinking Effort
+high
+
+## Techniques Used
+- Canvas 2D wireframe rendering of all four platonic solids defined analytically (golden-ratio icosahedron, normalized cube/octahedron/tetrahedron)
+- Unified 12-slot vertex / 30-slot edge representation so shapes of different topology interpolate slot-by-slot during morphs
+- Manual X/Y/Z rotation matrices applied per vertex, then a focal-length perspective projection (f = FOCAL / (FOCAL - z))
+- Painter's algorithm: edges sorted by average depth each frame; far edges dimmer/thinner, near edges brighter/thicker
+- Ease-in-out cubic interpolation for the morph transition (~1.1 s), plus a decaying pulse flash ring on click
+- Mouse-driven rotation targets with exponential smoothing (frame-rate independent follow factor); slow continuous Z auto-spin
+- HSL hue cycling driven by time + per-edge/per-vertex index + projected x-position
+- Two-pass glow rendering (wide low-alpha stroke + bright core) for edges; radial-gradient halo + bright core for vertices
+- Motion-blur trail via translucent full-screen clear (rgba fade) instead of hard clear
+- Ambient breathing radial gradient behind the shape; responsive HUD (title, shape name, progress dots, hint) with clamp() typography
+- Touch support (touchmove for rotation, touchend for morph) and devicePixelRatio-aware canvas sizing
+
+## Stats
+Wall time: N/A | Tokens: N/A

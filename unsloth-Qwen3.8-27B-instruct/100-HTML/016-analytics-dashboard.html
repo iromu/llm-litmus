@@ -1,0 +1,873 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pulse — Analytics Dashboard</title>
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg-deep: #0b1120;
+    --bg-mid: #111a2e;
+    --glass-bg: rgba(255, 255, 255, 0.045);
+    --glass-border: rgba(255, 255, 255, 0.09);
+    --glass-highlight: rgba(255, 255, 255, 0.14);
+    --text-primary: #e8edf7;
+    --text-secondary: #8b98b8;
+    --text-muted: #5a6880;
+    --green: #34d399;
+    --green-dim: rgba(52, 211, 153, 0.14);
+    --red: #f87171;
+    --red-dim: rgba(248, 113, 113, 0.14);
+    --blue: #60a5fa;
+    --blue-bright: #3b82f6;
+    --violet: #a78bfa;
+    --amber: #fbbf24;
+    --radius-lg: 20px;
+    --radius-md: 14px;
+    --radius-sm: 9px;
+    --shadow-card: 0 8px 32px rgba(0, 0, 0, 0.35);
+    --font: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  }
+
+  html { font-size: 16px; }
+
+  body {
+    font-family: var(--font);
+    min-height: 100vh;
+    background: var(--bg-deep);
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: clamp(12px, 3vw, 40px);
+    position: relative;
+    overflow-x: hidden;
+  }
+
+  body::before, body::after {
+    content: "";
+    position: fixed;
+    border-radius: 50%;
+    filter: blur(120px);
+    z-index: 0;
+    pointer-events: none;
+  }
+  body::before {
+    width: 55vw; height: 55vw;
+    top: -20vw; left: -12vw;
+    background: radial-gradient(circle, rgba(59, 130, 246, 0.16), transparent 65%);
+  }
+  body::after {
+    width: 48vw; height: 48vw;
+    bottom: -18vw; right: -10vw;
+    background: radial-gradient(circle, rgba(167, 139, 250, 0.13), transparent 65%);
+  }
+
+  .bg-grid {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.022) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.022) 1px, transparent 1px);
+    background-size: 44px 44px;
+    mask-image: radial-gradient(ellipse 90% 80% at 50% 40%, black 30%, transparent 80%);
+    -webkit-mask-image: radial-gradient(ellipse 90% 80% at 50% 40%, black 30%, transparent 80%);
+  }
+
+  /* ============ Glass Shell ============ */
+  .dashboard {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 1120px;
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-lg);
+    backdrop-filter: blur(22px) saturate(1.3);
+    -webkit-backdrop-filter: blur(22px) saturate(1.3);
+    box-shadow: var(--shadow-card), inset 0 1px 0 rgba(255,255,255,0.08);
+    padding: clamp(20px, 3.4vw, 36px);
+    overflow: hidden;
+  }
+  .dashboard::before {
+    content: "";
+    position: absolute;
+    top: 0; left: 10%; right: 10%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.35), transparent);
+  }
+
+  /* ============ Header ============ */
+  .dash-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 26px;
+  }
+
+  .brand { display: flex; align-items: center; gap: 14px; }
+
+  .brand-mark {
+    width: 42px; height: 42px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, var(--blue-bright), var(--violet));
+    display: grid;
+    place-items: center;
+    box-shadow: 0 4px 18px rgba(59, 130, 246, 0.4);
+    flex-shrink: 0;
+  }
+  .brand-mark svg { width: 22px; height: 22px; }
+
+  .brand h1 {
+    font-size: 1.28rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+  .brand p {
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    margin-top: 2px;
+  }
+
+  .period-selector {
+    display: flex;
+    background: rgba(0, 0, 0, 0.28);
+    border: 1px solid var(--glass-border);
+    border-radius: 999px;
+    padding: 4px;
+    gap: 2px;
+  }
+  .period-btn {
+    appearance: none;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    font-family: inherit;
+    font-size: 0.78rem;
+    font-weight: 600;
+    padding: 7px 15px;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: all 0.25s ease;
+  }
+  .period-btn:hover { color: var(--text-primary); }
+  .period-btn.active {
+    background: linear-gradient(135deg, var(--blue-bright), #4f6ef7);
+    color: #fff;
+    box-shadow: 0 2px 12px rgba(59, 130, 246, 0.45);
+  }
+
+  /* ============ KPI Cards ============ */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 18px;
+  }
+
+  .kpi-card {
+    background: rgba(255, 255, 255, 0.035);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-md);
+    padding: 18px 18px 14px;
+    position: relative;
+    transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+                box-shadow 0.3s ease, border-color 0.3s ease, background 0.3s ease;
+    overflow: hidden;
+  }
+  .kpi-card::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(120% 90% at 0% 0%, rgba(255,255,255,0.06), transparent 55%);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+  .kpi-card:hover {
+    transform: translateY(-5px);
+    border-color: var(--glass-highlight);
+    background: rgba(255, 255, 255, 0.06);
+    box-shadow: 0 14px 34px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255,255,255,0.04);
+  }
+  .kpi-card:hover::before { opacity: 1; }
+
+  .kpi-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .kpi-label {
+    font-size: 0.74rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.09em;
+    color: var(--text-secondary);
+  }
+  .kpi-icon {
+    width: 34px; height: 34px;
+    border-radius: 10px;
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+  }
+  .kpi-icon svg { width: 17px; height: 17px; }
+  .kpi-icon.blue   { background: rgba(96, 165, 250, 0.15); color: var(--blue); }
+  .kpi-icon.green  { background: var(--green-dim); color: var(--green); }
+  .kpi-icon.violet { background: rgba(167, 139, 250, 0.15); color: var(--violet); }
+  .kpi-icon.amber  { background: rgba(251, 191, 36, 0.14); color: var(--amber); }
+
+  .kpi-value {
+    font-size: 1.72rem;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+    margin-bottom: 8px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .kpi-meta {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 0.78rem;
+    margin-bottom: 14px;
+  }
+  .delta {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 999px;
+  }
+  .delta.up   { color: var(--green); background: var(--green-dim); }
+  .delta.down { color: var(--red);   background: var(--red-dim); }
+  .delta svg { width: 10px; height: 10px; }
+  .kpi-meta span.vs { color: var(--text-muted); }
+
+  /* Sparklines */
+  .sparkline {
+    display: flex;
+    align-items: flex-end;
+    gap: 3px;
+    height: 34px;
+  }
+  .sparkline i {
+    flex: 1;
+    border-radius: 2.5px;
+    background: currentColor;
+    opacity: 0.85;
+    transform-origin: bottom;
+    animation: sparkGrow 0.7s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  }
+  .sparkline i:last-child { opacity: 1; box-shadow: 0 0 8px currentColor; }
+  @keyframes sparkGrow { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+
+  /* ============ Charts Section ============ */
+  .charts-grid {
+    display: grid;
+    grid-template-columns: 1.55fr 1fr;
+    gap: 16px;
+    margin-bottom: 18px;
+  }
+
+  .panel {
+    background: rgba(255, 255, 255, 0.035);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-md);
+    padding: 20px;
+    transition: border-color 0.3s ease;
+  }
+  .panel:hover { border-color: var(--glass-highlight); }
+
+  .panel-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 20px;
+  }
+  .panel-head h2 {
+    font-size: 0.98rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+  .panel-head .sub {
+    font-size: 0.74rem;
+    color: var(--text-muted);
+  }
+
+  /* --- Bar chart --- */
+  .bar-chart {
+    display: flex;
+    align-items: flex-end;
+    gap: clamp(8px, 2vw, 18px);
+    height: 190px;
+    padding-bottom: 26px;
+    position: relative;
+  }
+  .bar-chart::before {
+    content: "";
+    position: absolute;
+    left: 0; right: 0; bottom: 26px;
+    height: calc(100% - 26px);
+    background: repeating-linear-gradient(
+      to top,
+      rgba(255,255,255,0.05) 0,
+      rgba(255,255,255,0.05) 1px,
+      transparent 1px,
+      transparent 25%
+    );
+    pointer-events: none;
+  }
+
+  .bar-col {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    height: 100%;
+    justify-content: flex-end;
+    position: relative;
+    cursor: default;
+  }
+  .bar {
+    width: 100%;
+    max-width: 42px;
+    border-radius: 7px 7px 3px 3px;
+    background: linear-gradient(180deg, var(--blue) 0%, var(--blue-bright) 100%);
+    position: relative;
+    transform-origin: bottom;
+    animation: barGrow 0.85s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+    transition: filter 0.25s ease;
+  }
+  @keyframes barGrow { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+  .bar-col:hover .bar {
+    filter: brightness(1.25) drop-shadow(0 0 14px rgba(96, 165, 250, 0.55));
+  }
+  .bar-col.today .bar {
+    background: linear-gradient(180deg, var(--violet) 0%, var(--blue-bright) 100%);
+  }
+
+  .bar-label {
+    position: absolute;
+    bottom: -24px;
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+  }
+
+  .bar-tip {
+    position: absolute;
+    bottom: calc(100% + 9px);
+    left: 50%;
+    transform: translateX(-50%) translateY(4px);
+    background: #1c2740;
+    border: 1px solid var(--glass-highlight);
+    color: var(--text-primary);
+    font-size: 0.74rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    padding: 5px 10px;
+    border-radius: 8px;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.22s ease, transform 0.22s ease;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.5);
+    z-index: 5;
+  }
+  .bar-tip::after {
+    content: "";
+    position: absolute;
+    top: 100%; left: 50%;
+    transform: translateX(-50%);
+    border: 5px solid transparent;
+    border-top-color: #1c2740;
+  }
+  .bar-col:hover .bar-tip {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  /* --- Pie chart --- */
+  .pie-wrap {
+    display: flex;
+    align-items: center;
+    gap: 22px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .pie {
+    width: 158px;
+    height: 158px;
+    border-radius: 50%;
+    position: relative;
+    flex-shrink: 0;
+    animation: pieIn 0.9s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+    filter: drop-shadow(0 8px 24px rgba(0,0,0,0.4));
+  }
+  @keyframes pieIn {
+    from { transform: scale(0.6) rotate(-40deg); opacity: 0; }
+    to   { transform: scale(1) rotate(0deg); opacity: 1; }
+  }
+  .pie-hole {
+    position: absolute;
+    inset: 34px;
+    border-radius: 50%;
+    background: var(--bg-mid);
+    border: 1px solid var(--glass-border);
+    display: grid;
+    place-items: center;
+    text-align: center;
+  }
+  .pie-hole strong {
+    font-size: 1.06rem;
+    font-weight: 700;
+    display: block;
+    font-variant-numeric: tabular-nums;
+  }
+  .pie-hole small {
+    font-size: 0.62rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  .legend {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-width: 150px;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    transition: color 0.2s;
+    cursor: default;
+  }
+  .legend-item:hover { color: var(--text-primary); }
+  .legend-dot {
+    width: 10px; height: 10px;
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+  .legend-item .pct {
+    margin-left: auto;
+    font-weight: 700;
+    color: var(--text-primary);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ============ Activity Feed ============ */
+  .activity-panel { padding-bottom: 10px; }
+  .activity-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+  }
+  .activity-item {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 11px 8px;
+    border-radius: var(--radius-sm);
+    transition: background 0.2s ease;
+    position: relative;
+    opacity: 0;
+    transform: translateY(8px);
+    animation: fadeUp 0.5s ease forwards;
+  }
+  @keyframes fadeUp { to { opacity: 1; transform: translateY(0); } }
+  .activity-item:not(:last-child)::after {
+    content: "";
+    position: absolute;
+    left: 21px;
+    top: 38px;
+    bottom: -11px;
+    width: 1px;
+    background: rgba(255,255,255,0.07);
+  }
+  .activity-item:hover { background: rgba(255,255,255,0.035); }
+
+  .act-dot {
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    position: relative;
+    z-index: 1;
+  }
+  .act-dot::before {
+    content: "";
+    position: absolute;
+    inset: -4px;
+    border-radius: 50%;
+    border: 1px solid currentColor;
+    opacity: 0.35;
+  }
+  .act-dot svg { width: 12px; height: 12px; }
+  .act-dot.green  { color: var(--green);  background: var(--green-dim); }
+  .act-dot.blue   { color: var(--blue);   background: rgba(96,165,250,0.14); }
+  .act-dot.violet { color: var(--violet); background: rgba(167,139,250,0.14); }
+  .act-dot.amber  { color: var(--amber);  background: rgba(251,191,36,0.13); }
+  .act-dot.red    { color: var(--red);    background: var(--red-dim); }
+
+  .act-text { font-size: 0.84rem; flex: 1; min-width: 0; }
+  .act-text b { font-weight: 600; }
+  .act-text .amount { color: var(--green); font-weight: 700; }
+  .act-time {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .dash-footer {
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid rgba(255,255,255,0.06);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    font-size: 0.72rem;
+    color: var(--text-muted);
+  }
+  .live-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--green);
+    font-weight: 600;
+  }
+  .live-pill::before {
+    content: "";
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--green);
+    animation: pulse 1.8s ease infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.5); }
+    50%      { box-shadow: 0 0 0 6px rgba(52, 211, 153, 0); }
+  }
+
+  /* ============ Responsive ============ */
+  @media (max-width: 900px) {
+    .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+    .charts-grid { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 540px) {
+    .kpi-grid { grid-template-columns: 1fr; }
+    .kpi-value { font-size: 1.5rem; }
+    .bar-chart { height: 150px; }
+    .pie { width: 132px; height: 132px; }
+    .pie-hole { inset: 28px; }
+    .dash-header { flex-direction: column; align-items: flex-start; }
+    .period-selector { width: 100%; justify-content: space-between; }
+    .period-btn { flex: 1; text-align: center; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-delay: 0ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+</style>
+</head>
+<body>
+
+<div class="bg-grid" aria-hidden="true"></div>
+
+<main class="dashboard" role="main">
+
+  <!-- ===== Header ===== -->
+  <header class="dash-header">
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="3 14 8 9 12 12 17 6 21 10"/>
+          <polyline points="15 6 21 6 21 12"/>
+        </svg>
+      </div>
+      <div>
+        <h1>Pulse Analytics</h1>
+        <p>Overview · Last updated 2 min ago</p>
+      </div>
+    </div>
+    <nav class="period-selector" aria-label="Reporting period">
+      <button class="period-btn" type="button">Today</button>
+      <button class="period-btn active" type="button">Week</button>
+      <button class="period-btn" type="button">Month</button>
+      <button class="period-btn" type="button">Quarter</button>
+    </nav>
+  </header>
+
+  <!-- ===== KPI Cards ===== -->
+  <section class="kpi-grid" aria-label="Key performance indicators">
+
+    <article class="kpi-card">
+      <div class="kpi-top">
+        <span class="kpi-label">Total Revenue</span>
+        <span class="kpi-icon blue" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        </span>
+      </div>
+      <div class="kpi-value">$84,254</div>
+      <div class="kpi-meta">
+        <span class="delta up">
+          <svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8V2M2.5 4.5 5 2l2.5 2.5"/></svg>
+          12.4%
+        </span>
+        <span class="vs">vs last week</span>
+      </div>
+      <div class="sparkline" data-spark="rev" style="color: var(--blue)" aria-hidden="true"></div>
+    </article>
+
+    <article class="kpi-card">
+      <div class="kpi-top">
+        <span class="kpi-label">Active Users</span>
+        <span class="kpi-icon green" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        </span>
+      </div>
+      <div class="kpi-value">12,847</div>
+      <div class="kpi-meta">
+        <span class="delta up">
+          <svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8V2M2.5 4.5 5 2l2.5 2.5"/></svg>
+          8.1%
+        </span>
+        <span class="vs">vs last week</span>
+      </div>
+      <div class="sparkline" data-spark="users" style="color: var(--green)" aria-hidden="true"></div>
+    </article>
+
+    <article class="kpi-card">
+      <div class="kpi-top">
+        <span class="kpi-label">Conversion Rate</span>
+        <span class="kpi-icon violet" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        </span>
+      </div>
+      <div class="kpi-value">3.42%</div>
+      <div class="kpi-meta">
+        <span class="delta down">
+          <svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 2v6M2.5 5.5 5 8l2.5-2.5"/></svg>
+          1.8%
+        </span>
+        <span class="vs">vs last week</span>
+      </div>
+      <div class="sparkline" data-spark="conv" style="color: var(--violet)" aria-hidden="true"></div>
+    </article>
+
+    <article class="kpi-card">
+      <div class="kpi-top">
+        <span class="kpi-label">Avg. Order Value</span>
+        <span class="kpi-icon amber" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+        </span>
+      </div>
+      <div class="kpi-value">$67.90</div>
+      <div class="kpi-meta">
+        <span class="delta up">
+          <svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8V2M2.5 4.5 5 2l2.5 2.5"/></svg>
+          4.6%
+        </span>
+        <span class="vs">vs last week</span>
+      </div>
+      <div class="sparkline" data-spark="aov" style="color: var(--amber)" aria-hidden="true"></div>
+    </article>
+
+  </section>
+
+  <!-- ===== Charts ===== -->
+  <section class="charts-grid" aria-label="Charts">
+
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Weekly Revenue</h2>
+        <span class="sub">$54,930 total</span>
+      </div>
+      <div class="bar-chart" id="barChart" role="img" aria-label="Bar chart of daily revenue for the week"></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Traffic Sources</h2>
+        <span class="sub">This week</span>
+      </div>
+      <div class="pie-wrap">
+        <div class="pie" id="pie" role="img" aria-label="Pie chart of traffic sources">
+          <div class="pie-hole">
+            <strong>48.2K</strong>
+            <small>Sessions</small>
+          </div>
+        </div>
+        <ul class="legend" id="legend"></ul>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- ===== Activity Feed ===== -->
+  <section class="panel activity-panel" aria-label="Recent activity">
+    <div class="panel-head">
+      <h2>Recent Activity</h2>
+      <span class="sub">Live stream</span>
+    </div>
+    <ul class="activity-list" id="activityList"></ul>
+  </section>
+
+  <!-- ===== Footer ===== -->
+  <footer class="dash-footer">
+    <span class="live-pill">Live · syncing every 30s</span>
+    <span>Pulse Analytics v2.4 — data refreshed Aug 16, 2026 09:41 UTC</span>
+  </footer>
+
+</main>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ---------- Sparklines ---------- */
+  var sparkData = {
+    rev:   [38, 44, 40, 52, 48, 61, 57, 66, 62, 74, 70, 82],
+    users: [30, 34, 42, 39, 47, 50, 46, 55, 58, 54, 63, 68],
+    conv:  [62, 58, 60, 54, 56, 49, 52, 45, 47, 42, 44, 38],
+    aov:   [40, 46, 43, 50, 48, 55, 52, 58, 60, 57, 64, 69]
+  };
+
+  document.querySelectorAll(".sparkline").forEach(function (el) {
+    var values = sparkData[el.dataset.spark] || [];
+    var max = Math.max.apply(null, values);
+    values.forEach(function (v, i) {
+      var bar = document.createElement("i");
+      bar.style.height = (v / max * 100) + "%";
+      bar.style.animationDelay = (0.15 + i * 0.045) + "s";
+      el.appendChild(bar);
+    });
+  });
+
+  /* ---------- Bar chart ---------- */
+  var bars = [
+    { label: "Mon", value: 6420 },
+    { label: "Tue", value: 7180 },
+    { label: "Wed", value: 5940 },
+    { label: "Thu", value: 8310 },
+    { label: "Fri", value: 9640 },
+    { label: "Sat", value: 11230 },
+    { label: "Sun", value: 6210 }
+  ];
+  var maxBar = Math.max.apply(null, bars.map(function (b) { return b.value; }));
+  var chart = document.getElementById("barChart");
+
+  bars.forEach(function (b, i) {
+    var col = document.createElement("div");
+    col.className = "bar-col" + (i === 5 ? " today" : "");
+
+    var tip = document.createElement("span");
+    tip.className = "bar-tip";
+    tip.textContent = "$" + b.value.toLocaleString();
+
+    var bar = document.createElement("div");
+    bar.className = "bar";
+    bar.style.height = (b.value / maxBar * 100) + "%";
+    bar.style.animationDelay = (0.25 + i * 0.07) + "s";
+
+    var label = document.createElement("span");
+    label.className = "bar-label";
+    label.textContent = b.label;
+
+    col.appendChild(tip);
+    col.appendChild(bar);
+    col.appendChild(label);
+    chart.appendChild(col);
+  });
+
+  /* ---------- Pie chart (conic-gradient segments) ---------- */
+  var slices = [
+    { name: "Organic Search", pct: 42, color: "#3b82f6" },
+    { name: "Direct",         pct: 26, color: "#a78bfa" },
+    { name: "Social",         pct: 18, color: "#22d3ee" },
+    { name: "Referral",       pct: 9,  color: "#fbbf24" },
+    { name: "Email",          pct: 5,  color: "#f87171" }
+  ];
+
+  var pie = document.getElementById("pie");
+  var stops = [];
+  var acc = 0;
+  slices.forEach(function (s) {
+    var from = acc;
+    acc += s.pct;
+    stops.push(s.color + " " + from + "%" + " " + acc + "%");
+  });
+  pie.style.background = "conic-gradient(" + stops.join(", ") + ")";
+
+  var legend = document.getElementById("legend");
+  slices.forEach(function (s) {
+    var li = document.createElement("li");
+    li.className = "legend-item";
+    li.innerHTML =
+      '<span class="legend-dot" style="background:' + s.color + '"></span>' +
+      "<span>" + s.name + "</span>" +
+      '<span class="pct">' + s.pct + "%</span>";
+    legend.appendChild(li);
+  });
+
+  /* ---------- Activity feed ---------- */
+  var activities = [
+    { cls: "green",  icon: "check",  text: "<b>New subscription</b> — Acme Corp upgraded to Enterprise", amount: "+$2,400/mo", time: "2 min ago" },
+    { cls: "blue",   icon: "user",   text: "<b>Mia Chen</b> published report “Q3 Funnel Analysis”", time: "18 min ago" },
+    { cls: "violet", icon: "bolt",   text: "Campaign <b>Summer Push</b> hit 1M impressions milestone", time: "41 min ago" },
+    { cls: "amber",  icon: "warn",   text: "Checkout latency above 800ms on <b>EU-West</b>", time: "1 hr ago" },
+    { cls: "red",    icon: "x",      text: "Payment failed for order <b>#88213</b> — card declined", time: "2 hrs ago" },
+    { cls: "green",  icon: "check",  text: "Payout processed — <b>$18,320</b> transferred to bank ••4417", amount: "", time: "4 hrs ago" }
+  ];
+
+  var icons = {
+    check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
+    user:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/></svg>',
+    bolt:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>',
+    warn:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>',
+    x:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>'
+  };
+
+  var list = document.getElementById("activityList");
+  activities.forEach(function (a, i) {
+    var li = document.createElement("li");
+    li.className = "activity-item";
+    li.style.animationDelay = (0.5 + i * 0.1) + "s";
+    li.innerHTML =
+      '<span class="act-dot ' + a.cls + '">' + icons[a.icon] + "</span>" +
+      '<span class="act-text">' + a.text + (a.amount ? ' <span class="amount">' + a.amount + "</span>" : "") + "</span>" +
+      '<time class="act-time">' + a.time + "</time>";
+    list.appendChild(li);
+  });
+
+  /* ---------- Period selector (decorative) ---------- */
+  document.querySelectorAll(".period-btn").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      document.querySelector(".period-btn.active").classList.remove("active");
+      btn.classList.add("active");
+    });
+  });
+})();
+</script>
+</body>
+</html>

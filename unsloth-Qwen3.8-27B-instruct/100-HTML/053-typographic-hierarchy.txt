@@ -1,0 +1,27 @@
+Creative Prompt
+===============
+
+Create an editorial article page that demonstrates typographic hierarchy principles. The page features a large bold headline, italic subhead, byline, body text with optimal line length, section titles with numbered prefixes, a pull quote with left border, a two-column grid for secondary content, a stats row, and a numbered list. The design is clean, classic, and typography-focused — like a premium design publication article. Serif typography throughout with system-ui for metadata. Warm cream background with dark text.
+
+Metadata
+========
+Model: Qwen3.8-27B-instruct
+Thinking effort: high
+
+Techniques Used
+===============
+- CSS clamp() for fluid, responsive type scaling (headline 2.4rem–4.4rem, subhead, body)
+- Modular scale ratios preserved across breakpoints so hierarchy holds at any width
+- Pull quote with border-left accent + italic display sizing and cite attribution
+- Two-column grid for related/archive content, collapsing to single column under 640px
+- Stats row with double-rule top/bottom borders and per-cell border separation; reflows to 2x2 on mobile
+- Numbered list via CSS counters with decimal-leading-zero numbers in an aligned grid column
+- Hierarchical sizing from h1 down through h2/h3, kicker, byline, body, captions, colophon
+- Optimal measure: article max-width of 65ch with text-wrap: balance/pretty
+- Drop cap via ::first-letter on the opening paragraph
+- Classic editorial palette: warm cream (#f7f3ea), near-black ink, terracotta accent
+- System serif stack (Iowan Old Style / Palatino / Georgia) with system-ui for metadata
+- Responsive breakpoints at 640px and 480px; masthead stacks on small screens
+- Purely static — no JavaScript, no external fonts/images/CDNs; fully self-contained
+
+Wall time: N/A | Tokens: N/A

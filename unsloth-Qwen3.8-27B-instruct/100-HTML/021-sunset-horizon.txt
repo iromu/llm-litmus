@@ -1,0 +1,33 @@
+Sunset Horizon — Digital Art Gallery Piece
+==========================================
+
+Creative Prompt
+---------------
+Create an animated sunset landscape with a glowing sun, gradient sky, drifting clouds, flying birds, and silhouetted ground with trees. The sky transitions through deep purple, magenta, orange, and gold gradients. The sun has multiple glow layers and a bright core. Clouds are composed of soft radial gradient segments that drift horizontally. Birds fly with flapping wings. The ground has a wavy silhouette with stylized evergreen tree shapes. The title "Sunset Horizon" appears at the bottom in large, faint text. The overall aesthetic is painterly, warm, and serene — like a digital oil painting of golden hour.
+
+Model: Qwen3.8-27B-instruct
+Thinking effort: high
+
+Techniques Used
+---------------
+- Canvas multi-stop linear gradient sky (deep purple -> magenta -> orange -> gold)
+  with a slow sinusoidal hue/brightness "breathing" for a living atmosphere.
+- Radial-gradient sun with five layered glow halos plus a hot-core hotspot and a
+  horizontal light band across the horizon; subtle pulse animation.
+- Clouds built from clusters of overlapping soft radial-gradient puffs (warm-tinted
+  and cool-tinted), each drifting horizontally at individual speeds with gentle
+  vertical bobbing; wrap-around recycling off-screen.
+- Birds rendered as quadratic-curve V-wings with per-bird flap phase/speed and
+  vertical bob; recycled when they exit the screen.
+- Wavy ground silhouette via Path2D with layered sine displacement, dark warm
+  gradient fill, and a rim-light stroke along the top edge.
+- Stylized evergreen trees as stacked-triangle silhouettes with trunks, placed
+  procedurally with two taller feature trees near the edges for composition.
+- Faint twinkling stars in the upper sky, soft radial vignette for painterly depth,
+  and a large faint serif title with a gradient underline accent.
+- Responsive canvas with devicePixelRatio scaling (capped at 2x); resize
+  reinitializes the full scene layout after a debounce.
+- Single requestAnimationFrame loop with delta-time clamping; fully self-contained
+  (inline CSS + JS, no external dependencies).
+
+Wall time: N/A | Tokens: N/A

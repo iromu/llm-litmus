@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lightning Storm</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #000;
+    cursor: crosshair;
+  }
+
+  canvas {
+    display: block;
+    position: absolute;
+    top: 0;
+    left: 0;
+  }
+
+  .hint {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: rgba(160, 190, 255, 0.35);
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    pointer-events: none;
+    user-select: none;
+    transition: opacity 2s ease;
+    z-index: 10;
+  }
+
+  .hint.hidden { opacity: 0; }
+</style>
+</head>
+<body>
+<canvas id="storm"></canvas>
+<p class="hint" id="hint">click anywhere for a burst</p>
+
+<script>
+(() => {
+  'use strict';
+
+  // ─── Canvas Setup ──────────────────────────────────────────────
+  const canvas = document.getElementById('storm');
+  const ctx = canvas.getContext('2d');
+  let W, H;
+
+  function resize() {
+    W = canvas.width = window.innerWidth;
+    H = canvas.height = window.innerHeight;
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  // Hide hint after first interaction
+  const hint = document.getElementById('hint');
+  let hintHidden = false;
+  function hideHint() {
+    if (!hintHidden) {
+      hintHidden = true;
+      hint.classList.add('hidden');
+    }
+  }
+
+  // ─── Bolt Generation ───────────────────────────────────────────
+  // A bolt is a main path (array of points) plus an array of branches.
+  // Each branch is itself a path starting from a point on the main path.
+
+  function generateBoltPath(x0, y0, x1, y1, segments, jaggedness) {
+    const pts = [{ x: x0, y: y0 }];
+    const dx = (x1 - x0) / segments;
+    const dy = (y1 - y0) / segments;
+
+    for (let i = 1; i < segments; i++) {
+      const t = i / segments;
+      // Interpolate with random perpendicular offset
+      const perpX = -(y1 - y0);
+      const perpY = (x1 - x0);
+      const perpLen = Math.sqrt(perpX * perpX + perpY * perpY) || 1;
+      const offset = (Math.random() - 0.5) * 2 * jaggedness * (1 - Math.abs(t - 0.5) * 0.6);
+      const px = perpX / perpLen * offset;
+      const py = perpY / perpLen * offset;
+      pts.push({
+        x: x0 + dx * i + px + (Math.random() - 0.5) * jaggedness * 0.5,
+        y: y0 + dy * i + py + (Math.random() - 0.5) * jaggedness * 0.3
+      });
+    }
+    pts.push({ x: x1, y: y1 });
+    return pts;
+  }
+
+  function generateBranch(parentPts, index, length, angleBias) {
+    const p = parentPts[index];
+    const nextP = parentPts[Math.min(index + 1, parentPts.length - 1)];
+    const baseAngle = Math.atan2(nextP.y - p.y, nextP.x - p.x);
+    const angle = baseAngle + (Math.random() - 0.5) * 1.2 + angleBias * (Math.random() - 0.5);
+    const segs = 3 + Math.floor(Math.random() * 5);
+    const stepLen = length / segs;
+    const pts = [{ x: p.x, y: p.y }];
+    let cx = p.x, cy = p.y;
+    for (let i = 0; i < segs; i++) {
+      const a = angle + (Math.random() - 0.5) * 0.8;
+      cx += Math.cos(a) * stepLen;
+      cy += Math.sin(a) * stepLen;
+      pts.push({ x: cx, y: cy });
+    }
+    return pts;
+  }
+
+  function createBolt(x, y, targetY, power) {
+    const segments = 12 + Math.floor(Math.random() * 10) * power;
+    const jaggedness = (20 + Math.random() * 30) * power;
+    const endX = x + (Math.random() - 0.5) * 100 * power;
+    const endY = targetY !== undefined ? targetY : H * (0.5 + Math.random() * 0.5);
+
+    const mainPath = generateBoltPath(x, 0, endX, endY, segments, jaggedness);
+
+    // Generate branches
+    const branches = [];
+    const numBranches = Math.floor(2 + Math.random() * 4 * power);
+    for (let b = 0; b < numBranches; b++) {
+      const idx = 2 + Math.floor(Math.random() * (mainPath.length - 4));
+      if (idx >= 0 && idx < mainPath.length - 1) {
+        const branchLen = 30 + Math.random() * 80 * power;
+        const angleBias = (Math.random() > 0.5 ? 1 : -1) * 0.5;
+        branches.push(generateBranch(mainPath, idx, branchLen, angleBias));
+      }
+    }
+
+    return {
+      mainPath,
+      branches,
+      age: 0,
+      maxAge: 0.4 + Math.random() * 0.4, // seconds to fully fade
+      power: power,
+      brightness: 0.8 + Math.random() * 0.2
+    };
+  }
+
+  // ─── Bolt Pool ─────────────────────────────────────────────────
+  const MAX_BOLTS = 40;
+  let bolts = [];
+
+  function addBolt(bolt) {
+    if (bolts.length >= MAX_BOLTS) {
+      // Remove oldest (weakest visual impact)
+      bolts.shift();
+    }
+    bolts.push(bolt);
+  }
+
+  // ─── Flash System ──────────────────────────────────────────────
+  let flashAlpha = 0;
+  let flashColor = { r: 180, g: 210, b: 255 };
+
+  function triggerFlash(intensity) {
+    flashAlpha = Math.max(flashAlpha, intensity);
+  }
+
+  // ─── Ambient Cloud Glow ────────────────────────────────────────
+  // Subtle animated cloud layer at the top
+  const cloudSeeds = Array.from({ length: 8 }, () => ({
+    x: Math.random(),
+    speed: 0.005 + Math.random() * 0.015,
+    size: 0.3 + Math.random() * 0.5,
+    alpha: 0.015 + Math.random() * 0.025
+  }));
+
+  // ─── Rain Particles (subtle atmosphere) ───────────────────────
+  const RAIN_COUNT = 120;
+  const rain = Array.from({ length: RAIN_COUNT }, () => ({
+    x: Math.random(),
+    y: Math.random(),
+    speed: 0.4 + Math.random() * 0.6,
+    len: 8 + Math.random() * 16
+  }));
+
+  // ─── Strike Logic ──────────────────────────────────────────────
+  let lastTime = performance.now();
+  let autoStrikeTimer = 0;
+  let autoStrikeInterval = 1.5 + Math.random() * 2.5;
+
+  function strike(x, y, power) {
+    const bolt = createBolt(x, y, undefined, power);
+    addBolt(bolt);
+    triggerFlash(0.15 + power * 0.12);
+  }
+
+  function autoStrike() {
+    const x = Math.random() * W;
+    const power = 0.6 + Math.random() * 0.8;
+    strike(x, 0, power);
+    // Sometimes a double strike nearby
+    if (Math.random() < 0.3) {
+      setTimeout(() => {
+        const x2 = x + (Math.random() - 0.5) * 150;
+        strike(x2, 0, power * 0.6);
+      }, 80 + Math.random() * 120);
+    }
+  }
+
+  function burst(cx, cy) {
+    hideHint();
+    const count = 5;
+    for (let i = 0; i < count; i++) {
+      const angle = (i / count) * Math.PI * 2 + Math.random() * 0.5;
+      const dist = 30 + Math.random() * 120;
+      const x = cx + Math.cos(angle) * dist;
+      const power = 0.8 + Math.random() * 1.2;
+      setTimeout(() => {
+        strike(x, 0, power);
+      }, i * 60 + Math.random() * 80);
+    }
+    triggerFlash(0.35);
+  }
+
+  // ─── Input ─────────────────────────────────────────────────────
+  canvas.addEventListener('pointerdown', (e) => {
+    burst(e.clientX, e.clientY);
+  });
+
+  // ─── Render Helpers ────────────────────────────────────────────
+  function drawGlowLayer(path, width, color, alpha) {
+    if (path.length < 2) return;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(path[0].x, path[0].y);
+    for (let i = 1; i < path.length; i++) {
+      ctx.lineTo(path[i].x, path[i].y);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawBolt(bolt) {
+    const lifeT = bolt.age / bolt.maxAge; // 0 → 1
+    const fade = Math.pow(1 - lifeT, 1.5); // ease-out fade
+    const flicker = 0.85 + Math.sin(bolt.age * 60) * 0.15 * fade;
+    const alpha = fade * flicker * bolt.brightness;
+
+    if (alpha <= 0.01) return;
+
+    const p = bolt.power;
+
+    // Wide glow (outermost)
+    drawGlowLayer(bolt.mainPath, 18 * p, 'rgba(100, 150, 255, 1)', alpha * 0.15);
+    // Medium glow
+    drawGlowLayer(bolt.mainPath, 8 * p, 'rgba(140, 180, 255, 1)', alpha * 0.4);
+    // Core (bright white-blue)
+    drawGlowLayer(bolt.mainPath, 2.5 * p, 'rgba(230, 240, 255, 1)', alpha * 0.95);
+    // Hot center
+    drawGlowLayer(bolt.mainPath, 1 * p, 'rgba(255, 255, 255, 1)', alpha);
+
+    // Branches (thinner, dimmer)
+    for (const branch of bolt.branches) {
+      drawGlowLayer(branch, 6 * p, 'rgba(100, 150, 255, 1)', alpha * 0.1);
+      drawGlowLayer(branch, 3 * p, 'rgba(140, 180, 255, 1)', alpha * 0.25);
+      drawGlowLayer(branch, 1.2 * p, 'rgba(220, 235, 255, 1)', alpha * 0.6);
+    }
+
+    // Impact glow at the bottom tip
+    const tip = bolt.mainPath[bolt.mainPath.length - 1];
+    const grad = ctx.createRadialGradient(tip.x, tip.y, 0, tip.x, tip.y, 60 * p);
+    grad.addColorStop(0, `rgba(200, 220, 255, ${alpha * 0.5})`);
+    grad.addColorStop(0.4, `rgba(100, 150, 255, ${alpha * 0.2})`);
+    grad.addColorStop(1, 'rgba(50, 80, 200, 0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(tip.x - 60 * p, tip.y - 60 * p, 120 * p, 120 * p);
+  }
+
+  function drawClouds(dt) {
+    for (const c of cloudSeeds) {
+      c.x += c.speed * dt;
+      if (c.x > 1.5) c.x = -0.5;
+      const cx = c.x * W;
+      const cy = H * 0.05;
+      const r = c.size * W * 0.4;
+      const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+      grad.addColorStop(0, `rgba(30, 40, 70, ${c.alpha})`);
+      grad.addColorStop(1, 'rgba(10, 15, 30, 0)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
+    }
+  }
+
+  function drawRain(dt) {
+    ctx.save();
+    ctx.strokeStyle = 'rgba(120, 150, 200, 0.08)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (const drop of rain) {
+      drop.y += drop.speed * dt * 0.3;
+      if (drop.y > 1) { drop.y = 0; drop.x = Math.random(); }
+      const x = drop.x * W;
+      const y = drop.y * H;
+      ctx.moveTo(x, y);
+      ctx.lineTo(x - 2, y + drop.len);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // ─── Main Loop ─────────────────────────────────────────────────
+  function frame(now) {
+    const dt = Math.min((now - lastTime) / 1000, 0.05);
+    lastTime = now;
+
+    // Trailing fade — paint semi-transparent black over everything
+    ctx.fillStyle = 'rgba(2, 3, 10, 0.25)';
+    ctx.fillRect(0, 0, W, H);
+
+    // Ambient clouds
+    drawClouds(dt);
+
+    // Rain
+    drawRain(dt);
+
+    // Update and draw bolts
+    for (let i = bolts.length - 1; i >= 0; i--) {
+      bolts[i].age += dt;
+      if (bolts[i].age >= bolts[i].maxAge) {
+        bolts.splice(i, 1);
+      } else {
+        drawBolt(bolts[i]);
+      }
+    }
+
+    // Screen flash overlay
+    if (flashAlpha > 0.005) {
+      ctx.save();
+      ctx.globalAlpha = flashAlpha;
+      const fg = ctx.createRadialGradient(W / 2, H * 0.3, 0, W / 2, H * 0.3, Math.max(W, H) * 0.8);
+      fg.addColorStop(0, `rgba(${flashColor.r}, ${flashColor.g}, ${flashColor.b}, 0.6)`);
+      fg.addColorStop(0.5, `rgba(${flashColor.r * 0.5 | 0}, ${flashColor.g * 0.5 | 0}, ${flashColor.b * 0.6 | 0}, 0.25)`);
+      fg.addColorStop(1, 'rgba(20, 30, 60, 0)');
+      ctx.fillStyle = fg;
+      ctx.fillRect(0, 0, W, H);
+      ctx.restore();
+      flashAlpha *= Math.pow(0.05, dt); // exponential decay
+    }
+
+    // Auto-strike timing
+    autoStrikeTimer += dt;
+    if (autoStrikeTimer >= autoStrikeInterval) {
+      autoStrikeTimer = 0;
+      autoStrikeInterval = 1.0 + Math.random() * 3.0;
+      autoStrike();
+    }
+
+    requestAnimationFrame(frame);
+  }
+
+  // Initial dark fill
+  ctx.fillStyle = '#02030a';
+  ctx.fillRect(0, 0, W, H);
+
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

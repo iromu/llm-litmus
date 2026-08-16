@@ -1,0 +1,22 @@
+Creative Prompt
+===============
+
+Create a premium analytics dashboard with a glassmorphism aesthetic. The page features blurred background orbs, glass cards with KPI metrics (revenue, users, conversion, bounce rate), a weekly bar chart, a donut chart for traffic sources with SVG circles, and a recent activity feed. The glass cards have backdrop-filter blur, subtle borders, and hover lift. The color palette uses dark purple gradient background with cyan, green, blue, yellow, and pink accents. The overall aesthetic is premium, data-driven, and crystalline — like a high-end financial dashboard.
+
+Model: Qwen3.8-27B-instruct
+Thinking effort: high
+
+Techniques Used
+===============
+- CSS glassmorphism: backdrop-filter blur(20px) saturate(1.3) on all cards, semi-transparent rgba backgrounds, 1px light borders, top-edge highlight line via ::before gradient
+- Multi-layered background: five blurred radial-gradient orbs (90px filter blur) with independent drift keyframe animations (24–38s alternate loops), plus an inline-SVG fractal-noise grain overlay at 3.5% opacity for texture
+- CSS grid layout for the 4-up KPI card row; asymmetric 1.6fr/1fr grid for the chart row; flexbox column layout inside each bar-chart column with dynamic percentage heights
+- Bar chart rendered by JS from a data array: scaleY grow-in animation with staggered delays, hover tooltip via ::after + attr(data-value), highlighted "today" bar with glow
+- Donut chart built from SVG circles using stroke-dasharray/stroke-dashoffset segment math (circumference = 2πr), animated from zero to final dash values on load with per-segment transition delay, small gaps between segments, center total label
+- KPI sparklines as inline SVG polylines with translucent area fills
+- Activity feed with colored glowing dot indicators and tinted tag pills
+- Hover lift: translateY(-6px) + deepened shadow + border brighten on every glass card
+- Responsive breakpoints at 1024px (2-col KPIs, stacked charts) and 560px (single column); clamp()-based fluid spacing/type; prefers-reduced-motion support
+- Fully self-contained: no external fonts, images, CDNs, or frameworks; system font stack; works offline
+
+Wall time: N/A | Tokens: N/A

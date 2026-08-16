@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Ripple Pond</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #040a14;
+    cursor: crosshair;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: none;
+  }
+
+  canvas {
+    display: block;
+    width: 100vw;
+    height: 100vh;
+  }
+
+  .title {
+    position: fixed;
+    bottom: 5vh;
+    left: 0;
+    right: 0;
+    text-align: center;
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: clamp(1rem, 3.5vw, 2.2rem);
+    letter-spacing: 0.9em;
+    text-indent: 0.9em; /* balance the trailing letter-space */
+    color: rgba(140, 190, 255, 0.16);
+    text-transform: uppercase;
+    pointer-events: none;
+    user-select: none;
+    -webkit-user-select: none;
+    animation: titleBreath 9s ease-in-out infinite;
+  }
+
+  @keyframes titleBreath {
+    0%, 100% { opacity: 0.55; }
+    50%      { opacity: 1; }
+  }
+
+  .hint {
+    position: fixed;
+    top: 4vh;
+    left: 0;
+    right: 0;
+    text-align: center;
+    font-family: system-ui, -apple-system, sans-serif;
+    font-size: clamp(0.6rem, 1.4vw, 0.8rem);
+    letter-spacing: 0.35em;
+    text-indent: 0.35em;
+    color: rgba(140, 190, 255, 0.28);
+    pointer-events: none;
+    user-select: none;
+    -webkit-user-select: none;
+    transition: opacity 2.5s ease;
+  }
+
+  .hint.hidden { opacity: 0; }
+</style>
+</head>
+<body>
+<canvas id="pond"></canvas>
+<div class="title" aria-hidden="true">Ripple&nbsp;Pond</div>
+<div class="hint" id="hint">touch the water</div>
+
+<script>
+(() => {
+  'use strict';
+
+  const canvas = document.getElementById('pond');
+  const ctx = canvas.getContext('2d', { alpha: false });
+  const hint = document.getElementById('hint');
+
+  // ---------- Simulation state ----------
+  let W = 0, H = 0;          // simulation grid size (px)
+  let bufA, bufB;            // two wave buffers (Float32Array)
+  let imgData;               // ImageData for pixel output
+  let baseColor;             // precomputed radial-gradient background per pixel [r,g,b]
+  let rafId = null;
+
+  // Tunables
+  const DAMPING   = 0.985;   // energy loss per frame (lower = calmer fade)
+  const SPEED     = 0.999;   // wave propagation factor
+  const DISPLACE  = 2.2;     // refraction displacement scale
+  const CLICK_STRENGTH = 340;
+  const DRAG_STRENGTH  = 46;
+  const AMBIENT_STRENGTH = 14;
+
+  // Interaction state
+  let pointerDown = false;
+  let lastPX = -1, lastPY = -1;
+  let interacted = false;
+
+  // ---------- Setup / resize ----------
+  function resize() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const cssW = window.innerWidth;
+    const cssH = window.innerHeight;
+
+    // Simulation runs at a reduced resolution for performance,
+    // then is upscaled to the full canvas via drawImage smoothing.
+    const targetArea = 320 * 320;                 // ~102k cells max
+    const aspect = cssW / cssH;
+    let simH = Math.sqrt(targetArea / aspect);
+    let simW = simH * aspect;
+    W = Math.max(96, Math.round(simW));
+    H = Math.max(96, Math.round(simH));
+
+    canvas.width  = cssW * dpr;
+    canvas.height = cssH * dpr;
+    canvas.style.width  = cssW + 'px';
+    canvas.style.height = cssH + 'px';
+
+    bufA = new Float32Array(W * H);
+    bufB = new Float32Array(W * H);
+    imgData = ctx.createImageData(W, H);
+
+    buildBaseColor(cssW, cssH);
+  }
+
+  // Precompute the deep radial gradient background once per resize.
+  function buildBaseColor(cssW, cssH) {
+    baseColor = new Uint8ClampedArray(W * H * 3);
+
+    // Gradient stops (deep night pond):
+    //   center: slightly lighter blue-teal glow
+    //   edge:   near-black indigo
+    const cx = W * 0.5, cy = H * 0.46;
+    const maxR = Math.hypot(cx, cy) * 1.15;
+
+    // Color stops as [t, r, g, b]
+    const stops = [
+      [0.00,  22,  48,  84],   // soft teal-blue heart
+      [0.35,  12,  30,  62],
+      [0.70,   6,  16,  38],
+      [1.00,   2,   7,  18],   // abyss at edges
+    ];
+
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        const d = Math.hypot(x - cx, y - cy) / maxR;
+        const t = Math.min(d, 1);
+
+        // Interpolate between stops
+        let i = 0;
+        while (i < stops.length - 2 && t > stops[i + 1][0]) i++;
+        const t0 = stops[i][0], t1 = stops[i + 1][0];
+        const f = t1 === t0 ? 0 : (t - t0) / (t1 - t0);
+        const fc = Math.max(0, Math.min(1, f));
+
+        const idx = (y * W + x) * 3;
+        baseColor[idx]     = stops[i][1] + (stops[i + 1][1] - stops[i][1]) * fc;
+        baseColor[idx + 1] = stops[i][2] + (stops[i + 1][2] - stops[i][2]) * fc;
+        baseColor[idx + 2] = stops[i][3] + (stops[i + 1][3] - stops[i][3]) * fc;
+      }
+    }
+  }
+
+  // ---------- Ripple injection ----------
+  function dropRipple(px, py, strength, radius) {
+    // px, py in CSS pixels -> convert to sim coords
+    const sx = (px / window.innerWidth)  * W;
+    const sy = (py / window.innerHeight) * H;
+    const r = Math.max(1, Math.round(radius * (W / window.innerWidth)));
+
+    for (let dy = -r; dy <= r; dy++) {
+      const yy = sy + dy;
+      if (yy < 1 || yy >= H - 1) continue;
+      for (let dx = -r; dx <= r; dx++) {
+        const xx = sx + dx;
+        if (xx < 1 || xx >= W - 1) continue;
+        const dist = Math.hypot(dx, dy);
+        if (dist > r) continue;
+        const falloff = 1 - dist / r;
+        const idx = (yy | 0) * W + (xx | 0);
+        bufA[idx] -= strength * falloff * falloff;
+      }
+    }
+  }
+
+  // Small ambient ripple at a random spot — keeps the pond alive.
+  function ambientDrop() {
+    const x = W * (0.15 + Math.random() * 0.7);
+    const y = H * (0.15 + Math.random() * 0.7);
+    const s = AMBIENT_STRENGTH * (0.5 + Math.random() * 0.5);
+    dropRipple(x / W * window.innerWidth, y / H * window.innerHeight, s, 2.5);
+  }
+
+  // ---------- Wave equation step ----------
+  function stepWave() {
+    // Classic two-buffer ripple algorithm:
+    //   next[i] = ((prev[left]+prev[right]+prev[up]+prev[down]) / 2 - next[i]) * damping
+    for (let y = 1; y < H - 1; y++) {
+      const row = y * W;
+      for (let x = 1; x < W - 1; x++) {
+        const i = row + x;
+        const v = (bufA[i - 1] + bufA[i + 1] + bufA[i - W] + bufA[i + W]) * 0.5 - bufB[i];
+        bufB[i] = v * DAMPING;
+      }
+    }
+    // Swap buffers
+    const tmp = bufA;
+    bufA = bufB;
+    bufB = tmp;
+  }
+
+  // ---------- Render ----------
+  function render() {
+    const data = imgData.data;
+    const dispScale = DISPLACE * (W / window.innerWidth) * 2;
+
+    for (let y = 1; y < H - 1; y++) {
+      for (let x = 1; x < W - 1; x++) {
+        const i = y * W + x;
+
+        // Refraction: sample neighbor offset by wave slope
+        const dx = (bufA[i - 1] - bufA[i + 1]) * dispScale;
+        const dy = (bufA[i - W] - bufA[i + W]) * dispScale;
+
+        let sx = (x + dx) | 0;
+        let sy = (y + dy) | 0;
+        if (sx < 0) sx = 0; else if (sx >= W) sx = W - 1;
+        if (sy < 0) sy = 0; else if (sy >= H) sy = H - 1;
+
+        const si = (sy * W + sx) * 3;
+        const di = i * 4;
+
+        // Base color from precomputed gradient
+        let r = baseColor[si];
+        let g = baseColor[si + 1];
+        let b = baseColor[si + 2];
+
+        // Wave-height modulation: brighten peaks, darken troughs
+        const h = bufA[i];
+        const mod = h * 0.055;
+        r += mod;
+        g += mod * 1.15;
+        b += mod * 1.45;
+
+        // Specular highlight on steep slopes (ripple crests catch light)
+        const slope = Math.abs(bufA[i - 1] - bufA[i + 1]) + Math.abs(bufA[i - W] - bufA[i + W]);
+        const spec = Math.min(slope * 0.012, 0.35);
+        r += spec * 180;
+        g += spec * 210;
+        b += spec * 255;
+
+        data[di]     = r;
+        data[di + 1] = g;
+        data[di + 2] = b;
+        data[di + 3] = 255;
+      }
+    }
+
+    // Blit sim buffer to offscreen canvas, then upscale to main canvas
+    offCtx.putImageData(imgData, 0, 0);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(offCanvas, 0, 0, canvas.width, canvas.height);
+  }
+
+  // Offscreen canvas holds the low-res sim image
+  const offCanvas = document.createElement('canvas');
+  const offCtx = offCanvas.getContext('2d');
+
+  function syncOffCanvas() {
+    offCanvas.width = W;
+    offCanvas.height = H;
+  }
+
+  // ---------- Main loop ----------
+  let frameCount = 0;
+  function loop() {
+    stepWave();
+    render();
+
+    // Occasional ambient ripple every ~2–4 seconds
+    frameCount++;
+    if (frameCount % (120 + Math.floor(Math.random() * 120)) === 0) {
+      ambientDrop();
+    }
+
+    rafId = requestAnimationFrame(loop);
+  }
+
+  // ---------- Input handling ----------
+  function handlePointerDown(e) {
+    const rect = canvas.getBoundingClientRect();
+    const px = e.clientX - rect.left;
+    const py = e.clientY - rect.top;
+    pointerDown = true;
+    lastPX = px;
+    lastPY = py;
+    dropRipple(px, py, CLICK_STRENGTH, 5);
+    if (!interacted) {
+      interacted = true;
+      hint.classList.add('hidden');
+    }
+  }
+
+  function handlePointerMove(e) {
+    if (!pointerDown) return;
+    const rect = canvas.getBoundingClientRect();
+    const px = e.clientX - rect.left;
+    const py = e.clientY - rect.top;
+
+    // Continuous small ripples along drag path
+    const dist = Math.hypot(px - lastPX, py - lastPY);
+    const steps = Math.max(1, Math.floor(dist / 4));
+    for (let s = 0; s < steps; s++) {
+      const t = s / steps;
+      const ix = lastPX + (px - lastPX) * t;
+      const iy = lastPY + (py - lastPY) * t;
+      dropRipple(ix, iy, DRAG_STRENGTH * (0.6 + Math.random() * 0.4), 2);
+    }
+    lastPX = px;
+    lastPY = py;
+  }
+
+  function handlePointerUp() {
+    pointerDown = false;
+  }
+
+  canvas.addEventListener('mousedown', handlePointerDown);
+  canvas.addEventListener('mousemove', handlePointerMove);
+  window.addEventListener('mouseup', handlePointerUp);
+
+  canvas.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    for (const t of e.changedTouches) handlePointerDown(t);
+  }, { passive: false });
+
+  canvas.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    for (const t of e.changedTouches) handlePointerMove(t);
+  }, { passive: false });
+
+  canvas.addEventListener('touchend', handlePointerUp);
+  canvas.addEventListener('touchcancel', handlePointerUp);
+
+  // Hide hint after 6s even without interaction
+  setTimeout(() => hint.classList.add('hidden'), 6000);
+
+  // ---------- Init ----------
+  function init() {
+    resize();
+    syncOffCanvas();
+    // Seed a gentle opening ripple
+    dropRipple(window.innerWidth * 0.5, window.innerHeight * 0.45, 180, 6);
+    loop();
+  }
+
+  let resizeTimer = null;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      resize();
+      syncOffCanvas();
+    }, 150);
+  });
+
+  init();
+})();
+</script>
+</body>
+</html>

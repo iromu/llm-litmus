@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tree of Life</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 100%; height: 100%; overflow: hidden; }
+body { background: #050a05; }
+canvas { display: block; width: 100%; height: 100%; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let W, H;
+
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+window.addEventListener('resize', resize);
+resize();
+
+const MAX_DEPTH = 9;
+
+function drawBranch(x, y, angle, length, depth, time) {
+  if (depth > MAX_DEPTH || length < 3) return;
+
+  const sway = Math.sin(time * 0.8 + depth * 0.5 + x * 0.01) * 0.03 * (MAX_DEPTH - depth);
+  const a = angle + sway;
+
+  const endX = x + Math.cos(a) * length;
+  const endY = y + Math.sin(a) * length;
+
+  // Color based on depth (trunk darker, tips lighter/greener)
+  const hue = 100 + depth * 8;
+  const lightness = 15 + depth * 4;
+  const alpha = 0.4 + depth * 0.06;
+
+  ctx.strokeStyle = `hsla(${hue}, 50%, ${lightness}%, ${alpha})`;
+  ctx.lineWidth = Math.max(0.5, (MAX_DEPTH - depth) * 0.8);
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  ctx.lineTo(endX, endY);
+  ctx.stroke();
+
+  // Leaves at tips
+  if (depth >= MAX_DEPTH - 2) {
+    const leafGlow = 0.3 + 0.3 * Math.sin(time * 2 + x * 0.1 + y * 0.1);
+    const grad = ctx.createRadialGradient(endX, endY, 0, endX, endY, 4);
+    grad.addColorStop(0, `hsla(${hue + 20}, 70%, 60%, ${leafGlow})`);
+    grad.addColorStop(1, `hsla(${hue + 20}, 70%, 40%, 0)`);
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(endX, endY, 4, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Branch into two
+  const spread = 0.4 + Math.random() * 0.1;
+  drawBranch(endX, endY, a - spread, length * 0.72, depth + 1, time);
+  drawBranch(endX, endY, a + spread, length * 0.72, depth + 1, time);
+
+  // Occasional third branch
+  if (Math.random() > 0.7 && depth < MAX_DEPTH - 2) {
+    drawBranch(endX, endY, a + (Math.random() - 0.5) * 0.3, length * 0.5, depth + 1, time);
+  }
+}
+
+let time = 0;
+function animate() {
+  time += 0.016;
+
+  // Trailing fade
+  ctx.fillStyle = 'rgba(5, 10, 5, 0.15)';
+  ctx.fillRect(0, 0, W, H);
+
+  // Ground glow
+  const groundGrad = ctx.createRadialGradient(W / 2, H, 0, W / 2, H, W * 0.3);
+  groundGrad.addColorStop(0, 'rgba(20, 60, 20, 0.1)');
+  groundGrad.addColorStop(1, 'rgba(10, 30, 10, 0)');
+  ctx.fillStyle = groundGrad;
+  ctx.fillRect(0, H - 100, W, 100);
+
+  // Draw tree from bottom center
+  const trunkLength = H * 0.2;
+  drawBranch(W / 2, H * 0.9, -Math.PI / 2, trunkLength, 0, time);
+
+  requestAnimationFrame(animate);
+}
+
+ctx.fillStyle = '#050a05';
+ctx.fillRect(0, 0, W, H);
+animate();
+</script>
+</body>
+</html>

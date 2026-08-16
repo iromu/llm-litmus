@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Floating Islands — A Dreamy Sky Landscape</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #1a2436;
+  }
+
+  canvas {
+    display: block;
+    width: 100vw;
+    height: 100vh;
+    cursor: pointer;
+  }
+
+  .hint {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: rgba(255, 255, 255, 0.45);
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 13px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    pointer-events: none;
+    user-select: none;
+    animation: hintFade 3s ease-out 4s forwards;
+    transition: opacity 0.8s ease;
+  }
+
+  @keyframes hintFade {
+    to { opacity: 0; }
+  }
+</style>
+</head>
+<body>
+<canvas id="scene" aria-label="Floating islands in a misty sky"></canvas>
+<div class="hint" id="hint">click anywhere to reshape the sky</div>
+
+<script>
+(() => {
+'use strict';
+
+/* ============================================================
+   Floating Islands — a dreamy Ghibli-esque sky landscape
+   Single-file, zero-dependency canvas art piece.
+   ============================================================ */
+
+const canvas = document.getElementById('scene');
+const ctx = canvas.getContext('2d');
+const hint = document.getElementById('hint');
+
+let W = 0, H = 0, DPR = 1;
+let islands = [];
+let clouds = [];
+let particles = [];
+let time = 0;
+let regenAlpha = 1; // fade-in on regeneration
+
+/* ---------- utilities ---------- */
+
+const rand = (min, max) => min + Math.random() * (max - min);
+const randInt = (min, max) => Math.floor(rand(min, max + 1));
+const lerp = (a, b, t) => a + (b - a) * t;
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+// Deterministic-ish per-run seed for reproducible-feeling variety
+function mulberry32(seed) {
+  return function () {
+    seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+let rng = mulberry32(Date.now() & 0xffffffff);
+
+/* ---------- palette ---------- */
+
+const PALETTE = {
+  skyTop:      '#2c3e5c',
+  skyMid:      '#5a7a9e',
+  skyLow:      '#a8c4d4',
+  skyGlow:     '#f5e6c8',
+  grassLight:  '#7cb342',
+  grassMid:    '#558b2f',
+  grassDark:   '#33691e',
+  rockLight:   '#8d6e63',
+  rockMid:     '#5d4037',
+  rockDark:    '#3e2723',
+  trunk:       '#5d4037',
+  foliageA:    '#66bb6a',
+  foliageB:    '#43a047',
+  foliageC:    '#2e7d32',
+  water:       '#4fc3f7',
+  waterDeep:   '#0288d1',
+  fog:         '#cfd8dc',
+  shadow:      'rgba(20, 30, 45, 0.25)',
+};
+
+/* ---------- island model ---------- */
+
+class Island {
+  constructor(x, y, radius, depth) {
+    this.x = x;
+    this.y = y;
+    this.radius = radius;
+    this.depth = depth;            // 0 = far, 1 = near
+    this.phase = rand(0, Math.PI * 2);
+    this.bobSpeed = rand(0.15, 0.4);
+    this.bobAmp = rand(6, 18) * (0.5 + depth * 0.5);
+    this.driftPhase = rand(0, Math.PI * 2);
+    this.driftSpeed = rand(0.02, 0.06);
+    this.driftAmp = rand(2, 8);
+
+    // Shape variation
+    this.widthFactor = rand(0.85, 1.25);
+    this.heightFactor = rand(0.7, 1.0);
+    this.tilt = rand(-0.08, 0.08);
+
+    // Trees
+    const treeCount = randInt(1, Math.round(3 + depth * 4));
+    this.trees = [];
+    for (let i = 0; i < treeCount; i++) {
+      const tx = rand(-0.6, 0.6); // relative to island center
+      const size = rand(0.5, 1.0) * (0.6 + depth * 0.6);
+      this.trees.push({
+        x: tx,
+        size: size,
+        trunkH: rand(0.5, 0.9),
+        clusters: this.makeClusters(size),
+        sway: rand(0, Math.PI * 2),
+        swaySpeed: rand(0.3, 0.7),
+      });
+    }
+
+    // Water feature (optional)
+    this.hasWater = Math.random() < 0.35 && radius > 40;
+    if (this.hasWater) {
+      this.waterX = rand(-0.3, 0.3);
+      this.waterW = rand(0.15, 0.3);
+    }
+
+    // Roots
+    this.roots = [];
+    const rootCount = randInt(3, 7);
+    for (let i = 0; i < rootCount; i++) {
+      this.roots.push({
+        x: rand(-0.5, 0.5),
+        length: rand(0.3, 0.8),
+        curve: rand(-0.3, 0.3),
+        thickness: rand(1, 2.5),
+      });
+    }
+
+    // Grass tufts
+    this.grassTufts = [];
+    const tuftCount = randInt(4, 10);
+    for (let i = 0; i < tuftCount; i++) {
+      this.grassTufts.push({
+        x: rand(-0.7, 0.7),
+        h: rand(0.1, 0.25),
+        lean: rand(-0.3, 0.3),
+      });
+    }
+  }
+
+  makeClusters(size) {
+    const count = randInt(3, 6);
+    const clusters = [];
+    for (let i = 0; i < count; i++) {
+      const angle = rand(0, Math.PI * 2);
+      const dist = rand(0.1, 0.5) * size;
+      clusters.push({
+        ox: Math.cos(angle) * dist,
+        oy: Math.sin(angle) * dist * 0.6 - rand(0, 0.3) * size,
+        r: rand(0.3, 0.6) * size,
+        shade: rand(0, 1),
+      });
+    }
+    return clusters;
+  }
+
+  get currentY() {
+    return this.y + Math.sin(time * this.bobSpeed + this.phase) * this.bobAmp;
+  }
+
+  get currentX() {
+    return this.x + Math.sin(time * this.driftSpeed + this.driftPhase) * this.driftAmp;
+  }
+
+  draw(ctx, W, H) {
+    const cx = this.currentX;
+    const cy = this.currentY;
+    const r = this.radius;
+    const scale = 0.4 + this.depth * 0.6;
+
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(this.tilt);
+    ctx.scale(scale, scale);
+
+    /* --- shadow ellipse below --- */
+    const shadowY = r * 1.6;
+    ctx.save();
+    ctx.globalAlpha = 0.15 + this.depth * 0.1;
+    ctx.fillStyle = PALETTE.shadow;
+    ctx.beginPath();
+    ctx.ellipse(0, shadowY, r * 0.8, r * 0.15, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    /* --- rocky underside --- */
+    const rockGrad = ctx.createRadialGradient(0, r * 0.3, r * 0.1, 0, r * 0.5, r * 1.1);
+    rockGrad.addColorStop(0, PALETTE.rockLight);
+    rockGrad.addColorStop(0.5, PALETTE.rockMid);
+    rockGrad.addColorStop(1, PALETTE.rockDark);
+    ctx.fillStyle = rockGrad;
+    ctx.beginPath();
+    ctx.moveTo(-r * this.widthFactor, 0);
+    ctx.bezierCurveTo(
+      -r * this.widthFactor * 0.9, r * 0.6,
+      -r * 0.3, r * 1.1,
+      0, r * 1.2 * this.heightFactor
+    );
+    ctx.bezierCurveTo(
+      r * 0.3, r * 1.1,
+      r * this.widthFactor * 0.9, r * 0.6,
+      r * this.widthFactor, 0
+    );
+    ctx.closePath();
+    ctx.fill();
+
+    // Rock texture lines
+    ctx.strokeStyle = 'rgba(0,0,0,0.12)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 4; i++) {
+      const ly = r * (0.2 + i * 0.2);
+      const lw = r * this.widthFactor * (0.7 - i * 0.12);
+      ctx.beginPath();
+      ctx.moveTo(-lw * 0.6, ly);
+      ctx.quadraticCurveTo(0, ly + r * 0.08, lw * 0.6, ly);
+      ctx.stroke();
+    }
+
+    /* --- hanging roots --- */
+    ctx.strokeStyle = PALETTE.rockDark;
+    for (const root of this.roots) {
+      const rx = root.x * r;
+      const ry = r * 0.4;
+      const rl = root.length * r;
+      ctx.lineWidth = root.thickness;
+      ctx.beginPath();
+      ctx.moveTo(rx, ry);
+      ctx.quadraticCurveTo(
+        rx + root.curve * r, ry + rl * 0.5,
+        rx + root.curve * r * 1.5, ry + rl
+      );
+      ctx.stroke();
+    }
+
+    /* --- grass top --- */
+    const grassGrad = ctx.createRadialGradient(0, -r * 0.1, r * 0.05, 0, 0, r * this.widthFactor);
+    grassGrad.addColorStop(0, PALETTE.grassLight);
+    grassGrad.addColorStop(0.6, PALETTE.grassMid);
+    grassGrad.addColorStop(1, PALETTE.grassDark);
+    ctx.fillStyle = grassGrad;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, r * this.widthFactor, r * 0.35, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Grass highlight rim
+    ctx.strokeStyle = 'rgba(170, 220, 100, 0.3)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.ellipse(0, -r * 0.05, r * this.widthFactor * 0.9, r * 0.28, 0, Math.PI, Math.PI * 2);
+    ctx.stroke();
+
+    /* --- water feature --- */
+    if (this.hasWater) {
+      const wx = this.waterX * r;
+      const ww = this.waterW * r;
+      const waterGrad = ctx.createRadialGradient(wx, r * 0.05, 1, wx, r * 0.05, ww);
+      waterGrad.addColorStop(0, PALETTE.water);
+      waterGrad.addColorStop(1, PALETTE.waterDeep);
+      ctx.fillStyle = waterGrad;
+      ctx.beginPath();
+      ctx.ellipse(wx, r * 0.05, ww, ww * 0.4, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Water shimmer
+      ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+      ctx.lineWidth = 1;
+      const shimmer = Math.sin(time * 2 + this.phase) * 0.3 + 0.5;
+      ctx.beginPath();
+      ctx.ellipse(wx, r * 0.03, ww * shimmer, ww * 0.2 * shimmer, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    /* --- trees --- */
+    for (const tree of this.trees) {
+      const tx = tree.x * r;
+      const baseY = -r * 0.05;
+      const trunkH = tree.trunkH * r * 0.5;
+      const sway = Math.sin(time * tree.swaySpeed + tree.sway) * 0.05;
+
+      // Trunk
+      ctx.strokeStyle = PALETTE.trunk;
+      ctx.lineWidth = tree.size * 3;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(tx, baseY);
+      ctx.quadraticCurveTo(
+        tx + sway * trunkH, baseY - trunkH * 0.5,
+        tx + sway * trunkH * 2, baseY - trunkH
+      );
+      ctx.stroke();
+
+      // Foliage clusters
+      const topX = tx + sway * trunkH * 2;
+      const topY = baseY - trunkH;
+      for (const cl of tree.clusters) {
+        const fx = topX + cl.ox * r * 0.3;
+        const fy = topY + cl.oy * r * 0.3;
+        const fr = cl.r * r * 0.25;
+        const col = cl.shade < 0.33 ? PALETTE.foliageA : cl.shade < 0.66 ? PALETTE.foliageB : PALETTE.foliageC;
+        const fGrad = ctx.createRadialGradient(fx - fr * 0.2, fy - fr * 0.2, fr * 0.1, fx, fy, fr);
+        fGrad.addColorStop(0, col);
+        fGrad.addColorStop(1, 'rgba(30, 60, 20, 0.8)');
+        ctx.fillStyle = fGrad;
+        ctx.beginPath();
+        ctx.arc(fx, fy, fr, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    /* --- grass tufts --- */
+    ctx.strokeStyle = PALETTE.grassLight;
+    ctx.lineWidth = 1.5;
+    for (const tuft of this.grassTufts) {
+      const gx = tuft.x * r;
+      const gy = -r * 0.1;
+      const gh = tuft.h * r;
+      const lean = tuft.lean + Math.sin(time * 1.5 + tuft.x * 5) * 0.1;
+      ctx.beginPath();
+      ctx.moveTo(gx, gy);
+      ctx.quadraticCurveTo(gx + lean * gh, gy - gh * 0.5, gx + lean * gh * 1.5, gy - gh);
+      ctx.stroke();
+    }
+
+    ctx.restore();
+  }
+}
+
+/* ---------- clouds ---------- */
+
+class Cloud {
+  constructor() {
+    this.reset(true);
+  }
+
+  reset(initial) {
+    this.x = initial ? rand(-100, W + 100) : -200;
+    this.y = rand(H * 0.05, H * 0.7);
+    this.w = rand(100, 300);
+    this.h = this.w * rand(0.2, 0.35);
+    this.speed = rand(0.1, 0.4);
+    this.alpha = rand(0.08, 0.25);
+    this.puffs = [];
+    const puffCount = randInt(4, 7);
+    for (let i = 0; i < puffCount; i++) {
+      this.puffs.push({
+        ox: rand(-0.4, 0.4),
+        oy: rand(-0.2, 0.2),
+        r: rand(0.3, 0.6),
+      });
+    }
+  }
+
+  update(dt) {
+    this.x += this.speed * dt * 60;
+    if (this.x > W + 300) this.reset(false);
+  }
+
+  draw(ctx) {
+    ctx.save();
+    ctx.globalAlpha = this.alpha;
+    ctx.fillStyle = '#ffffff';
+    for (const p of this.puffs) {
+      const px = this.x + p.ox * this.w;
+      const py = this.y + p.oy * this.h;
+      const pr = p.r * this.h;
+      ctx.beginPath();
+      ctx.ellipse(px, py, pr * 1.5, pr, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+}
+
+/* ---------- floating particles (pollen/fireflies) ---------- */
+
+class Particle {
+  constructor() {
+    this.reset();
+  }
+
+  reset() {
+    this.x = rand(0, W);
+    this.y = rand(0, H);
+    this.size = rand(1, 3);
+    this.speedX = rand(-0.2, 0.2);
+    this.speedY = rand(-0.3, -0.05);
+    this.alpha = rand(0.2, 0.6);
+    this.phase = rand(0, Math.PI * 2);
+    this.color = Math.random() < 0.3 ? '255, 240, 180' : '200, 230, 255';
+  }
+
+  update(dt) {
+    this.x += (this.speedX + Math.sin(time + this.phase) * 0.1) * dt * 60;
+    this.y += this.speedY * dt * 60;
+    if (this.y < -10 || this.x < -10 || this.x > W + 10) this.reset();
+  }
+
+  draw(ctx) {
+    const flicker = 0.5 + 0.5 * Math.sin(time * 2 + this.phase);
+    ctx.save();
+    ctx.globalAlpha = this.alpha * flicker;
+    ctx.fillStyle = `rgb(${this.color})`;
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
+/* ---------- scene generation ---------- */
+
+function generateScene() {
+  rng = mulberry32((Date.now() * 7 + Math.random() * 10000) & 0xffffffff);
+  islands = [];
+  clouds = [];
+  particles = [];
+
+  const islandCount = clamp(Math.round(W / 200), 4, 10);
+
+  for (let i = 0; i < islandCount; i++) {
+    const depth = i / (islandCount - 1); // 0=far ... 1=near
+    const radius = lerp(30, 120, depth) * rand(0.7, 1.3);
+    const x = rand(W * 0.1, W * 0.9);
+    const y = rand(H * 0.15, H * 0.75);
+    islands.push(new Island(x, y, radius, depth));
+  }
+
+  // Sort by depth so near islands draw last (on top)
+  islands.sort((a, b) => a.depth - b.depth);
+
+  const cloudCount = randInt(5, 10);
+  for (let i = 0; i < cloudCount; i++) clouds.push(new Cloud());
+
+  const particleCount = Math.round(clamp(W / 30, 20, 60));
+  for (let i = 0; i < particleCount; i++) particles.push(new Particle());
+
+  regenAlpha = 1;
+}
+
+/* ---------- background ---------- */
+
+function drawBackground() {
+  const grad = ctx.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, PALETTE.skyTop);
+  grad.addColorStop(0.4, PALETTE.skyMid);
+  grad.addColorStop(0.75, PALETTE.skyLow);
+  grad.addColorStop(1, PALETTE.skyGlow);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, H);
+
+  // Soft sun glow
+  const sunX = W * 0.7;
+  const sunY = H * 0.2;
+  const sunGrad = ctx.createRadialGradient(sunX, sunY, 10, sunX, sunY, H * 0.5);
+  sunGrad.addColorStop(0, 'rgba(255, 245, 220, 0.4)');
+  sunGrad.addColorStop(0.3, 'rgba(255, 230, 180, 0.15)');
+  sunGrad.addColorStop(1, 'rgba(255, 230, 180, 0)');
+  ctx.fillStyle = sunGrad;
+  ctx.fillRect(0, 0, W, H);
+}
+
+/* ---------- fog layer ---------- */
+
+function drawFog() {
+  // Layered radial-gradient fog bands
+  const bands = [
+    { y: H * 0.3, alpha: 0.12, speed: 0.3 },
+    { y: H * 0.5, alpha: 0.18, speed: 0.5 },
+    { y: H * 0.7, alpha: 0.22, speed: 0.7 },
+    { y: H * 0.9, alpha: 0.28, speed: 0.9 },
+  ];
+
+  for (const band of bands) {
+    const offset = Math.sin(time * band.speed) * 50;
+    const fogGrad = ctx.createRadialGradient(
+      W * 0.5 + offset, band.y, 10,
+      W * 0.5 + offset, band.y, W * 0.6
+    );
+    fogGrad.addColorStop(0, `rgba(207, 216, 220, ${band.alpha})`);
+    fogGrad.addColorStop(0.5, `rgba(207, 216, 220, ${band.alpha * 0.5})`);
+    fogGrad.addColorStop(1, 'rgba(207, 216, 220, 0)');
+    ctx.fillStyle = fogGrad;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  // Horizontal mist strips
+  ctx.save();
+  ctx.globalAlpha = 0.06;
+  ctx.fillStyle = PALETTE.fog;
+  for (let i = 0; i < 3; i++) {
+    const my = H * (0.25 + i * 0.25) + Math.sin(time * 0.2 + i) * 20;
+    const mh = H * 0.08;
+    ctx.beginPath();
+    ctx.ellipse(W * 0.5 + Math.sin(time * 0.15 + i * 2) * 100, my, W * 0.6, mh, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+/* ---------- resize ---------- */
+
+function resize() {
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  W = window.innerWidth;
+  H = window.innerHeight;
+  canvas.width = W * DPR;
+  canvas.height = H * DPR;
+  canvas.style.width = W + 'px';
+  canvas.style.height = H + 'px';
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
+
+/* ---------- main loop ---------- */
+
+let lastTime = performance.now();
+
+function frame(now) {
+  const dt = Math.min((now - lastTime) / 1000, 0.05);
+  lastTime = now;
+  time += dt;
+
+  // Fade-in after regeneration
+  if (regenAlpha > 0) {
+    regenAlpha = Math.max(0, regenAlpha - dt * 1.5);
+  }
+
+  drawBackground();
+
+  // Far clouds (behind islands)
+  for (const c of clouds) {
+    c.update(dt);
+    if (c.y < H * 0.4) c.draw(ctx);
+  }
+
+  // Islands (depth-sorted)
+  for (const island of islands) {
+    island.draw(ctx, W, H);
+  }
+
+  // Near clouds (in front of some islands)
+  for (const c of clouds) {
+    if (c.y >= H * 0.4) c.draw(ctx);
+  }
+
+  // Fog
+  drawFog();
+
+  // Particles
+  for (const p of particles) {
+    p.update(dt);
+    p.draw(ctx);
+  }
+
+  // Regeneration fade overlay
+  if (regenAlpha > 0) {
+    ctx.save();
+    ctx.globalAlpha = regenAlpha;
+    ctx.fillStyle = PALETTE.skyMid;
+    ctx.fillRect(0, 0, W, H);
+    ctx.restore();
+  }
+
+  requestAnimationFrame(frame);
+}
+
+/* ---------- interaction ---------- */
+
+function regenerate() {
+  generateScene();
+  hint.style.opacity = '0';
+}
+
+canvas.addEventListener('click', regenerate);
+window.addEventListener('resize', () => {
+  resize();
+  // Re-clamp island positions within new bounds
+  for (const island of islands) {
+    island.x = clamp(island.x, W * 0.05, W * 0.95);
+    island.y = clamp(island.y, H * 0.1, H * 0.8);
+  }
+});
+
+/* ---------- init ---------- */
+
+resize();
+generateScene();
+requestAnimationFrame(frame);
+
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,27 @@
+Pulse Rings — Sonar Frequency Visualization
+============================================
+
+Creative Prompt
+---------------
+Create an expanding ring visualization with colorful concentric circles that pulse outward from various points. Each ring has a unique hue, expands at its own speed, fades as it grows, and has both a main stroke and a glow stroke. Rings spawn at the mouse position on move, in bursts on click, and randomly across the canvas. The background trails with a slow fade for smooth motion. The overall aesthetic is sonar-like, hypnotic, and colorful — like a frequency visualization.
+
+Model: Qwen3.8-27B-instruct
+Thinking effort: high
+
+Techniques Used
+---------------
+- Canvas 2D ring rendering with per-frame radius expansion (slight acceleration over life) and ease-out alpha fade (pow(1-t, 1.6))
+- Hue cycling via HSL: each ring gets a random base hue plus a per-ring drift term so colors shift while alive; click bursts use harmonically spaced hues (base + i*24°)
+- Dual-stroke rendering: thin bright main stroke + wide dim glow stroke (3.2× width), drawn under globalCompositeOperation 'lighter' so overlapping glows bloom additively
+- Inner radial-gradient fill glow for young rings (first 28% of life) to create a sonar "ping" core that dissolves as the ring matures
+- Mouse-follow spawning throttled by a 42 ms interval along the pointer path; touch support included
+- Click/tap burst of 5 rings arranged radially around the cursor with varied speed/life scales
+- Ambient auto-spawn (per-frame probability) plus periodic slow "deep pulses" from screen edges every ~8 s for depth
+- Ring pool management: hard cap of 220 rings; when full, the oldest ring is recycled instead of dropping new spawns
+- Exponential background fade: translucent dark fill (alpha 0.085) each frame leaves smooth motion trails
+- DPR-aware canvas sizing (capped at 2×), resize handling, seeded initial rings so the page never opens dead
+- CSS vignette overlay for framing; monospace HUD footer with interaction hints
+
+Stats
+-----
+Wall time: N/A | Tokens: N/A

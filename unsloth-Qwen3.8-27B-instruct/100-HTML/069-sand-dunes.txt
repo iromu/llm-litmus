@@ -1,0 +1,21 @@
+Sand Dunes — Shifting Desert
+============================
+
+Creative Prompt:
+Create a desert sand dune landscape with layered, undulating dune shapes. Each dune has its own amplitude, frequency, phase, and speed, creating a complex, shifting desert scene. Dunes are rendered as filled shapes with warm sand colors and ridge highlights. They are depth-sorted by vertical offset. The dunes shift slowly over time, simulating wind erosion. The background is dark warm brown with trailing fade. Clicking regenerates the dunes. The overall aesthetic is warm, organic, and tranquil — like watching dunes shift in the desert.
+
+Model: Qwen3.8-27B-instruct
+Thinking effort: high
+
+Techniques:
+- Canvas 2D rendering with dual-sine wave composition per dune (two sine components with independent amplitude, frequency, phase, and drift speed) for organic undulation
+- Layered dune composition: 6–12 dunes depth-sorted by base Y offset, drawn back-to-front
+- Filled dune bodies with vertical gradients for volume; ridge highlight strokes (primary crest + secondary inner glow)
+- Warm sand color palette interpolated across 7 stops (deep shadow brown → pale gold)
+- Trailing background fade via semi-transparent fill each frame (motion trails)
+- Subtle grain overlay and radial vignette for photographic warmth
+- Time-based animation at ~0.08–0.35 rad/s per component — slow, meditative drift
+- Click anywhere to regenerate the entire dune landscape
+- Responsive: adapts dune count to viewport width, handles resize and devicePixelRatio
+
+Wall time: N/A | Tokens: N/A

@@ -1,0 +1,28 @@
+# 035 — Storm Clouds
+
+## Creative Prompt
+
+Create an animated thunderstorm visualization with dark clouds, lightning flashes, and lightning bolts. Clouds are composed of multiple overlapping radial gradient puffs with subtle wobble animation. Periodically, a random cloud flashes and a lightning bolt descends. The background is a dark stormy sky with trailing fade. Clicking triggers a dramatic flash and multiple lightning bolts. The overall aesthetic is dramatic, atmospheric, and electric — like watching a storm roll in.
+
+## Model
+
+Qwen3.8-27B-instruct
+
+## Thinking Effort
+
+high
+
+## Techniques Used
+
+- Canvas cloud rendering: each cloud cluster is built from 7–12 overlapping radial-gradient puffs with per-puff tone, alpha, and size variation for volumetric depth.
+- Wobble animation: sine/cosine offsets on puff position and radius at varied phases and frequencies give organic breathing motion.
+- Lightning bolt generation: recursive random-walk segment chains (cos/sin angle jitter) with probabilistic branching; rendered in two passes (wide glow + bright core) using `lighter` compositing.
+- Flash overlay: full-screen radial gradient whose alpha decays exponentially per frame (`flash *= 0.90`).
+- Trailing fade background: low-alpha fill rect each frame produces phosphor-like motion trails.
+- Timed auto strikes: randomized interval (2.5–6 s) between automatic bolts; nearest cloud receives a local brightness boost.
+- Click-triggered burst: pointerdown spawns 3–6 staggered bolts across the sky plus a max-intensity flash and rain streaks.
+- Cloud drift: each cluster moves horizontally at its own speed and wraps around the viewport.
+
+## Stats
+
+Wall time: N/A | Tokens: N/A

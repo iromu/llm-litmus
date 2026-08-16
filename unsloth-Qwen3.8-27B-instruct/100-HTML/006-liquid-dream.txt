@@ -1,0 +1,25 @@
+Liquid Dream — Creative Prompt Artifact
+=======================================
+
+Model: Qwen3.8-27B-instruct
+Thinking effort: high
+
+Creative Prompt
+---------------
+Create an organic morphing blob visualization with smooth, fluid-like blobs that drift and morph organically. Each blob is composed of points connected with quadratic curves, creating a liquid, amoeba-like shape. Multiple blobs with different sizes drift toward center points while pulsing. The color scheme cycles through purple/blue, warm red/orange, green/teal, and pink/magenta palettes. Clicking changes the color set and regenerates the blobs. The title "Liquid Dream" appears in large, faint white text. A monospace hint at the bottom invites interaction.
+
+Techniques Used
+---------------
+- Canvas 2D blob rendering using polar coordinate points with quadraticCurveTo for smooth amoeba-like shapes
+- Radial gradient fills (multi-stop HSLA) for translucent volumetric glow
+- Sine-wave-based per-point radius oscillation with independent phase/frequency/amplitude for organic morphing
+- Multiple Blob instances with randomized parameters (size, position, speed, pulse, rotation)
+- Center-pull physics with velocity damping and random wander for floating drift motion
+- Click/tap-driven palette cycling (4 palettes) with full blob regeneration
+- Subtle animated background gradient + vignette overlay for depth
+- Responsive resize with devicePixelRatio-aware canvas scaling
+- Touch support for mobile interaction
+
+Stats
+-----
+Wall time: N/A | Tokens: N/A

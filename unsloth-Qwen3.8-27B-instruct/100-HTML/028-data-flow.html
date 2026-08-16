@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Data Flow — Network Topology Visualization</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #04070d;
+    font-family: 'Courier New', Courier, monospace;
+  }
+
+  #canvas {
+    display: block;
+    position: fixed;
+    inset: 0;
+    cursor: crosshair;
+  }
+
+  header {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 10;
+    padding: 20px 28px;
+    pointer-events: none;
+    user-select: none;
+  }
+
+  h1 {
+    font-size: clamp(14px, 2vw, 20px);
+    font-weight: 400;
+    letter-spacing: 0.45em;
+    text-transform: uppercase;
+    color: rgba(120, 220, 255, 0.85);
+    text-shadow: 0 0 18px rgba(60, 180, 255, 0.5), 0 0 40px rgba(60, 180, 255, 0.2);
+  }
+
+  h1 span {
+    color: rgba(255, 255, 255, 0.95);
+  }
+
+  .subtitle {
+    margin-top: 6px;
+    font-size: clamp(9px, 1.1vw, 11px);
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: rgba(100, 170, 220, 0.45);
+  }
+
+  footer {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 10;
+    padding: 16px 28px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    pointer-events: none;
+    user-select: none;
+  }
+
+  .stats {
+    font-size: clamp(9px, 1vw, 11px);
+    letter-spacing: 0.15em;
+    color: rgba(100, 180, 230, 0.5);
+    line-height: 1.8;
+  }
+
+  .stats b {
+    color: rgba(140, 230, 255, 0.85);
+    font-weight: 400;
+  }
+
+  .hint {
+    font-size: clamp(9px, 1vw, 10px);
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: rgba(90, 150, 200, 0.35);
+    text-align: right;
+  }
+
+  @media (max-width: 600px) {
+    header { padding: 14px 18px; }
+    footer { padding: 12px 18px; flex-direction: column; gap: 8px; }
+    .hint { text-align: left; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1><span>Data</span>Flow</h1>
+  <p class="subtitle">Live network topology &mdash; packet routing visualization</p>
+</header>
+
+<canvas id="canvas"></canvas>
+
+<footer>
+  <div class="stats" id="stats">
+    NODES <b id="stat-nodes">0</b><br>
+    LINKS <b id="stat-links">0</b><br>
+    PACKETS <b id="stat-packets">0</b>
+  </div>
+  <div class="hint">move cursor near nodes to intensify glow</div>
+</footer>
+
+<script>
+(() => {
+  'use strict';
+
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+
+  // ---------- Configuration ----------
+  const CONFIG = {
+    layers: 4,                    // number of vertical tiers
+    nodesPerLayer: [5, 7, 7, 5],  // nodes in each tier
+    connectDist: 0.24,            // max edge distance (fraction of min dimension)
+    mouseRadius: 0.22,            // mouse influence radius (fraction of min dim)
+    packetMax: 60,                // max concurrent packets
+    spawnInterval: 320,           // ms between spawn attempts
+    trailAlpha: 0.16,             // background fade strength (lower = longer trails)
+    hueBase: 190,                 // cyan base hue
+    hueSpread: 60,                // hue variety for packets
+  };
+
+  let W = 0, H = 0, DPR = 1, MIN_DIM = 0;
+  let nodes = [];
+  let edges = [];
+  let packets = [];
+  let mouse = { x: -9999, y: -9999 };
+  let lastSpawn = 0;
+  let time = 0;
+
+  // Layer labels
+  const LAYER_LABELS = ['INGRESS', 'PROCESSING', 'COMPUTE GRID', 'EGRESS'];
+
+  // ---------- Setup ----------
+  function resize() {
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = W * DPR;
+    canvas.height = H * DPR;
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    MIN_DIM = Math.min(W, H);
+    buildNetwork();
+  }
+
+  // ---------- Network construction ----------
+  function buildNetwork() {
+    nodes = [];
+    edges = [];
+    packets = [];
+
+    const padX = W * 0.12;
+    const padTop = H * 0.16;
+    const padBottom = H * 0.12;
+    const usableW = W - padX * 2;
+    const usableH = H - padTop - padBottom;
+    const layerGap = usableH / (CONFIG.layers - 1);
+
+    CONFIG.nodesPerLayer.forEach((count, li) => {
+      const y = padTop + li * layerGap;
+      for (let i = 0; i < count; i++) {
+        const t = count === 1 ? 0.5 : i / (count - 1);
+        const jitterX = (Math.random() - 0.5) * usableW * 0.06;
+        const jitterY = (Math.random() - 0.5) * layerGap * 0.18;
+        nodes.push({
+          x: padX + t * usableW + jitterX,
+          y: y + jitterY,
+          baseR: 3.5 + Math.random() * 3,
+          layer: li,
+          phase: Math.random() * Math.PI * 2,
+          intensity: 0,       // mouse-driven glow (eased)
+          pulse: 0,           // packet-hit flash
+          label: null,
+        });
+      }
+    });
+
+    // Edges: connect nodes within distance threshold, prefer same/adjacent layers
+    const maxDist = MIN_DIM * CONFIG.connectDist;
+    for (let i = 0; i < nodes.length; i++) {
+      for (let j = i + 1; j < nodes.length; j++) {
+        const a = nodes[i], b = nodes[j];
+        const dx = a.x - b.x, dy = a.y - b.y;
+        const d = Math.hypot(dx, dy);
+        if (d > maxDist) continue;
+        const layerDiff = Math.abs(a.layer - b.layer);
+        if (layerDiff > 1 && d > maxDist * 0.7) continue;
+        edges.push({ a: i, b: j, dist: d, alpha: 1 - (d / maxDist) * 0.75 });
+      }
+    }
+
+    // Assign layer labels to one node per layer (centermost)
+    for (let li = 0; li < CONFIG.layers; li++) {
+      let best = -1, bestDx = Infinity;
+      nodes.forEach((n, idx) => {
+        if (n.layer !== li) return;
+        const dx = Math.abs(n.x - W / 2);
+        if (dx < bestDx) { bestDx = dx; best = idx; }
+      });
+      if (best >= 0) nodes[best].label = LAYER_LABELS[li];
+    }
+
+    document.getElementById('stat-nodes').textContent = nodes.length;
+    document.getElementById('stat-links').textContent = edges.length;
+  }
+
+  // ---------- Packet system ----------
+  function spawnPacket() {
+    if (packets.length >= CONFIG.packetMax) return;
+    if (edges.length === 0) return;
+
+    const e = edges[(Math.random() * edges.length) | 0];
+    const forward = Math.random() < 0.5;
+    const hue = CONFIG.hueBase + (Math.random() - 0.5) * CONFIG.hueSpread;
+    const speed = 0.004 + Math.random() * 0.006; // progress per frame (~60fps)
+
+    packets.push({
+      edge: e,
+      from: forward ? e.a : e.b,
+      to: forward ? e.b : e.a,
+      t: 0,
+      speed,
+      hue,
+      size: 1.6 + Math.random() * 1.8,
+      trail: [],
+    });
+  }
+
+  function updatePackets(dt) {
+    for (let i = packets.length - 1; i >= 0; i--) {
+      const p = packets[i];
+      p.t += p.speed * dt;
+
+      if (p.t >= 1) {
+        // Arrived: flash destination node, then remove or hop to next edge
+        const dest = nodes[p.to];
+        dest.pulse = 1;
+
+        // ~40% chance to continue along an outgoing edge
+        if (Math.random() < 0.4) {
+          const outEdges = edges.filter(e => e.a === p.to || e.b === p.to);
+          if (outEdges.length > 0) {
+            const ne = outEdges[(Math.random() * outEdges.length) | 0];
+            const nextIdx = ne.a === p.to ? ne.b : ne.a;
+            p.edge = ne;
+            p.from = p.to;
+            p.to = nextIdx;
+            p.t = 0;
+            p.trail.length = 0;
+            p.hue = CONFIG.hueBase + (Math.random() - 0.5) * CONFIG.hueSpread;
+            continue;
+          }
+        }
+        packets.splice(i, 1);
+        continue;
+      }
+
+      // Record trail positions
+      const a = nodes[p.from], b = nodes[p.to];
+      const px = a.x + (b.x - a.x) * p.t;
+      const py = a.y + (b.y - a.y) * p.t;
+      p.trail.push({ x: px, y: py });
+      if (p.trail.length > 14) p.trail.shift();
+    }
+  }
+
+  // ---------- Mouse ----------
+  window.addEventListener('mousemove', (ev) => {
+    mouse.x = ev.clientX;
+    mouse.y = ev.clientY;
+  });
+  window.addEventListener('mouseleave', () => {
+    mouse.x = -9999;
+    mouse.y = -9999;
+  });
+  window.addEventListener('touchmove', (ev) => {
+    if (ev.touches.length) {
+      mouse.x = ev.touches[0].clientX;
+      mouse.y = ev.touches[0].clientY;
+    }
+  }, { passive: true });
+  window.addEventListener('touchend', () => {
+    mouse.x = -9999;
+    mouse.y = -9999;
+  });
+
+  // ---------- Rendering ----------
+  function drawBackground() {
+    // Trailing fade: semi-transparent dark fill instead of clear
+    ctx.fillStyle = `rgba(4, 7, 13, ${CONFIG.trailAlpha})`;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  function drawGrid() {
+    // Subtle depth grid
+    ctx.save();
+    ctx.strokeStyle = 'rgba(40, 90, 140, 0.05)';
+    ctx.lineWidth = 1;
+    const step = MIN_DIM * 0.08;
+    for (let x = (W % step) / 2; x < W; x += step) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, H);
+      ctx.stroke();
+    }
+    for (let y = (H % step) / 2; y < H; y += step) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(W, y);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawEdges() {
+    for (const e of edges) {
+      const a = nodes[e.a], b = nodes[e.b];
+      const avgGlow = (a.intensity + b.intensity) * 0.5;
+      const alpha = e.alpha * (0.10 + avgGlow * 0.35);
+      ctx.strokeStyle = `rgba(70, 170, 230, ${alpha.toFixed(3)})`;
+      ctx.lineWidth = 0.7 + avgGlow * 1.2;
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.stroke();
+    }
+  }
+
+  function drawNodes() {
+    const mRadius = MIN_DIM * CONFIG.mouseRadius;
+
+    for (const n of nodes) {
+      // Mouse proximity influence
+      const md = Math.hypot(mouse.x - n.x, mouse.y - n.y);
+      const target = md < mRadius ? 1 - (md / mRadius) : 0;
+      n.intensity += (target - n.intensity) * 0.12;
+      n.pulse *= 0.92;
+
+      const breathe = 0.5 + 0.5 * Math.sin(time * 0.0012 + n.phase);
+      const glow = 0.25 + breathe * 0.2 + n.intensity * 0.9 + n.pulse * 0.8;
+      const r = n.baseR * (1 + n.intensity * 0.5 + n.pulse * 0.4);
+
+      // Outer halo
+      const haloR = r * (5 + n.intensity * 5 + n.pulse * 4);
+      const halo = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, haloR);
+      halo.addColorStop(0, `rgba(80, 200, 255, ${(glow * 0.35).toFixed(3)})`);
+      halo.addColorStop(0.4, `rgba(50, 150, 240, ${(glow * 0.12).toFixed(3)})`);
+      halo.addColorStop(1, 'rgba(30, 100, 200, 0)');
+      ctx.fillStyle = halo;
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, haloR, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Core
+      const core = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, r * 2.2);
+      core.addColorStop(0, `rgba(230, 250, 255, ${(0.75 + glow * 0.25).toFixed(3)})`);
+      core.addColorStop(0.5, `rgba(120, 215, 255, ${(0.5 + glow * 0.4).toFixed(3)})`);
+      core.addColorStop(1, 'rgba(60, 160, 255, 0)');
+      ctx.fillStyle = core;
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, r * 2.2, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Bright center dot
+      ctx.fillStyle = `rgba(255, 255, 255, ${(0.6 + glow * 0.4).toFixed(3)})`;
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, r * 0.55, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Label
+      if (n.label) {
+        ctx.save();
+        ctx.font = `${Math.max(9, MIN_DIM * 0.014)}px "Courier New", monospace`;
+        ctx.textAlign = 'center';
+        ctx.fillStyle = `rgba(130, 210, 255, ${0.4 + n.intensity * 0.5})`;
+        ctx.shadowColor = 'rgba(80, 190, 255, 0.6)';
+        ctx.shadowBlur = 10;
+        ctx.fillText(n.label, n.x, n.y - r * 3.2 - 6);
+        ctx.restore();
+      }
+    }
+  }
+
+  function drawPackets() {
+    for (const p of packets) {
+      const a = nodes[p.from], b = nodes[p.to];
+      const x = a.x + (b.x - a.x) * p.t;
+      const y = a.y + (b.y - a.y) * p.t;
+
+      // Trail
+      for (let i = 0; i < p.trail.length; i++) {
+        const tp = p.trail[i];
+        const f = i / p.trail.length;
+        const tr = p.size * f * 1.6;
+        ctx.fillStyle = `hsla(${p.hue}, 100%, ${55 + f * 20}%, ${(f * 0.35).toFixed(3)})`;
+        ctx.beginPath();
+        ctx.arc(tp.x, tp.y, tr, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Glow halo
+      const glowR = p.size * 6;
+      const g = ctx.createRadialGradient(x, y, 0, x, y, glowR);
+      g.addColorStop(0, `hsla(${p.hue}, 100%, 75%, 0.9)`);
+      g.addColorStop(0.25, `hsla(${p.hue}, 100%, 60%, 0.45)`);
+      g.addColorStop(0.6, `hsla(${p.hue + 20}, 100%, 50%, 0.12)`);
+      g.addColorStop(1, `hsla(${p.hue}, 100%, 50%, 0)`);
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(x, y, glowR, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Hot core
+      ctx.fillStyle = `hsla(${p.hue}, 100%, 92%, 1)`;
+      ctx.beginPath();
+      ctx.arc(x, y, p.size * 0.7, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // ---------- Main loop ----------
+  let lastTime = performance.now();
+
+  function frame(now) {
+    const dt = Math.min((now - lastTime) / 16.667, 3); // normalized to 60fps units
+    lastTime = now;
+    time = now;
+
+    // Spawn control
+    if (now - lastSpawn > CONFIG.spawnInterval) {
+      lastSpawn = now;
+      spawnPacket();
+      if (Math.random() < 0.35) spawnPacket(); // occasional burst
+    }
+
+    drawBackground();
+    drawGrid();
+    updatePackets(dt);
+    drawEdges();
+    drawNodes();
+    drawPackets();
+
+    document.getElementById('stat-packets').textContent = packets.length;
+
+    requestAnimationFrame(frame);
+  }
+
+  // ---------- Init ----------
+  window.addEventListener('resize', resize);
+  resize();
+  requestAnimationFrame(frame);
+})();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,24 @@
+# 043 — Lava Lamp
+
+## Creative Prompt
+Create a lava lamp simulation with organic blobs that rise, morph, split, and merge within an elliptical glass container. Blobs are rendered as smooth organic shapes using quadratic curves with sine-wave morphing. They have warm red/purple/orange hues with radial gradient fills. The lamp has a glass outline, top cap, base, and a warm glow at the bottom. Blobs are confined to the elliptical lamp shape. Clicking spawns a new blob. The overall aesthetic is retro, warm, and hypnotic — like a classic lava lamp.
+
+## Model
+Qwen3.8-27B-instruct
+
+## Thinking Effort
+high
+
+## Techniques Used
+- Canvas organic blob rendering: polar coordinate points (10 samples) smoothed into closed shapes via quadratic Bézier curves through midpoints
+- Sine-based morphing: per-blob wobble frequency + per-point random phase seeds drive time-varying radius modulation for liquid appearance
+- Elliptical confinement: soft push-back + velocity reflection keeps blobs inside the glass ellipse; canvas clip region enforces hard boundary
+- Radial gradient coloring: multi-stop HSL gradients (hot core → cool edge) from a warm palette of 6 hue variants, plus a specular highlight pass
+- Multi-blob physics: buoyancy driven by depth (heat near base), damping, sine drift, overlap-based merging (mass-conserving radius), probabilistic splitting of large blobs
+- Lamp glass rendering: linear-gradient liquid fill, rim stroke, left specular streak, metallic trapezoid base with horizontal gradient, domed cap with shine, pulsing bulb glow at base, outer ambient glow
+- Depth sorting by Y before draw; trailing fade (low-alpha rect) inside the clipped glass for motion blur
+- Click spawning via pointerdown with ellipse hit-test; capped at 18 blobs (smallest removed on overflow)
+- Responsive: vmin-based sizing, devicePixelRatio-aware canvas, blob positions rescaled on resize
+
+## Stats
+Wall time: N/A | Tokens: N/A

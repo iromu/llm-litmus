@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bioluminescent Jellyfish — Deep Sea</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #020a14;
+  }
+
+  canvas {
+    display: block;
+    width: 100vw;
+    height: 100vh;
+    cursor: crosshair;
+  }
+
+  .hint {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: rgba(140, 220, 255, 0.45);
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 13px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    pointer-events: none;
+    user-select: none;
+    animation: hintFade 4s ease-in-out infinite;
+    white-space: nowrap;
+  }
+
+  @keyframes hintFade {
+    0%, 100% { opacity: 0.35; }
+    50%       { opacity: 0.7; }
+  }
+</style>
+</head>
+<body>
+<canvas id="ocean" aria-label="Bioluminescent jellyfish drifting in deep ocean"></canvas>
+<p class="hint">click to summon a jellyfish</p>
+
+<script>
+(() => {
+  'use strict';
+
+  // ──────────────────────────────────────────────
+  // Canvas setup
+  // ──────────────────────────────────────────────
+  const canvas = document.getElementById('ocean');
+  const ctx = canvas.getContext('2d');
+  let W = 0, H = 0, DPR = 1;
+
+  function resize() {
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = W * DPR;
+    canvas.height = H * DPR;
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    // Paint the base so the first frame isn't black-flash
+    paintBackground(1);
+  }
+  window.addEventListener('resize', resize);
+
+  // ──────────────────────────────────────────────
+  // Helpers
+  // ──────────────────────────────────────────────
+  const TAU = Math.PI * 2;
+  const rand = (min, max) => min + Math.random() * (max - min);
+  const lerp = (a, b, t) => a + (b - a) * t;
+
+  // ──────────────────────────────────────────────
+  // Background: deep ocean with subtle vertical gradient
+  // ──────────────────────────────────────────────
+  let bgGradient = null;
+  function buildBgGradient() {
+    bgGradient = ctx.createLinearGradient(0, 0, 0, H);
+    bgGradient.addColorStop(0.0, '#041226');
+    bgGradient.addColorStop(0.35, '#03101f');
+    bgGradient.addColorStop(0.7, '#020a16');
+    bgGradient.addColorStop(1.0, '#01060e');
+  }
+
+  function paintBackground(alpha) {
+    if (!bgGradient) buildBgGradient();
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = bgGradient;
+    ctx.fillRect(0, 0, W, H);
+    ctx.globalAlpha = 1;
+  }
+
+  // ──────────────────────────────────────────────
+  // Bubbles
+  // ──────────────────────────────────────────────
+  const MAX_BUBBLES = 60;
+  const bubbles = [];
+
+  function spawnBubble(x, y) {
+    if (bubbles.length >= MAX_BUBBLES) return;
+    bubbles.push({
+      x: x !== undefined ? x : rand(0, W),
+      y: y !== undefined ? y : H + rand(0, 40),
+      r: rand(1, 3.5),
+      speed: rand(0.2, 0.7),
+      wobblePhase: rand(0, TAU),
+      wobbleAmp: rand(0.3, 1.2),
+      alpha: rand(0.15, 0.5),
+    });
+  }
+
+  function updateBubbles(dt) {
+    for (let i = bubbles.length - 1; i >= 0; i--) {
+      const b = bubbles[i];
+      b.y -= b.speed * dt * 60;
+      b.x += Math.sin(b.wobblePhase + performance.now() * 0.001) * b.wobbleAmp * 0.3;
+      if (b.y < -10) bubbles.splice(i, 1);
+    }
+    // Keep ambient bubbles flowing
+    if (Math.random() < 0.08) spawnBubble();
+  }
+
+  function drawBubbles() {
+    for (const b of bubbles) {
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, b.r, 0, TAU);
+      ctx.strokeStyle = `rgba(160, 220, 255, ${b.alpha})`;
+      ctx.lineWidth = 0.8;
+      ctx.stroke();
+      // Tiny highlight
+      ctx.beginPath();
+      ctx.arc(b.x - b.r * 0.3, b.y - b.r * 0.3, b.r * 0.3, 0, TAU);
+      ctx.fillStyle = `rgba(220, 245, 255, ${b.alpha * 0.6})`;
+      ctx.fill();
+    }
+  }
+
+  // ──────────────────────────────────────────────
+  // Jellyfish
+  // ──────────────────────────────────────────────
+  const MAX_JELLYFISH = 12;
+  const jellyfish = [];
+
+  class Jellyfish {
+    constructor(x, y, scale) {
+      this.x = x;
+      this.y = y;
+      this.scale = scale || rand(0.6, 1.4);
+      this.baseRadius = rand(30, 55) * this.scale;
+
+      // Hue variation within blue/cyan range
+      this.hue = rand(175, 210);
+      this.saturation = rand(60, 90);
+      this.lightness = rand(55, 75);
+
+      // Motion
+      this.driftSpeed = rand(0.15, 0.45) * this.scale;
+      this.lateralAmp = rand(15, 45);
+      this.lateralFreq = rand(0.3, 0.7);
+      this.lateralPhase = rand(0, TAU);
+
+      // Bell pulse
+      this.pulsePhase = rand(0, TAU);
+      this.pulseSpeed = rand(1.2, 2.2);
+      this.pulseDepth = rand(0.12, 0.25);
+
+      // Tentacles
+      this.tentacleCount = Math.floor(rand(8, 14));
+      this.tentacles = [];
+      for (let i = 0; i < this.tentacleCount; i++) {
+        this.tentacles.push({
+          offsetAngle: (i / this.tentacleCount) * TAU + rand(-0.15, 0.15),
+          length: rand(80, 180) * this.scale,
+          segments: Math.floor(rand(14, 24)),
+          waveAmp: rand(4, 14) * this.scale,
+          waveFreq: rand(1.5, 3.5),
+          wavePhase: rand(0, TAU),
+          thickness: rand(0.8, 2.2) * this.scale,
+          hueShift: rand(-15, 15),
+        });
+      }
+
+      // Oral arms (thicker, fewer, more central)
+      this.armCount = Math.floor(rand(3, 5));
+      this.arms = [];
+      for (let i = 0; i < this.armCount; i++) {
+        this.arms.push({
+          offsetAngle: ((i - (this.armCount - 1) / 2) / this.armCount) * TAU * 0.6,
+          length: rand(60, 120) * this.scale,
+          segments: Math.floor(rand(10, 16)),
+          waveAmp: rand(6, 12) * this.scale,
+          waveFreq: rand(1.0, 2.0),
+          wavePhase: rand(0, TAU),
+          thickness: rand(2.5, 4.5) * this.scale,
+        });
+      }
+
+      // Inner pattern rings
+      this.ringCount = Math.floor(rand(2, 4));
+      this.ringPhases = [];
+      for (let i = 0; i < this.ringCount; i++) {
+        this.ringPhases.push(rand(0, TAU));
+      }
+
+      // Glow intensity
+      this.glowIntensity = rand(0.4, 0.8);
+
+      // Fade-in
+      this.alpha = 0;
+      this.targetAlpha = rand(0.7, 0.95);
+    }
+
+    update(dt, time) {
+      // Drift upward
+      this.y -= this.driftSpeed * dt * 60;
+
+      // Sinusoidal lateral movement
+      this.x += Math.sin(time * this.lateralFreq + this.lateralPhase) * this.lateralAmp * 0.008;
+
+      // Wrap around edges
+      const margin = this.baseRadius * 2;
+      if (this.y < -margin - 200) {
+        this.y = H + margin + rand(0, 100);
+        this.x = rand(margin, W - margin);
+      }
+      if (this.x < -margin) this.x = W + margin;
+      if (this.x > W + margin) this.x = -margin;
+
+      // Pulse phase
+      this.pulsePhase += this.pulseSpeed * dt;
+
+      // Fade in
+      this.alpha = lerp(this.alpha, this.targetAlpha, 0.02);
+    }
+
+    get bellPulse() {
+      return Math.sin(this.pulsePhase);
+    }
+
+    get currentRadius() {
+      return this.baseRadius * (1 + this.bellPulse * this.pulseDepth);
+    }
+
+    draw(ctx, time) {
+      const r = this.currentRadius;
+      const cx = this.x;
+      const cy = this.y;
+      const h = this.hue;
+      const s = this.saturation;
+      const l = this.lightness;
+      const a = this.alpha;
+
+      ctx.save();
+      ctx.translate(cx, cy);
+
+      // Subtle rotation sway
+      const sway = Math.sin(time * 0.4 + this.lateralPhase) * 0.06;
+      ctx.rotate(sway);
+
+      // ── Outer glow halo ──
+      const glowR = r * 2.2;
+      const glowGrad = ctx.createRadialGradient(0, 0, r * 0.3, 0, 0, glowR);
+      glowGrad.addColorStop(0, `hsla(${h}, ${s}%, ${l}%, ${0.12 * a * this.glowIntensity})`);
+      glowGrad.addColorStop(0.5, `hsla(${h + 10}, ${s}%, ${l - 10}%, ${0.05 * a})`);
+      glowGrad.addColorStop(1, `hsla(${h}, ${s}%, ${l}%, 0)`);
+      ctx.beginPath();
+      ctx.arc(0, 0, glowR, 0, TAU);
+      ctx.fillStyle = glowGrad;
+      ctx.fill();
+
+      // ── Tentacles (behind bell) ──
+      this.drawTentacles(ctx, time, r, h, s, l, a);
+
+      // ── Oral arms ──
+      this.drawArms(ctx, time, r, h, s, l, a);
+
+      // ── Bell body ──
+      this.drawBell(ctx, time, r, h, s, l, a);
+
+      // ── Inner pattern ──
+      this.drawInnerPattern(ctx, time, r, h, s, l, a);
+
+      ctx.restore();
+    }
+
+    drawBell(ctx, time, r, h, s, l, a) {
+      // Bell is an ellipse — wider at top, slightly narrower at bottom
+      const bellW = r;
+      const bellH = r * 0.75;
+
+      // Main bell shape with multi-stop radial gradient
+      const bellGrad = ctx.createRadialGradient(0, -bellH * 0.15, 0, 0, 0, bellW * 1.1);
+      bellGrad.addColorStop(0, `hsla(${h}, ${s}%, ${l + 15}%, ${0.55 * a})`);
+      bellGrad.addColorStop(0.3, `hsla(${h}, ${s}%, ${l}%, ${0.35 * a})`);
+      bellGrad.addColorStop(0.6, `hsla(${h + 5}, ${s - 10}%, ${l - 5}%, ${0.18 * a})`);
+      bellGrad.addColorStop(0.85, `hsla(${h + 10}, ${s - 20}%, ${l - 15}%, ${0.06 * a})`);
+      bellGrad.addColorStop(1, `hsla(${h}, ${s}%, ${l}%, 0)`);
+
+      ctx.beginPath();
+      ctx.ellipse(0, 0, bellW, bellH, 0, 0, TAU);
+      ctx.fillStyle = bellGrad;
+      ctx.fill();
+
+      // Bell rim — brighter edge
+      ctx.beginPath();
+      ctx.ellipse(0, 0, bellW * 0.98, bellH * 0.98, 0, 0, TAU);
+      ctx.strokeStyle = `hsla(${h}, ${s + 10}%, ${l + 20}%, ${0.3 * a})`;
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      // Top cap highlight
+      const capGrad = ctx.createRadialGradient(0, -bellH * 0.5, 0, 0, -bellH * 0.5, bellW * 0.6);
+      capGrad.addColorStop(0, `hsla(${h}, ${s}%, ${l + 25}%, ${0.3 * a})`);
+      capGrad.addColorStop(1, `hsla(${h}, ${s}%, ${l}%, 0)`);
+      ctx.beginPath();
+      ctx.ellipse(0, -bellH * 0.3, bellW * 0.6, bellH * 0.4, 0, 0, TAU);
+      ctx.fillStyle = capGrad;
+      ctx.fill();
+
+      // Bottom membrane — where tentacles emerge
+      const memGrad = ctx.createRadialGradient(0, bellH * 0.6, 0, 0, bellH * 0.6, bellW * 0.5);
+      memGrad.addColorStop(0, `hsla(${h}, ${s}%, ${l + 10}%, ${0.25 * a})`);
+      memGrad.addColorStop(1, `hsla(${h}, ${s}%, ${l}%, 0)`);
+      ctx.beginPath();
+      ctx.ellipse(0, bellH * 0.55, bellW * 0.45, bellH * 0.25, 0, 0, TAU);
+      ctx.fillStyle = memGrad;
+      ctx.fill();
+    }
+
+    drawInnerPattern(ctx, time, r, h, s, l, a) {
+      // Concentric luminous rings inside the bell
+      for (let i = 0; i < this.ringCount; i++) {
+        const ringR = r * (0.25 + i * 0.2);
+        const ringPhase = this.ringPhases[i] + time * 0.8;
+        const ringAlpha = (0.15 + 0.1 * Math.sin(ringPhase)) * a;
+
+        ctx.beginPath();
+        ctx.ellipse(0, 0, ringR, ringR * 0.7, 0, 0, TAU);
+        ctx.strokeStyle = `hsla(${h + 15}, ${s}%, ${l + 20}%, ${ringAlpha})`;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }
+
+      // Central nucleus glow
+      const nucGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, r * 0.25);
+      nucGrad.addColorStop(0, `hsla(${h}, ${s + 10}%, ${l + 30}%, ${0.4 * a})`);
+      nucGrad.addColorStop(0.5, `hsla(${h}, ${s}%, ${l + 15}%, ${0.15 * a})`);
+      nucGrad.addColorStop(1, `hsla(${h}, ${s}%, ${l}%, 0)`);
+      ctx.beginPath();
+      ctx.arc(0, 0, r * 0.25, 0, TAU);
+      ctx.fillStyle = nucGrad;
+      ctx.fill();
+
+      // Radial filaments from center to rim
+      const filamentCount = 8;
+      for (let i = 0; i < filamentCount; i++) {
+        const angle = (i / filamentCount) * TAU + time * 0.1;
+        const fx = Math.cos(angle) * r * 0.85;
+        const fy = Math.sin(angle) * r * 0.6;
+        const filGrad = ctx.createLinearGradient(0, 0, fx, fy);
+        filGrad.addColorStop(0, `hsla(${h}, ${s}%, ${l + 20}%, ${0.12 * a})`);
+        filGrad.addColorStop(1, `hsla(${h}, ${s}%, ${l}%, 0)`);
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(fx, fy);
+        ctx.strokeStyle = filGrad;
+        ctx.lineWidth = 0.8;
+        ctx.stroke();
+      }
+    }
+
+    drawTentacles(ctx, time, r, h, s, l, a) {
+      const bellBottomY = r * 0.75;
+
+      for (const t of this.tentacles) {
+        const startX = Math.cos(t.offsetAngle) * r * 0.85;
+        const startY = bellBottomY * 0.85;
+
+        ctx.beginPath();
+        ctx.moveTo(startX, startY);
+
+        let px = startX;
+        let py = startY;
+
+        for (let seg = 1; seg <= t.segments; seg++) {
+          const progress = seg / t.segments;
+          const segLen = t.length / t.segments;
+
+          // Sine-wave undulation along the tentacle
+          const waveOffset = Math.sin(
+            time * t.waveFreq + t.wavePhase + progress * TAU * 1.5
+          ) * t.waveAmp * progress;
+
+          // Slight outward drift as tentacle extends
+          const driftX = Math.cos(t.offsetAngle) * progress * t.waveAmp * 0.5;
+
+          const nx = px + driftX + waveOffset;
+          const ny = py + segLen;
+
+          // Smooth curve using quadratic midpoint
+          const midX = (px + nx) / 2;
+          const midY = (py + ny) / 2;
+          ctx.quadraticCurveTo(px, py, midX, midY);
+          px = nx;
+          py = ny;
+        }
+        ctx.lineTo(px, py);
+
+        // Gradient stroke: bright at root, fading to tip
+        const tHue = h + t.hueShift;
+        const grad = ctx.createLinearGradient(startX, startY, px, py);
+        grad.addColorStop(0, `hsla(${tHue}, ${s}%, ${l + 15}%, ${0.5 * a})`);
+        grad.addColorStop(0.4, `hsla(${tHue}, ${s}%, ${l}%, ${0.3 * a})`);
+        grad.addColorStop(0.8, `hsla(${tHue}, ${s - 10}%, ${l - 10}%, ${0.12 * a})`);
+        grad.addColorStop(1, `hsla(${tHue}, ${s}%, ${l}%, 0)`);
+
+        ctx.strokeStyle = grad;
+        ctx.lineWidth = t.thickness;
+        ctx.lineCap = 'round';
+        ctx.stroke();
+
+        // Luminous dots along the tentacle (bioluminescent spots)
+        const dotCount = Math.floor(t.segments / 4);
+        for (let d = 0; d < dotCount; d++) {
+          const dp = (d + 1) / (dotCount + 1);
+          const dotWave = Math.sin(time * t.waveFreq + t.wavePhase + dp * TAU * 1.5) * t.waveAmp * dp;
+          const dotDrift = Math.cos(t.offsetAngle) * dp * t.waveAmp * 0.5;
+          const dx = startX + dotDrift + dotWave;
+          const dy = startY + dp * t.length;
+          const dotAlpha = (0.3 + 0.2 * Math.sin(time * 2 + d)) * a * (1 - dp * 0.5);
+
+          ctx.beginPath();
+          ctx.arc(dx, dy, t.thickness * 0.8, 0, TAU);
+          ctx.fillStyle = `hsla(${tHue + 20}, ${s + 10}%, ${l + 30}%, ${dotAlpha})`;
+          ctx.fill();
+        }
+      }
+    }
+
+    drawArms(ctx, time, r, h, s, l, a) {
+      const bellBottomY = r * 0.75;
+
+      for (const arm of this.arms) {
+        const startX = Math.cos(arm.offsetAngle) * r * 0.3;
+        const startY = bellBottomY * 0.9;
+
+        ctx.beginPath();
+        ctx.moveTo(startX, startY);
+
+        let px = startX;
+        let py = startY;
+
+        for (let seg = 1; seg <= arm.segments; seg++) {
+          const progress = seg / arm.segments;
+          const segLen = arm.length / arm.segments;
+
+          const waveOffset = Math.sin(
+            time * arm.waveFreq + arm.wavePhase + progress * TAU
+          ) * arm.waveAmp * progress;
+
+          const nx = px + waveOffset;
+          const ny = py + segLen;
+
+          const midX = (px + nx) / 2;
+          const midY = (py + ny) / 2;
+          ctx.quadraticCurveTo(px, py, midX, midY);
+          px = nx;
+          py = ny;
+        }
+        ctx.lineTo(px, py);
+
+        const grad = ctx.createLinearGradient(startX, startY, px, py);
+        grad.addColorStop(0, `hsla(${h + 10}, ${s}%, ${l + 10}%, ${0.4 * a})`);
+        grad.addColorStop(0.5, `hsla(${h + 10}, ${s - 5}%, ${l}%, ${0.2 * a})`);
+        grad.addColorStop(1, `hsla(${h + 10}, ${s}%, ${l - 10}%, 0)`);
+
+        ctx.strokeStyle = grad;
+        ctx.lineWidth = arm.thickness;
+        ctx.lineCap = 'round';
+        ctx.stroke();
+      }
+    }
+  }
+
+  // ──────────────────────────────────────────────
+  // Spawn management
+  // ──────────────────────────────────────────────
+  function spawnJellyfish(x, y) {
+    if (jellyfish.length >= MAX_JELLYFISH) {
+      // Remove oldest (first in array)
+      jellyfish.shift();
+    }
+    const jf = new Jellyfish(x, y);
+    jellyfish.push(jf);
+
+    // Burst of bubbles on spawn
+    for (let i = 0; i < 8; i++) {
+      spawnBubble(x + rand(-20, 20), y + rand(-10, 30));
+    }
+  }
+
+  // Initial population
+  function initScene() {
+    const count = Math.min(5, Math.max(3, Math.floor(W / 300)));
+    for (let i = 0; i < count; i++) {
+      spawnJellyfish(rand(W * 0.15, W * 0.85), rand(H * 0.2, H * 0.9));
+    }
+    for (let i = 0; i < 25; i++) {
+      spawnBubble(rand(0, W), rand(0, H));
+    }
+  }
+
+  // ──────────────────────────────────────────────
+  // Click interaction
+  // ──────────────────────────────────────────────
+  canvas.addEventListener('click', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    spawnJellyfish(x, y);
+  });
+
+  // Touch support
+  canvas.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    const touch = e.touches[0];
+    const rect = canvas.getBoundingClientRect();
+    const x = touch.clientX - rect.left;
+    const y = touch.clientY - rect.top;
+    spawnJellyfish(x, y);
+  }, { passive: false });
+
+  // ──────────────────────────────────────────────
+  // Ambient light rays (subtle caustic effect)
+  // ──────────────────────────────────────────────
+  function drawLightRays(time) {
+    const rayCount = 5;
+    for (let i = 0; i < rayCount; i++) {
+      const rayX = W * (0.1 + i * 0.2) + Math.sin(time * 0.15 + i * 1.3) * 40;
+      const rayWidth = 60 + Math.sin(time * 0.2 + i) * 20;
+      const rayAlpha = 0.015 + 0.01 * Math.sin(time * 0.3 + i * 0.7);
+
+      const grad = ctx.createLinearGradient(rayX, 0, rayX + rayWidth * 0.3, H);
+      grad.addColorStop(0, `rgba(100, 180, 255, ${rayAlpha})`);
+      grad.addColorStop(0.5, `rgba(80, 160, 240, ${rayAlpha * 0.5})`);
+      grad.addColorStop(1, 'rgba(60, 140, 220, 0)');
+
+      ctx.beginPath();
+      ctx.moveTo(rayX - rayWidth / 2, 0);
+      ctx.lineTo(rayX + rayWidth / 2, 0);
+      ctx.lineTo(rayX + rayWidth * 0.8, H);
+      ctx.lineTo(rayX - rayWidth * 0.4, H);
+      ctx.closePath();
+      ctx.fillStyle = grad;
+      ctx.fill();
+    }
+  }
+
+  // ──────────────────────────────────────────────
+  // Animation loop
+  // ──────────────────────────────────────────────
+  let lastTime = 0;
+
+  function animate(timestamp) {
+    const time = timestamp * 0.001; // seconds
+    const dt = Math.min((timestamp - lastTime) / 1000, 0.05); // cap delta
+    lastTime = timestamp;
+
+    // Trailing fade — semi-transparent background overlay
+    paintBackground(0.12);
+
+    // Light rays
+    drawLightRays(time);
+
+    // Update & draw bubbles
+    updateBubbles(dt);
+    drawBubbles();
+
+    // Update & draw jellyfish (sorted by scale for depth)
+    jellyfish.sort((a, b) => a.scale - b.scale);
+    for (const jf of jellyfish) {
+      jf.update(dt, time);
+      jf.draw(ctx, time);
+    }
+
+    requestAnimationFrame(animate);
+  }
+
+  // ──────────────────────────────────────────────
+  // Boot
+  // ──────────────────────────────────────────────
+  resize();
+  initScene();
+  requestAnimationFrame(animate);
+})();
+</script>
+</body>
+</html>

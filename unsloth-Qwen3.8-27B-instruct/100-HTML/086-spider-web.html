@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Spider Web</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 100%; height: 100%; overflow: hidden; }
+body { background: #0a1020; }
+canvas { display: block; width: 100%; height: 100%; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let W, H, cx, cy;
+
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+  cx = W / 2;
+  cy = H / 2;
+}
+window.addEventListener('resize', resize);
+resize();
+
+const RADIAL_STRANDS = 12;
+const RING_COUNT = 8;
+const MAX_RADIUS = () => Math.min(W, H) * 0.45;
+
+// Dew drops on the web
+class DewDrop {
+  constructor() {
+    this.strandIdx = Math.floor(Math.random() * RADIAL_STRANDS);
+    this.ringPos = Math.random(); // 0 to 1 along the ring radius
+    this.size = 1.5 + Math.random() * 3;
+    this.twinklePhase = Math.random() * Math.PI * 2;
+    this.twinkleSpeed = 1 + Math.random() * 2;
+  }
+  getPosition(time) {
+    const angle = (this.strandIdx / RADIAL_STRANDS) * Math.PI * 2 - Math.PI / 2;
+    const wobble = Math.sin(time * 0.8 + this.strandIdx * 0.5) * 0.02;
+    const a = angle + wobble;
+    const r = this.ringPos * MAX_RADIUS();
+    return { x: cx + Math.cos(a) * r, y: cy + Math.sin(a) * r };
+  }
+  draw(ctx, time) {
+    const pos = this.getPosition(time);
+    const twinkle = 0.4 + 0.6 * Math.abs(Math.sin(time * this.twinkleSpeed + this.twinklePhase));
+
+    // Glow
+    const grad = ctx.createRadialGradient(pos.x, pos.y, 0, pos.x, pos.y, this.size * 3);
+    grad.addColorStop(0, `rgba(200, 230, 255, ${twinkle * 0.6})`);
+    grad.addColorStop(0.5, `rgba(150, 200, 255, ${twinkle * 0.2})`);
+    grad.addColorStop(1, 'rgba(100, 150, 255, 0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(pos.x, pos.y, this.size * 3, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Core
+    ctx.fillStyle = `rgba(255, 255, 255, ${twinkle * 0.9})`;
+    ctx.beginPath();
+    ctx.arc(pos.x, pos.y, this.size * 0.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+const dewDrops = [];
+for (let i = 0; i < 25; i++) {
+  dewDrops.push(new DewDrop());
+}
+
+function drawWeb(time) {
+  const maxR = MAX_RADIUS();
+  const windWobble = Math.sin(time * 0.5) * 0.03;
+
+  // Draw radial strands
+  for (let i = 0; i < RADIAL_STRANDS; i++) {
+    const baseAngle = (i / RADIAL_STRANDS) * Math.PI * 2 - Math.PI / 2;
+    const wobble = Math.sin(time * 0.7 + i * 0.8) * 0.015 + windWobble * Math.sin(i * 0.5);
+    const angle = baseAngle + wobble;
+
+    ctx.strokeStyle = 'rgba(180, 200, 230, 0.25)';
+    ctx.lineWidth = 0.6;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx + Math.cos(angle) * maxR, cy + Math.sin(angle) * maxR);
+    ctx.stroke();
+  }
+
+  // Draw concentric rings with sag
+  for (let ring = 1; ring <= RING_COUNT; ring++) {
+    const ringRadius = (ring / RING_COUNT) * maxR;
+    const sagAmount = ring * 1.5;
+
+    ctx.strokeStyle = `rgba(180, 200, 230, ${0.15 + ring * 0.02})`;
+    ctx.lineWidth = 0.5;
+    ctx.beginPath();
+
+    for (let seg = 0; seg <= RADIAL_STRANDS * 4; seg++) {
+      const t = seg / (RADIAL_STRANDS * 4);
+      const angle = t * Math.PI * 2 - Math.PI / 2;
+      const strandIdx = Math.floor(t * RADIAL_STRANDS);
+      const localT = (t * RADIAL_STRANDS) % 1;
+
+      // Sag between anchor points
+      const sag = Math.sin(localT * Math.PI) * sagAmount;
+      const wobble = Math.sin(time * 0.6 + strandIdx + ring) * 1.5;
+      const r = ringRadius + sag + wobble;
+
+      const x = cx + Math.cos(angle) * r;
+      const y = cy + Math.sin(angle) * r;
+
+      if (seg === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    ctx.stroke();
+  }
+
+  // Center hub
+  ctx.fillStyle = 'rgba(200, 220, 255, 0.3)';
+  ctx.beginPath();
+  ctx.arc(cx, cy, 3, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+let time = 0;
+function animate() {
+  time += 0.016;
+
+  // Background fade
+  ctx.fillStyle = 'rgba(10, 16, 32, 0.12)';
+  ctx.fillRect(0, 0, W, H);
+
+  // Subtle atmospheric glow behind web
+  const bgGlow = ctx.createRadialGradient(cx, cy, 0, cx, cy, MAX_RADIUS() * 1.2);
+  bgGlow.addColorStop(0, 'rgba(30, 50, 80, 0.03)');
+  bgGlow.addColorStop(1, 'rgba(10, 16, 32, 0)');
+  ctx.fillStyle = bgGlow;
+  ctx.fillRect(0, 0, W, H);
+
+  drawWeb(time);
+
+  // Draw dew drops
+  for (const drop of dewDrops) {
+    drop.draw(ctx, time);
+  }
+
+  requestAnimationFrame(animate);
+}
+
+ctx.fillStyle = '#0a1020';
+ctx.fillRect(0, 0, W, H);
+animate();
+</script>
+</body>
+</html>

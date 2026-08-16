@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>City Rain — A Blade Runner Night</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #05060f; }
+  canvas { display: block; width: 100vw; height: 100vh; }
+  .vignette {
+    position: fixed; inset: 0; pointer-events: none;
+    background: radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.55) 100%);
+  }
+  .caption {
+    position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%);
+    font-family: 'Courier New', monospace; font-size: 11px; letter-spacing: 4px;
+    color: rgba(160,190,255,0.35); text-transform: uppercase; pointer-events: none;
+    user-select: none; white-space: nowrap;
+  }
+</style>
+</head>
+<body>
+<canvas id="scene" role="img" aria-label="Animated rainy night cityscape with silhouetted buildings, lit windows, falling rain and splashes"></canvas>
+<div class="vignette" aria-hidden="true"></div>
+<p class="caption" aria-hidden="true">Sector 7 &mdash; 03:12 AM &mdash; Rain</p>
+
+<script>
+(() => {
+'use strict';
+
+const canvas = document.getElementById('scene');
+const ctx = canvas.getContext('2d');
+
+let W = 0, H = 0, DPR = 1;
+let groundY = 0;
+
+/* ---------- tunables ---------- */
+const CFG = {
+  rainCount:      () => Math.min(420, Math.floor(W * H / 3800)),
+  rainSpeedMin:   9,
+  rainSpeedMax:   17,
+  windBase:       -0.35,        // slant (dx per dy)
+  windGustAmp:    0.22,
+  splashPool:     260,
+  mistLayers:     3,
+  flickerChance:  0.0035,       // per window per frame
+  fadeAlpha:      0.28,         // trailing fade strength
+};
+
+/* ---------- state ---------- */
+let buildings = [];
+let raindrops = [];
+let splashes = [];
+let mists = [];
+let time = 0;
+
+/* ---------- helpers ---------- */
+const rand  = (a, b) => a + Math.random() * (b - a);
+const randI = (a, b) => Math.floor(rand(a, b + 1));
+const pick  = arr => arr[Math.floor(Math.random() * arr.length)];
+
+/* ================================================================
+   BUILDINGS
+   Each building stores its own window grid so flicker is stable.
+   ================================================================ */
+function generateBuildings() {
+  buildings = [];
+  let x = -W * 0.05;
+  while (x < W * 1.05) {
+    const w = rand(46, 130) * Math.min(1, W / 900 + 0.45);
+    const h = rand(H * 0.22, H * 0.72);
+    const b = {
+      x, w, h,
+      y: groundY - h,
+      hue: rand(215, 235),
+      light: rand(0.04, 0.10),          // silhouette brightness
+      hasAntenna: Math.random() < 0.3,
+      antennaH: rand(14, 42),
+      windows: [],
+    };
+
+    /* window grid */
+    const cellW = rand(9, 15), cellH = rand(11, 17);
+    const padX = w * rand(0.12, 0.22);
+    const cols = Math.max(1, Math.floor((w - padX * 2) / cellW));
+    const rows = Math.max(2, Math.floor((h - 18) / cellH));
+    const ww = (w - padX * 2) / cols;
+    const wh = (h - 18) / rows;
+
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const litProb = 0.34;
+        const lit = Math.random() < litProb;
+        b.windows.push({
+          x: b.x + padX + c * ww + ww * 0.18,
+          y: b.y + 12 + r * wh + wh * 0.18,
+          w: ww * 0.64,
+          h: wh * 0.55,
+          lit,
+          warmth: rand(0.7, 1.0),        // yellow vs orange tint
+          glow: lit ? rand(0.35, 0.9) : 0,
+          phase: rand(0, Math.PI * 2),   // subtle shimmer offset
+        });
+      }
+    }
+    buildings.push(b);
+    x += w + rand(2, 14);
+  }
+}
+
+function drawBuildings() {
+  for (const b of buildings) {
+    /* body: vertical gradient — slightly lighter near top edge */
+    const g = ctx.createLinearGradient(0, b.y, 0, groundY);
+    const l1 = (b.light * 1.5).toFixed(3);
+    const l2 = (b.light * 0.45).toFixed(3);
+    g.addColorStop(0, `hsl(${b.hue}, 30%, ${l1})`);
+    g.addColorStop(1, `hsl(${b.hue}, 34%, ${l2})`);
+    ctx.fillStyle = g;
+    ctx.fillRect(b.x, b.y, b.w, b.h);
+
+    /* roofline highlight */
+    ctx.fillStyle = `hsla(${b.hue}, 40%, ${(b.light * 2.4).toFixed(3)}, 0.8)`;
+    ctx.fillRect(b.x, b.y, b.w, 1.5);
+
+    /* antenna */
+    if (b.hasAntenna) {
+      const ax = b.x + b.w * rand(0.3, 0.7);
+      ctx.strokeStyle = `hsla(${b.hue}, 20%, ${(b.light * 2).toFixed(3)}, 0.9)`;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(ax, b.y);
+      ctx.lineTo(ax, b.y - b.antennaH);
+      ctx.stroke();
+      /* blinking beacon */
+      const blink = Math.sin(time * 2 + b.phase) > 0.55;
+      if (blink) {
+        ctx.fillStyle = 'rgba(255, 60, 60, 0.9)';
+        ctx.beginPath();
+        ctx.arc(ax, b.y - b.antennaH, 1.8, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = 'rgba(255, 60, 60, 0.18)';
+        ctx.beginPath();
+        ctx.arc(ax, b.y - b.antennaH, 6, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    /* windows */
+    for (const win of b.windows) {
+      /* occasional flicker */
+      if (Math.random() < CFG.flickerChance) {
+        win.lit = !win.lit;
+        win.glow = win.lit ? rand(0.35, 0.9) : 0;
+      }
+      if (!win.lit) {
+        /* faint dark glass */
+        ctx.fillStyle = 'rgba(10, 14, 26, 0.55)';
+        ctx.fillRect(win.x, win.y, win.w, win.h);
+        continue;
+      }
+      const shimmer = 0.82 + 0.18 * Math.sin(time * 1.4 + win.phase);
+      const a = win.glow * shimmer;
+      /* warm fill */
+      const rr = 255, gg = Math.round(190 * win.warmth + 60), bb = Math.round(90 * win.warmth);
+      ctx.fillStyle = `rgba(${rr},${gg},${bb},${a.toFixed(3)})`;
+      ctx.fillRect(win.x, win.y, win.w, win.h);
+      /* soft halo */
+      ctx.fillStyle = `rgba(${rr},${gg},${bb},${(a * 0.12).toFixed(3)})`;
+      ctx.fillRect(win.x - 2, win.y - 2, win.w + 4, win.h + 4);
+    }
+  }
+}
+
+/* ================================================================
+   GROUND / REFLECTIONS
+   ================================================================ */
+function drawGround() {
+  const g = ctx.createLinearGradient(0, groundY, 0, H);
+  g.addColorStop(0, '#0a0e1c');
+  g.addColorStop(1, '#04050c');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, groundY, W, H - groundY);
+
+  /* wet-street sheen: dim reflected window glows */
+  ctx.save();
+  ctx.globalAlpha = 0.10;
+  ctx.scale(1, -0.35);
+  ctx.translate(0, -(groundY * (1 + 1 / 0.35)) - groundY / 0.35 * 0); /* flip about groundY */
+  ctx.restore();
+
+  /* simpler reflection pass: sample lit windows, draw blurred streaks below ground */
+  ctx.save();
+  ctx.globalAlpha = 0.14;
+  for (const b of buildings) {
+    for (const win of b.windows) {
+      if (!win.lit || Math.random() < 0.5) continue;
+      const ry = groundY + (groundY - win.y) * 0.12;
+      if (ry > H) continue;
+      const rr = 255, gg = Math.round(190 * win.warmth + 60), bb = Math.round(90 * win.warmth);
+      ctx.fillStyle = `rgba(${rr},${gg},${bb},0.5)`;
+      ctx.fillRect(win.x, ry, win.w, rand(3, 9));
+    }
+  }
+  ctx.restore();
+
+  /* street line */
+  ctx.fillStyle = 'rgba(120, 150, 210, 0.10)';
+  ctx.fillRect(0, groundY, W, 1);
+}
+
+/* ================================================================
+   RAIN
+   Pooled drops; each drop has speed, length, opacity, wind factor.
+   ================================================================ */
+function spawnDrop(anywhere) {
+  return {
+    x: rand(-W * 0.2, W * 1.2),
+    y: anywhere ? rand(-H * 0.3, groundY) : rand(-60, -10),
+    v: rand(CFG.rainSpeedMin, CFG.rainSpeedMax),
+    len: rand(10, 26),
+    o: rand(0.12, 0.42),
+    thick: Math.random() < 0.18 ? 1.6 : 1,
+    depth: rand(0.5, 1),        // parallax-ish
+  };
+}
+
+function initRain() {
+  raindrops = [];
+  const n = CFG.rainCount();
+  for (let i = 0; i < n; i++) raindrops.push(spawnDrop(true));
+}
+
+function currentWind() {
+  /* slow gusting: layered sines */
+  return CFG.windBase
+    + Math.sin(time * 0.31) * CFG.windGustAmp
+    + Math.sin(time * 0.83 + 1.7) * CFG.windGustAmp * 0.4;
+}
+
+function updateRain(dt) {
+  const wind = currentWind();
+  const target = CFG.rainCount();
+
+  for (let i = 0; i < raindrops.length; i++) {
+    const d = raindrops[i];
+    d.y += d.v * d.depth * dt;
+    d.x += d.v * d.depth * wind * dt;
+
+    if (d.y >= groundY) {
+      /* splash on impact */
+      if (splashes.length < CFG.splashPool && Math.random() < 0.75) {
+        splashes.push({
+          x: d.x, y: groundY + rand(0, (H - groundY) * 0.5),
+          vx: 0, vy: 0,
+          life: 1,
+          maxLife: rand(0.25, 0.5),
+          size: rand(1.5, 3.5) * d.thick,
+          ring: Math.random() < 0.3,
+        });
+      }
+      raindrops[i] = spawnDrop(false);
+    } else if (d.x < -W * 0.25 || d.x > W * 1.25) {
+      raindrops[i] = spawnDrop(true);
+    }
+  }
+
+  /* adjust pool toward target count */
+  while (raindrops.length < target) raindrops.push(spawnDrop(true));
+  if (raindrops.length > target) raindrops.length = target;
+}
+
+function drawRain() {
+  const wind = currentWind();
+  ctx.lineCap = 'round';
+  for (const d of raindrops) {
+    const dx = wind * d.len * 0.55;
+    const alpha = d.o * d.depth;
+    ctx.strokeStyle = `rgba(170, 195, 235, ${alpha.toFixed(3)})`;
+    ctx.lineWidth = d.thick * d.depth;
+    ctx.beginPath();
+    ctx.moveTo(d.x, d.y);
+    ctx.lineTo(d.x + dx, d.y - d.len * d.depth);
+    ctx.stroke();
+  }
+}
+
+/* ================================================================
+   SPLASHES
+   Small particle bursts + expanding rings at the ground plane.
+   ================================================================ */
+function updateSplashes(dt) {
+  for (let i = splashes.length - 1; i >= 0; i--) {
+    const s = splashes[i];
+    s.life -= dt / s.maxLife;
+    if (s.life <= 0) { splashes.splice(i, 1); continue; }
+    /* tiny upward spray particles implied by jitter */
+    s.vx += rand(-0.4, 0.4);
+    s.vy -= 0.05;
+  }
+}
+
+function drawSplashes() {
+  for (const s of splashes) {
+    const t = 1 - s.life;
+    const a = s.life * 0.5;
+    if (s.ring) {
+      /* expanding elliptical ring (perspective squash) */
+      const r = s.size * (1 + t * 4);
+      ctx.strokeStyle = `rgba(180, 205, 240, ${(a * 0.55).toFixed(3)})`;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.ellipse(s.x, s.y, r, r * 0.32, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    /* droplet spray dots */
+    ctx.fillStyle = `rgba(190, 210, 245, ${a.toFixed(3)})`;
+    const n = s.ring ? 2 : 3;
+    for (let k = 0; k < n; k++) {
+      const ang = Math.PI + rand(-0.6, 0.6);
+      const dist = s.size * t * rand(2, 5);
+      ctx.beginPath();
+      ctx.arc(s.x + Math.cos(ang) * dist, s.y - Math.abs(Math.sin(ang)) * dist, 0.8, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+}
+
+/* ================================================================
+   MIST
+   Drifting translucent horizontal bands.
+   ================================================================ */
+function initMist() {
+  mists = [];
+  for (let i = 0; i < CFG.mistLayers; i++) {
+    mists.push({
+      y: groundY - rand(0, H * 0.35),
+      h: rand(40, 130),
+      speed: rand(4, 14) * (i % 2 === 0 ? 1 : -1),
+      alpha: rand(0.025, 0.07),
+      seed: rand(0, 1000),
+    });
+  }
+}
+
+function drawMist() {
+  for (const m of mists) {
+    m.y += 0; /* static band, drift horizontally via gradient offset */
+    const off = ((time * m.speed + m.seed) % (W * 2)) - W * 0.5;
+    const g = ctx.createLinearGradient(off - W * 0.5, 0, off + W * 0.5, 0);
+    g.addColorStop(0, 'rgba(140,160,200,0)');
+    g.addColorStop(0.5, `rgba(140,160,200,${m.alpha})`);
+    g.addColorStop(1, 'rgba(140,160,200,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, m.y - m.h / 2, W, m.h);
+  }
+}
+
+/* ================================================================
+   SKY
+   ================================================================ */
+function drawSky() {
+  const g = ctx.createLinearGradient(0, 0, 0, groundY);
+  g.addColorStop(0, '#04050e');
+  g.addColorStop(0.55, '#070a18');
+  g.addColorStop(1, '#0b1024');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, groundY);
+
+  /* faint distant haze behind skyline */
+  const h = ctx.createLinearGradient(0, groundY - H * 0.3, 0, groundY);
+  h.addColorStop(0, 'rgba(30, 45, 90, 0)');
+  h.addColorStop(1, 'rgba(30, 45, 90, 0.25)');
+  ctx.fillStyle = h;
+  ctx.fillRect(0, groundY - H * 0.3, W, H * 0.3);
+}
+
+/* ================================================================
+   MAIN LOOP
+   Trailing fade: instead of clearing fully, paint a translucent
+   dark rect over the previous frame for motion-blur trails.
+   ================================================================ */
+let lastT = performance.now();
+
+function frame(now) {
+  const dtMs = Math.min(50, now - lastT);
+  lastT = now;
+  const dt = dtMs / 16.667;      /* normalize to ~60fps units */
+  time += dtMs / 1000;
+
+  /* trailing fade */
+  ctx.fillStyle = `rgba(5, 6, 15, ${CFG.fadeAlpha})`;
+  ctx.fillRect(0, 0, W, H);
+
+  /* repaint scene (fade leaves ghost trails from moving rain) */
+  drawSky();
+  drawBuildings();
+  drawGround();
+  updateRain(dt);
+  drawRain();
+  updateSplashes(dt);
+  drawSplashes();
+  drawMist();
+
+  requestAnimationFrame(frame);
+}
+
+/* ================================================================
+   RESIZE
+   ================================================================ */
+function resize() {
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  W = window.innerWidth;
+  H = window.innerHeight;
+  canvas.width = W * DPR;
+  canvas.height = H * DPR;
+  canvas.style.width = W + 'px';
+  canvas.style.height = H + 'px';
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+
+  groundY = H * 0.82;
+  generateBuildings();
+  initRain();
+  initMist();
+
+  /* hard clear once after rebuild */
+  ctx.fillStyle = '#05060f';
+  ctx.fillRect(0, 0, W, H);
+}
+
+let resizeTimer = null;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(resize, 150);
+});
+
+resize();
+requestAnimationFrame(frame);
+
+})();
+</script>
+</body>
+</html>
