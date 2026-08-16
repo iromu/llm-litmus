@@ -386,11 +386,11 @@ function makeBuilding({ w=8, d=8, h=6, roof='red', x=0, z=0, rotY=0, door=true, 
   g.add(body);
   const roofMat = roof==='red'?M.roofRed : roof==='blue'?M.roofBlue : roof==='green'?M.roofGreen : M.thatch;
   const roofH = h*0.55;
-  const roof = new THREE.Mesh(new THREE.ConeGeometry(Math.max(w,d)*0.78, roofH, 4), roofMat);
-  roof.position.y = h + roofH/2;
-  roof.rotation.y = Math.PI/4;
-  roof.castShadow = true;
-  g.add(roof);
+  const roofMesh = new THREE.Mesh(new THREE.ConeGeometry(Math.max(w,d)*0.78, roofH, 4), roofMat);
+  roofMesh.position.y = h + roofH/2;
+  roofMesh.rotation.y = Math.PI/4;
+  roofMesh.castShadow = true;
+  g.add(roofMesh);
   if (door) {
     g.add(box(1.4, 2.4, 0.2, M.woodDark, 0, 1.2, d/2 + 0.05));
   }
