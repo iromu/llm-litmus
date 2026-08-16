@@ -1,0 +1,24 @@
+Creative Prompt (verbatim)
+===========================
+Create a vertical scroll storytelling page with CSS scroll-snap. Four full-screen sections guide the viewer through a narrative: (1) Intro with large gradient headline and scroll hint, (2) Statistics with animated gradient numbers, (3) Process steps with numbered list, (4) Call to action with button. A fixed progress indicator on the right shows current section with glowing dots. Sections have distinct radial gradient overlays. The overall aesthetic is dark, elegant, and minimal — like a premium product launch page. Backgrounds shift subtly between sections.
+
+Model
+=====
+Model: Qwen3.8-27B (thinking) — thinking effort: high
+
+Techniques Used
+===============
+CSS scroll-snap-type: y mandatory on a dedicated 100dvh overflow-y scroller with scroll-snap-align: start + scroll-snap-stop: always per full-viewport section, scroll-behavior: smooth, IntersectionObserver (root=scroller, threshold 0.55) driving active-section state, four fixed radial-gradient background layers crossfaded via body[data-active] opacity transition for subtle per-section background shifts, per-section radial-gradient overlay divs (distinct tints: indigo / cyan-violet / magenta / amber), gradient text clipping (background-clip: text) on the headline and all statistics numbers, count-up statistics animation (rAF, easeOutQuart, 1.8s, runs once when section 2 crosses threshold) with gradient-clipped tabular numerals, numbered process steps as grid rows with gradient numerals and hover shift, CTA button with blurred gradient pseudo-element glow on hover, fixed right-rail progress indicator with four glowing dot buttons (active dot gets scaled core + violet/blue box-shadow bloom, hover tooltip labels), staggered reveal transitions keyed to the active panel with per-element --d delays, clamp()-based responsive typography and spacing, starfield ambient layer from layered radial-gradients with slow drift, vignette overlay, prefers-reduced-motion fallbacks, focus-visible outlines for keyboard access.
+
+Interaction Model
+=================
+Scroll vertically to navigate the four snap-locked full-screen sections; the active dot in the right progress rail glows and hover tooltips name each section. Clicking a progress dot smooth-scrolls to that section. Statistics numbers count up with an eased ramp when the statistics section enters view. Hovering a process step slides it right, brightens its border, and ignites the gradient numeral; the CTA button lifts, gains a blurred gradient halo, and its arrow slides forward. The CTA smooth-scrolls back to the intro. Staggered content reveals fire as each section becomes active; backgrounds crossfade per section.
+
+Stats
+=====
+Wall time: ~8 minutes (estimated — spec reading, four-part file authoring, JS syntax verification via node --check, external-reference scan)
+Token count: n/a
+
+Output
+======
+File: 017-scroll-story.html — single self-contained page, all CSS/JS inline, no external dependencies, works fully offline.

@@ -1,0 +1,27 @@
+Creative prompt (verbatim):
+Create a soft bokeh circle visualization with large blurred colored orbs drifting gently across a dark gradient background. Each circle has a radial gradient with a brighter inner spot, simulating lens bokeh. Circles have various sizes, blur amounts, alpha levels, and hue/saturation values, creating a rich, dreamlike depth of field effect. They drift slowly with sine-wave acceleration and wrap around screen edges. Clicking spawns a burst of new circles at the cursor position with explosive velocity. The title "Bokeh Dreams" is rendered in faint overlay text. The overall feel is calm, dreamy, and photographic.
+
+Model: Qwen3.8-27B (thinking) - thinking effort: high
+
+Techniques used:
+- Canvas 2D orb rendering where each circle is a multi-stop radial gradient with a brighter inner spot (stop 0.0 at lightness +18% and full alpha) falling off to transparent at the rim, simulating lens bokeh light falloff
+- Overall soft photographic blur via CSS `filter: blur(2px)` on the canvas element, layered on top of the per-orb gradient falloff
+- `screen` composite mode so overlapping orbs brighten additively for a luminous, dreamy glow (falls back gracefully if unsupported)
+- Phase-based sine-wave drift acceleration: each orb oscillates its velocity via cos/sin of (time * freq + phase) at its own frequency/phase, giving a slow, non-repeating glide; burst velocity decays exponentially (x0.955/frame) so clicks explode outward then settle into the drift
+- Screen wrapping on all four edges with a radius-based margin so orbs re-enter cleanly
+- Click/tap-to-burst spawning (pointerdown): 14-24 new orbs at the cursor with randomized outward explosive velocity, capped at 200 orbs (oldest dropped) for performance
+- Rich hue variety across the spectrum (17-hue photographic palette spanning warm gold/orange, green/teal, blue, purple, and magenta/pink) with per-orb saturation, lightness, alpha, size, and softness
+- Per-orb twinkle (alpha pulse) and subtle size pulse driven by independent sine terms for a living, breathing feel
+- Animated dark gradient background: 5 layered CSS radial/linear gradients drifting on a 34s alternate keyframe (background-position) + a fixed radial vignette overlay for the photographic frame
+- Faint overlay title "Bokeh Dreams" (light weight, wide letter-spacing, screen blend, soft colored text-shadow glow), a small gallery label (No. 019), an interaction hint, and a live orb counter (tabular numerals)
+- Responsive + DPR-aware canvas (devicePixelRatio clamped to 2); base orb count scales with screen area (clamped 40-110); frame delta clamped to avoid jumps on tab refocus
+
+Interaction model:
+- Circles drift passively (sine-wave acceleration, screen wrapping).
+- Click or tap creates a burst of new circles at that position with outward explosive velocity.
+- The live orb count is displayed bottom-right and updates on each burst.
+- The background gradient and vignette animate continuously.
+
+Stats:
+- Wall time: ~2-3 minutes
+- Token count: n/a

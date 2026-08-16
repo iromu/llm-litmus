@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Scroll Story</title>
+<style>
+  :root {
+    --ink: #e9edf7;
+    --dim: rgba(233, 237, 247, 0.55);
+    --line: rgba(233, 237, 247, 0.12);
+    --grad: linear-gradient(115deg, #7fb4ff 0%, #b388ff 45%, #ff7ad9 100%);
+    --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    font-family: 'Avenir Next', 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: #05070d; color: var(--ink);
+    overflow: hidden; -webkit-font-smoothing: antialiased;
+  }
+  .bg-layer {
+    position: fixed; inset: 0; z-index: 0; opacity: 0;
+    transition: opacity 1.4s var(--ease); pointer-events: none;
+  }
+  body[data-active="s1"] [data-bg="s1"],
+  body[data-active="s2"] [data-bg="s2"],
+  body[data-active="s3"] [data-bg="s3"],
+  body[data-active="s4"] [data-bg="s4"] { opacity: 1; }
+  [data-bg="s1"] { background: radial-gradient(120% 90% at 50% 0%, #101a33 0%, #05070d 60%); }
+  [data-bg="s2"] { background:
+    radial-gradient(120% 90% at 80% 20%, #0d2130 0%, #05070d 55%),
+    radial-gradient(80% 60% at 15% 85%, #1a1030 0%, transparent 60%); }
+  [data-bg="s3"] { background:
+    radial-gradient(110% 90% at 20% 30%, #24102a 0%, #05070d 60%),
+    radial-gradient(70% 55% at 85% 80%, #121832 0%, transparent 65%); }
+  [data-bg="s4"] { background:
+    radial-gradient(130% 100% at 50% 110%, #2a1a10 0%, #05070d 65%),
+    radial-gradient(70% 55% at 78% 18%, #1c1030 0%, transparent 60%); }
+  .stars {
+    position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    background-image:
+      radial-gradient(1px 1px at 12% 22%, rgba(255,255,255,0.55), transparent 100%),
+      radial-gradient(1px 1px at 68% 14%, rgba(255,255,255,0.35), transparent 100%),
+      radial-gradient(1.5px 1.5px at 34% 68%, rgba(190,205,255,0.45), transparent 100%),
+      radial-gradient(1px 1px at 82% 74%, rgba(255,255,255,0.3), transparent 100%),
+      radial-gradient(1px 1px at 50% 44%, rgba(210,190,255,0.4), transparent 100%),
+      radial-gradient(1.5px 1.5px at 22% 88%, rgba(255,255,255,0.3), transparent 100%),
+      radial-gradient(1px 1px at 90% 38%, rgba(190,220,255,0.45), transparent 100%),
+      radial-gradient(1px 1px at 8% 52%, rgba(255,255,255,0.35), transparent 100%);
+    background-repeat: repeat; background-size: 560px 560px;
+    opacity: 0.55; animation: drift 140s linear infinite alternate;
+  }
+  @keyframes drift { to { background-position: 140px 70px; } }
+  .vignette {
+    position: fixed; inset: 0; z-index: 3; pointer-events: none;
+    background: radial-gradient(125% 125% at 50% 50%, transparent 58%, rgba(0,0,0,0.38) 100%);
+  }
+  .brand {
+    position: fixed; top: clamp(18px, 4vh, 34px); left: clamp(18px, 4vw, 40px);
+    z-index: 10; font-size: 0.72rem; letter-spacing: 0.4em;
+    text-transform: uppercase; color: var(--dim);
+  }
+  .brand b { color: var(--ink); font-weight: 600; }
+
+  /* ---- progress rail ---- */
+  .progress {
+    position: fixed; top: 50%; right: clamp(14px, 3vw, 34px);
+    transform: translateY(-50%); z-index: 10;
+    display: flex; flex-direction: column; gap: 20px; align-items: center;
+  }
+  .progress::before {
+    content: ''; position: absolute; top: 8%; bottom: 8%; width: 1px;
+    background: linear-gradient(rgba(255,255,255,0), rgba(255,255,255,0.22), rgba(255,255,255,0));
+  }
+  .dot {
+    position: relative; width: 36px; height: 36px; border-radius: 50%;
+    display: grid; place-items: center; background: none; border: none;
+    cursor: pointer;
+  }
+  .dot-core {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: rgba(233, 237, 247, 0.35); transition: all 0.45s var(--ease);
+  }
+  .dot:hover .dot-core { background: rgba(233, 237, 247, 0.8); }
+  .dot.active .dot-core {
+    background: #fff; transform: scale(1.25);
+    box-shadow: 0 0 12px 2px rgba(179, 136, 255, 0.9), 0 0 28px 8px rgba(127, 180, 255, 0.45);
+  }
+  .dot:focus-visible { outline: 1px solid rgba(179,136,255,0.8); outline-offset: 4px; }
+  .dot-tip {
+    position: absolute; right: calc(100% + 12px); top: 50%;
+    transform: translateY(-50%) translateX(6px);
+    font-size: 0.66rem; letter-spacing: 0.2em; text-transform: uppercase;
+    color: var(--dim); white-space: nowrap; opacity: 0;
+    transition: opacity 0.35s var(--ease), transform 0.35s var(--ease);
+    pointer-events: none;
+  }
+  .dot:hover .dot-tip, .dot:focus-visible .dot-tip {
+    opacity: 1; transform: translateY(-50%) translateX(0);
+  }
+  @media (max-width: 640px) {
+    .progress { right: 8px; gap: 16px; }
+    .dot { width: 30px; height: 30px; }
+    .dot-tip { display: none; }
+  }
+
+  /* ---- scroller / sections ---- */
+  #scroller {
+    position: relative; z-index: 1;
+    height: 100vh; height: 100dvh;
+    overflow-y: auto;
+    scroll-snap-type: y mandatory;
+    scroll-behavior: smooth;
+  }
+  #scroller::-webkit-scrollbar { width: 0; }
+  .panel {
+    position: relative; height: 100vh; height: 100dvh;
+    scroll-snap-align: start; scroll-snap-stop: always;
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden;
+  }
+  .radial-overlay { position: absolute; inset: 0; pointer-events: none; }
+  .o1 { background: radial-gradient(60% 50% at 50% 42%, rgba(122,150,255,0.14), transparent 70%); }
+  .o2 { background:
+    radial-gradient(55% 45% at 70% 30%, rgba(80,220,255,0.10), transparent 70%),
+    radial-gradient(45% 40% at 25% 70%, rgba(160,110,255,0.10), transparent 70%); }
+  .o3 { background: radial-gradient(60% 55% at 30% 40%, rgba(255,110,190,0.09), transparent 70%); }
+  .o4 { background: radial-gradient(70% 60% at 50% 60%, rgba(255,170,90,0.10), transparent 70%); }
+  .content {
+    position: relative; z-index: 2; width: 100%; max-width: 1080px;
+    padding: 0 clamp(24px, 6vw, 72px); text-align: center;
+  }
+
+  /* ---- typography ---- */
+  .eyebrow {
+    font-size: clamp(0.7rem, 1.4vw, 0.88rem); letter-spacing: 0.42em;
+    text-transform: uppercase; color: var(--dim);
+    margin-bottom: clamp(18px, 3vh, 30px);
+  }
+  .headline {
+    font-size: clamp(2.8rem, 11vw, 7.5rem); line-height: 1.02;
+    font-weight: 700; letter-spacing: -0.02em;
+  }
+  .section-title {
+    font-size: clamp(2rem, 6vw, 4.4rem); font-weight: 700;
+    letter-spacing: -0.02em; line-height: 1.1;
+  }
+  .grad-text {
+    background: var(--grad);
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent; color: transparent;
+  }
+  .sub {
+    color: var(--dim); font-size: clamp(0.95rem, 2vw, 1.3rem);
+    max-width: 520px; margin: clamp(20px, 3.5vh, 32px) auto 0; line-height: 1.65;
+  }
+
+  /* ---- reveal on section active ---- */
+  .reveal {
+    opacity: 0; transform: translateY(28px);
+    transition: opacity 1s var(--ease), transform 1s var(--ease);
+    transition-delay: var(--d, 0s);
+  }
+  .panel.active .reveal { opacity: 1; transform: none; }
+
+  /* ---- scroll hint (section 1) ---- */
+  .scroll-hint {
+    position: absolute; bottom: clamp(28px, 6vh, 56px);
+    left: 0; right: 0; margin: 0 auto; width: max-content;
+    display: flex; flex-direction: column; align-items: center; gap: 14px; z-index: 2;
+  }
+  .mouse {
+    width: 26px; height: 42px; border: 1.5px solid rgba(233,237,247,0.4);
+    border-radius: 14px; position: relative;
+    animation: bob 2.2s var(--ease) infinite;
+  }
+  .wheel {
+    position: absolute; top: 8px; left: 50%; margin-left: -1.5px;
+    width: 3px; height: 7px; border-radius: 2px; background: var(--ink);
+    animation: wheel 2.2s var(--ease) infinite;
+  }
+  @keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(8px); } }
+  @keyframes wheel {
+    0% { opacity: 1; transform: translateY(0); }
+    70%, 100% { opacity: 0; transform: translateY(12px); }
+  }
+  .hint-label {
+    font-size: 0.68rem; letter-spacing: 0.32em; text-transform: uppercase; color: var(--dim);
+  }
+
+  /* ---- stats (section 2) ---- */
+  .stats {
+    display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: clamp(12px, 2.4vw, 26px);
+    margin-top: clamp(36px, 7vh, 72px);
+  }
+  @media (max-width: 760px) { .stats { grid-template-columns: repeat(2, 1fr); } }
+  .stat {
+    padding: clamp(22px, 4vh, 40px) 16px;
+    border: 1px solid var(--line); border-radius: 18px;
+    background: rgba(255, 255, 255, 0.025);
+    display: flex; flex-direction: column; gap: 10px; align-items: center;
+    transition: border-color 0.45s var(--ease), transform 0.45s var(--ease),
+      box-shadow 0.45s var(--ease);
+  }
+  .stat:hover {
+    border-color: rgba(255, 255, 255, 0.28);
+    transform: translateY(-4px);
+    box-shadow: 0 18px 44px -18px rgba(127, 180, 255, 0.35);
+  }
+  .stat-num {
+    font-size: clamp(1.8rem, 4.6vw, 3.3rem); font-weight: 700;
+    letter-spacing: -0.01em; font-variant-numeric: tabular-nums;
+  }
+  .stat-label {
+    color: var(--dim); font-size: 0.8rem; letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+
+  /* ---- process steps (section 3) ---- */
+  .steps {
+    display: flex; flex-direction: column; gap: clamp(10px, 2vh, 18px);
+    margin: clamp(34px, 6vh, 64px) auto 0; max-width: 660px;
+  }
+  .step {
+    display: grid; grid-template-columns: auto 1fr;
+    gap: clamp(16px, 3vw, 28px); align-items: center; text-align: left;
+    padding: clamp(14px, 2.6vh, 24px) clamp(18px, 3vw, 30px);
+    border: 1px solid var(--line); border-radius: 16px;
+    background: rgba(255, 255, 255, 0.02);
+    transition: border-color 0.45s var(--ease), background 0.45s var(--ease),
+      transform 0.45s var(--ease);
+  }
+  .step:hover {
+    border-color: rgba(179, 136, 255, 0.55);
+    background: rgba(179, 136, 255, 0.06);
+    transform: translateX(10px);
+  }
+  .step-num {
+    font-size: clamp(1.5rem, 3vw, 2.1rem); font-weight: 700;
+    font-variant-numeric: tabular-nums; min-width: 2.4ch;
+    background: var(--grad);
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent; color: transparent;
+    opacity: 0.9; transition: opacity 0.4s;
+  }
+  .step:hover .step-num { opacity: 1; }
+  .step h3 {
+    font-size: clamp(1.05rem, 2.2vw, 1.35rem); font-weight: 600; margin-bottom: 4px;
+  }
+  .step p {
+    color: var(--dim); font-size: clamp(0.85rem, 1.6vw, 0.98rem); line-height: 1.5;
+  }
+  @media (max-width: 520px) {
+    .step { grid-template-columns: 1fr; gap: 8px; }
+  }
+
+  /* ---- CTA (section 4) ---- */
+  .cta-wrap { margin-top: clamp(30px, 6vh, 54px); }
+  .btn {
+    position: relative; display: inline-flex; align-items: center; gap: 12px;
+    padding: clamp(16px, 2.6vh, 22px) clamp(34px, 6vw, 58px);
+    border-radius: 999px; border: 1px solid rgba(255, 255, 255, 0.25);
+    background: linear-gradient(115deg, rgba(127,180,255,0.16), rgba(255,122,217,0.16));
+    color: var(--ink); font-family: inherit;
+    font-size: clamp(1rem, 2vw, 1.2rem); letter-spacing: 0.06em;
+    cursor: pointer; transition: all 0.45s var(--ease);
+  }
+  .btn::before {
+    content: ''; position: absolute; inset: -2px; border-radius: 999px;
+    background: var(--grad); opacity: 0; z-index: -1;
+    filter: blur(18px); transition: opacity 0.5s var(--ease);
+  }
+  .btn .arr { transition: transform 0.45s var(--ease); }
+  .btn:hover {
+    transform: translateY(-3px);
+    border-color: rgba(255, 255, 255, 0.6);
+    box-shadow: 0 18px 50px -12px rgba(179, 136, 255, 0.55),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  }
+  .btn:hover::before { opacity: 0.5; }
+  .btn:hover .arr { transform: translateX(6px); }
+  .btn:focus-visible { outline: 2px solid rgba(179,136,255,0.9); outline-offset: 4px; }
+  .cta-note {
+    margin-top: clamp(16px, 3vh, 24px); font-size: 0.8rem;
+    letter-spacing: 0.14em; text-transform: uppercase; color: var(--dim);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    #scroller { scroll-behavior: auto; }
+    .reveal { transition: none; opacity: 1; transform: none; }
+    .mouse, .wheel, .stars { animation: none; }
+    .bg-layer { transition: none; }
+  }
+</style>
+</head>
+<body data-active="s1">
+
+  <!-- ambient background layers, crossfaded by active section -->
+  <div class="bg-layer" data-bg="s1" aria-hidden="true"></div>
+  <div class="bg-layer" data-bg="s2" aria-hidden="true"></div>
+  <div class="bg-layer" data-bg="s3" aria-hidden="true"></div>
+  <div class="bg-layer" data-bg="s4" aria-hidden="true"></div>
+  <div class="stars" aria-hidden="true"></div>
+  <div class="vignette" aria-hidden="true"></div>
+
+  <div class="brand"><b>Scroll</b> / Story</div>
+
+  <!-- progress rail -->
+  <nav class="progress" aria-label="Section progress">
+    <button class="dot active" data-target="s1" aria-label="Introduction">
+      <span class="dot-tip">Introduction</span><span class="dot-core"></span>
+    </button>
+    <button class="dot" data-target="s2" aria-label="Statistics">
+      <span class="dot-tip">By the numbers</span><span class="dot-core"></span>
+    </button>
+    <button class="dot" data-target="s3" aria-label="Process">
+      <span class="dot-tip">The process</span><span class="dot-core"></span>
+    </button>
+    <button class="dot" data-target="s4" aria-label="Get started">
+      <span class="dot-tip">Get started</span><span class="dot-core"></span>
+    </button>
+  </nav>
+
+  <main id="scroller">
+
+    <!-- (1) intro -->
+    <section class="panel active" id="s1">
+      <div class="radial-overlay o1" aria-hidden="true"></div>
+      <div class="content">
+        <p class="eyebrow reveal">A story told in four scrolls</p>
+        <h1 class="headline reveal" style="--d:.12s">The Art of<br><span class="grad-text">Scrolling</span></h1>
+        <p class="sub reveal" style="--d:.24s">A premium narrative experience. Dark, elegant, minimal &mdash; one scroll at a time.</p>
+      </div>
+      <div class="scroll-hint reveal" style="--d:.45s" aria-hidden="true">
+        <span class="mouse"><span class="wheel"></span></span>
+        <span class="hint-label">Scroll to begin</span>
+      </div>
+    </section>
+
+    <!-- (2) statistics -->
+    <section class="panel" id="s2">
+      <div class="radial-overlay o2" aria-hidden="true"></div>
+      <div class="content">
+        <p class="eyebrow reveal">By the numbers</p>
+        <h2 class="section-title reveal" style="--d:.1s">Numbers that <span class="grad-text">speak</span></h2>
+        <div class="stats">
+          <div class="stat reveal" style="--d:.15s">
+            <span class="stat-num grad-text" data-count="99.98" data-decimals="2" data-suffix="%">0%</span>
+            <span class="stat-label">Uptime, measured</span>
+          </div>
+          <div class="stat reveal" style="--d:.25s">
+            <span class="stat-num grad-text" data-count="12" data-decimals="0" data-suffix="M">0M</span>
+            <span class="stat-label">Stories told</span>
+          </div>
+          <div class="stat reveal" style="--d:.35s">
+            <span class="stat-num grad-text" data-count="4.9" data-decimals="1" data-suffix="&darr;">0&darr;</span>
+            <span class="stat-label">Average rating</span>
+          </div>
+          <div class="stat reveal" style="--d:.45s">
+            <span class="stat-num grad-text" data-count="142" data-decimals="0" data-suffix="">0</span>
+            <span class="stat-label">Countries reached</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- (3) process -->
+    <section class="panel" id="s3">
+      <div class="radial-overlay o3" aria-hidden="true"></div>
+      <div class="content">
+        <p class="eyebrow reveal">How it happens</p>
+        <h2 class="section-title reveal" style="--d:.1s">A process in <span class="grad-text">four moves</span></h2>
+        <div class="steps">
+          <div class="step reveal" style="--d:.15s">
+            <span class="step-num">01</span>
+            <div><h3>Define</h3><p>Every story starts with one sentence. We distill it until nothing can be cut.</p></div>
+          </div>
+          <div class="step reveal" style="--d:.25s">
+            <span class="step-num">02</span>
+            <div><h3>Refine</h3><p>We polish the scroll itself, until the motion feels weightless and inevitable.</p></div>
+          </div>
+          <div class="step reveal" style="--d:.35s">
+            <span class="step-num">03</span>
+            <div><h3>Launch</h3><p>Dark, elegant, minimal. The page ships like a reveal, not a release.</p></div>
+          </div>
+          <div class="step reveal" style="--d:.45s">
+            <span class="step-num">04</span>
+            <div><h3>Scale</h3><p>Let the story find its audience. The numbers in the previous page do the rest.</p></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- (4) call to action -->
+    <section class="panel" id="s4">
+      <div class="radial-overlay o4" aria-hidden="true"></div>
+      <div class="content">
+        <p class="eyebrow reveal">Ready when you are</p>
+        <h2 class="section-title reveal" style="--d:.1s">The last page is<br><span class="grad-text">yours</span></h2>
+        <p class="sub reveal" style="--d:.22s">Four sections, one scroll. When the story ends, the choice is yours to make.</p>
+        <div class="cta-wrap reveal" style="--d:.34s">
+          <button class="btn" type="button">Begin the story <span class="arr">&rarr;</span></button>
+          <p class="cta-note">No sign-up. Just scroll back up.</p>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+<script>
+(function () {
+  'use strict';
+
+  var scroller = document.getElementById('scroller');
+  var panels = Array.prototype.slice.call(document.querySelectorAll('.panel'));
+  var dots = Array.prototype.slice.call(document.querySelectorAll('.dot'));
+  var body = document.body;
+  var panelIds = panels.map(function (p) { return p.id; });
+
+  function setActive(i) {
+    body.dataset.active = panelIds[i];
+    panels.forEach(function (p, j) { p.classList.toggle('active', j === i); });
+    dots.forEach(function (d, j) { d.classList.toggle('active', j === i); });
+  }
+
+  // Progress dots + reveal states + counter trigger via IntersectionObserver
+  var io = new IntersectionObserver(function (entries) {
+    entries.forEach(function (en) {
+      if (!en.isIntersecting) return;
+      var idx = panelIds.indexOf(en.target.id);
+      if (idx < 0) return;
+      setActive(idx);
+      if (idx === 1) runCounters();
+    });
+  }, { root: scroller, threshold: 0.55 });
+
+  panels.forEach(function (p) { io.observe(p); });
+
+  // Clicking a progress dot scrolls to that section
+  dots.forEach(function (d, i) {
+    d.addEventListener('click', function () {
+      setActive(i);
+      panels[i].scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  });
+
+  // Animated gradient numbers (count-up, eased, runs once)
+  var counted = false;
+  function runCounters() {
+    if (counted) return;
+    counted = true;
+    var nums = Array.prototype.slice.call(document.querySelectorAll('.stat-num'));
+    nums.forEach(function (el) {
+      var target = parseFloat(el.getAttribute('data-count')) || 0;
+      var decimals = parseInt(el.getAttribute('data-decimals') || '0', 10) || 0;
+      var suffix = el.getAttribute('data-suffix') || '';
+      var duration = 1800;
+      var start = null;
+      function tick(now) {
+        if (start === null) start = now;
+        var t = Math.min((now - start) / duration, 1);
+        var eased = 1 - Math.pow(1 - t, 4); // easeOutQuart
+        el.textContent = (target * eased).toFixed(decimals) + suffix;
+        if (t < 1) requestAnimationFrame(tick);
+      }
+      requestAnimationFrame(tick);
+    });
+  }
+
+  // CTA button: scroll back to the first section
+  var btn = document.querySelector('.btn');
+  if (btn) {
+    btn.addEventListener('click', function () {
+      panels[0].scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }
+
+  // Safety: mark first panel active on load in case observer fires late
+  if (panels.length) setActive(0);
+})();
+</script>
+</body>
+</html>
+

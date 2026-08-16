@@ -1,0 +1,34 @@
+Neon Butterfly
+==============
+
+Creative prompt (verbatim from files.json):
+Create a mesmerizing neon butterfly that follows the mouse cursor with smooth, organic movement, leaving a rainbow trail. The butterfly is rendered on canvas with two upper and two lower wings that flap based on a sine wave. Wings are filled with radial gradients in shifting hues, creating an iridescent neon effect. The butterfly's body, antennae, and wing outlines complete the form. The trail fades from vibrant color to transparency. When the mouse is not moving, the butterfly wanders gently. The background fades with a trailing effect for smooth motion. The overall aesthetic is psychedelic, luminous, and graceful.
+
+Model: Qwen3.8-27B (thinking) — thinking effort: high
+
+Techniques used:
+- Canvas rendering with rotation following mouse position: heading set via atan2 to target, then frame-rate-independent exponential angle interpolation (lerpAngle with shortest-arc wrap)
+- Smooth angle interpolation: turn rate k = 1 - exp(-dt * 4.2), speed smoothing k = 1 - exp(-dt * 2.6)
+- Wing flapping via sine function: flap factor 0.3 + 0.7*|sin(phase)| scales the wing span (ctx.scale(1, flap)) so lobes fold toward the body line; beat rate scales with travel speed (5 + 0.085*spd rad/s)
+- Mirror-drawn wings using scale(-1,1): right-side upper/lower lobes drawn once, left side re-stroked through ctx.scale(-1,1) with offset hues for asymmetric iridescence
+- HSV-to-RGB color cycling for iridescence: hsvToRgb + neon() string builder; base hue cycles at 36 deg/s on wings, 95 deg/s on the trail, 90 deg/s on sparkles; per-wing hue offsets (0/50/140/190)
+- Wings filled with radial gradients (createRadialGradient, 3 stops: white-hot core -> hue+60 mid -> hue+150 falloff), luminous outline strokes with shadowBlur, faint white vein lines
+- Body: elliptical thorax/abdomen with neon rim, head circle, two bezier-curve antennae with bright tip dots; soft radial under-glow
+- Trail stored as coordinate array with alpha fade: up to 110 {x, y, hue} points, per-segment alpha = (i/n)^1.6 * 0.55 and tapering line width 0.6 -> 5.0, drawn additively
+- Exponential background fade for motion blur: per-frame source-over fill rgba(5,3,15,0.16); additive "lighter" compositing for all luminous layers
+- Bonus detail: speed-scaled iridescent wingtip sparkles (spawn probability scales with velocity, damped velocities, lifetime fade)
+- Responsive: canvas sized to viewport with devicePixelRatio scaling (capped at 2); wander target and boundary clamp adapt to W/H
+- Touch support: touchstart/touchmove (passive:false, preventDefault) feed the same pointer target; touch-action:none
+
+Interaction model:
+Butterfly follows mouse cursor with smooth steering. Wings flap faster/slower based on movement. Rainbow trail follows the path. Without mouse input, the butterfly wanders with noise-based steering.
+Implementation: after 0.9 s without mouse/touch movement the target switches to a smooth 1-D value-noise Lissajous point (sin-hash value noise, smoothstep-interpolated, ~0.12-0.14 s^-1) inside the frame at leisurely speed (85 px/s vs up to 430 px/s while chasing); any mousemove/touchmove instantly returns to chasing.
+
+Stats:
+- Wall time: ~4 min (single-pass authoring in two write/edit chunks + verification)
+- Token count: n/a
+
+Verification:
+- Extracted <script> content passed `node --check` (11,355 bytes, no syntax errors)
+- No external references: grep for http(s)://, @import, url(, <link returned zero matches
+- Single self-contained .html file — all CSS/JS inline, system fonts only, works offline by double-clicking

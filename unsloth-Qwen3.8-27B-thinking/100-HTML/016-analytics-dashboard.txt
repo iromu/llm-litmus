@@ -1,0 +1,29 @@
+Creative Prompt (verbatim):
+--------------------------------
+Create a premium dark analytics dashboard with a glassmorphism-style container. The dashboard features four KPI cards with labels, values, percentage changes (up/down arrows), and sparkline mini-charts. A two-column charts section shows a weekly revenue bar chart and a traffic sources pie chart with legend. Below is a recent activity feed with color-coded dots. The design has a dark blue-gray background, subtle glass borders, hover effects on cards, and a clean data visualization aesthetic. Colors are professional — green for positive, red for negative, blue for primary data.
+
+Model: Qwen3.8-27B (thinking) — thinking effort: high
+
+Techniques used:
+- CSS grid for KPI card layout (4-col, responsive down to 2/1 col)
+- Flexbox bar chart with dynamic heights, peak bar highlight
+- CSS pie chart using clip-path segments (JS-computed wedge polygons, donut hole)
+- Sparkline bars generated with JavaScript, staggered scaleY entrance animation
+- Hover tooltips on bars (animated .tip with caret, CSS transition)
+- Activity list with colored glowing indicators (green/blue/purple/amber/red/teal)
+- Period selector buttons (7D/30D/90D/12M), decorative active-state toggle
+- Responsive breakpoints at 920px (charts stack, 2-col KPIs) and 600px (1-col KPIs/feed)
+- Glassmorphism container with backdrop-filter blur + saturate, glass borders, top light streak
+- Ambient blurred background orbs with drift keyframes; pulsing "live" indicator dot
+- Legend hover cross-highlights the matching pie segment (dim others / scale lit)
+
+Interaction model:
+- Hover over KPI cards shows lift effect (translateY, border glow, blue halo shadow)
+- Hover over bar chart bars reveals tooltip values; bar brightens
+- Period buttons toggle active state (decorative)
+- Sparklines and bar chart animate on load (staggered, backward-fill)
+- Pie rotates/scales in on load; legend hover dims non-matching segments
+
+Stats:
+- Wall time: ~6 min (estimated)
+- Token count: n/a

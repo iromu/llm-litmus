@@ -1,0 +1,35 @@
+Crystal Growth (020)
+====================
+
+CREATIVE PROMPT (verbatim)
+--------------------------
+Create a generative crystal growth visualization where faceted crystal structures grow organically from nucleation points. Each crystal has multiple facets radiating from a center, rendered as quadrilateral shapes with varying hues (blue-purple spectrum), alpha levels, and edge strokes. Crystal tips have a glow effect. Crystals slowly grow additional facets over time. Clicking spawns new crystals at the cursor. Moving the mouse also generates new crystals in the vicinity. The background fades with a trailing effect. The overall aesthetic is frozen, geometric, and luminescent — like observing crystal formation under a microscope.
+
+MODEL
+-----
+Qwen3.8-27B (thinking) — thinking effort: high
+
+TECHNIQUES
+----------
+- Canvas 2D quadrilateral facet rendering (each facet a tapered lozenge radiating from a nucleation center)
+- Organic growth algorithm with a per-crystal generation limit (facets added over time up to maxGen)
+- HSL color cycling per facet, clamped to the blue-purple spectrum (hue 185-305)
+- Tip glow via pre-rendered radial-gradient sprites drawn with additive "lighter" compositing
+- Mouse-following crystal generation (distance- and time-throttled seeding along the cursor path)
+- Trailing background via semi-transparent fillRect each frame
+- Click-driven cluster spawning
+- Population control capped at MAX = 120 crystals with graceful fade-out of the oldest
+- requestAnimationFrame loop, devicePixelRatio-capped responsive canvas, touch support
+
+INTERACTION MODEL
+-----------------
+- Click: nucleate a crystal cluster at the cursor (4-6 satellites + a central seed)
+- Move mouse / drag on touch: grow new crystals along the path (throttled by distance + time)
+- Passive: crystals slowly add facets over time and drift-rotate; ambient nucleation keeps the field alive
+- Scene evolves continuously under a trailing fade; HUD shows live crystal count, facet total, and fps
+
+STATS
+-----
+- Wall time (est): ~5 minutes (design + implementation + verification)
+- Token count: n/a
+- Verification: `node --check` on extracted <script> -> SYNTAX_OK; grep for https?://, @import, url(, <link, @font-face, src= -> none (fully self-contained)

@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ripple Pond</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    height: 100%;
+    overflow: hidden;
+    background: #020a14;
+    font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  }
+  #pond {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    touch-action: none;
+    cursor: crosshair;
+  }
+  /* soft darkening toward the edges for depth */
+  .vignette {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 2;
+    background:
+      radial-gradient(ellipse 90% 85% at 50% 46%, transparent 55%, rgba(1, 6, 14, 0.55) 100%),
+      linear-gradient(180deg, rgba(2, 8, 18, 0.35) 0%, transparent 18%, transparent 82%, rgba(1, 5, 12, 0.5) 100%);
+  }
+  /* faint moonlight bloom drifting above the surface */
+  .moonlight {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 3;
+    mix-blend-mode: screen;
+    background:
+      radial-gradient(ellipse 46% 30% at 50% 38%, rgba(150, 195, 255, 0.075), transparent 70%),
+      radial-gradient(ellipse 70% 44% at 50% 44%, rgba(70, 130, 220, 0.05), transparent 75%);
+    animation: moonBreath 11s ease-in-out infinite alternate;
+  }
+  @keyframes moonBreath {
+    0%   { opacity: 0.55; transform: scale(1); }
+    50%  { opacity: 0.9;  transform: scale(1.03); }
+    100% { opacity: 0.6;  transform: scale(1); }
+  }
+  .title {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 6.5%;
+    z-index: 4;
+    text-align: center;
+    font-size: clamp(0.72rem, 2.1vmin, 1.05rem);
+    font-weight: 300;
+    letter-spacing: 0.62em;
+    text-indent: 0.62em; /* optically re-center the tracked text */
+    color: rgba(175, 210, 255, 0.34);
+    text-shadow: 0 0 14px rgba(130, 180, 255, 0.22);
+    pointer-events: none;
+    user-select: none;
+    animation: titleGlow 9s ease-in-out infinite alternate;
+  }
+  @keyframes titleGlow {
+    0%   { opacity: 0.7; }
+    100% { opacity: 1; }
+  }
+  .hint {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 12.5%;
+    z-index: 4;
+    text-align: center;
+    font-size: clamp(0.6rem, 1.5vmin, 0.78rem);
+    font-weight: 300;
+    letter-spacing: 0.4em;
+    text-indent: 0.4em;
+    color: rgba(160, 200, 255, 0.28);
+    pointer-events: none;
+    user-select: none;
+    transition: opacity 1.8s ease;
+    animation: hintFloat 5s ease-in-out infinite alternate;
+  }
+  @keyframes hintFloat {
+    0%   { transform: translateY(0); opacity: 0.5; }
+    100% { transform: translateY(-6px); opacity: 1; }
+  }
+  .hint.hidden { opacity: 0; animation: none; }
+</style>
+</head>
+<body>
+<canvas id="pond"></canvas>
+<div class="vignette"></div>
+<div class="moonlight"></div>
+<div class="hint" id="hint">touch the water</div>
+<div class="title">Ripple Pond</div>
+<script>
+'use strict';
+(function () {
+  var canvas = document.getElementById('pond');
+  var ctx = canvas.getContext('2d');
+  var hint = document.getElementById('hint');
+
+  // low-res simulation surface, upscaled on draw
+  var simCanvas = document.createElement('canvas');
+  var simCtx = simCanvas.getContext('2d');
+
+  var vw = 0, vh = 0, dpr = 1;
+  var simW = 0, simH = 0, cell = 3;
+  var cur = null, prev = null;       // two-buffer wave equation state
+  var base = null;                   // precomputed background pixels (r,g,b,a)
+  var out = null;                    // render output ImageData data
+
+  var DAMP = 0.9906;                 // per-step energy loss -> ripples fade
+  var REFRACT = 0.17;                // pixel displacement per unit slope
+  var SPEC_K = 0.5;                  // specular strength from surface slope
+  var GLOW_K = 0.45;                 // brightness boost from wave height
+
+  function resize() {
+    vw = window.innerWidth;
+    vh = window.innerHeight;
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = Math.round(vw * dpr);
+    canvas.height = Math.round(vh * dpr);
+
+    // keep the simulation grid under ~520 px on its longest side
+    cell = Math.max(2, Math.ceil(Math.max(vw, vh) / 520));
+    simW = Math.max(8, Math.round(vw / cell));
+    simH = Math.max(8, Math.round(vh / cell));
+    simCanvas.width = simW;
+    simCanvas.height = simH;
+
+    cur = new Float32Array(simW * simH);
+    prev = new Float32Array(simW * simH);
+    var img = simCtx.createImageData(simW, simH);
+    out = img.data;
+    buildBackground(img);
+  }
+
+  // Deep radial-gradient pond surface + faint grain for refraction detail
+  function buildBackground(img) {
+    var cx = simW * 0.5;
+    var cy = simH * 0.42;
+    var rMax = Math.hypot(simW, simH) * 0.58;
+
+    var g = simCtx.createRadialGradient(cx, cy, 0, cx, cy, rMax);
+    g.addColorStop(0.00, '#0e3257');
+    g.addColorStop(0.35, '#092545');
+    g.addColorStop(0.65, '#051831');
+    g.addColorStop(1.00, '#020a16');
+    simCtx.fillStyle = g;
+    simCtx.fillRect(0, 0, simW, simH);
+
+    // soft moonlight pool near the center
+    var m = simCtx.createRadialGradient(cx, cy, 0, cx, cy, Math.min(simW, simH) * 0.34);
+    m.addColorStop(0, 'rgba(140, 190, 255, 0.10)');
+    m.addColorStop(1, 'rgba(140, 190, 255, 0)');
+    simCtx.fillStyle = m;
+    simCtx.fillRect(0, 0, simW, simH);
+
+    var d = img.data;
+    for (var i = 0; i < d.length; i += 4) {
+      // grainy micro-noise: shimmer becomes visible under refraction
+      var n = (Math.random() * 2 - 1) * 4.5;
+      var n2 = (Math.random() * 2 - 1) * 3.0;
+      d[i] = d[i] + n2;        // r
+      d[i + 1] = d[i + 1] + n; // g
+      d[i + 2] = d[i + 2] + n; // b
+      d[i + 3] = 255;
+    }
+    base = d;
+  }
+
+  // classic two-buffer wave step with damping
+  function step() {
+    var w = simW, h = simH;
+    var x, y;
+    for (x = 0; x < w; x++) { cur[x] = 0; cur[(h - 1) * w + x] = 0; }
+    for (y = 0; y < h; y++) { cur[y * w] = 0; cur[y * w + w - 1] = 0; }
+    for (y = 1; y < h - 1; y++) {
+      var row = y * w;
+      for (x = 1; x < w - 1; x++) {
+        var i = row + x;
+        prev[i] = (cur[i - 1] + cur[i + 1] + cur[i - w] + cur[i + w]) * 0.5 - prev[i];
+      }
+    }
+    var t = cur; cur = prev; prev = t;
+    for (var i2 = 0; i2 < cur.length; i2++) { cur[i2] *= DAMP; }
+  }
+
+  // refraction render: displace background sample by surface slope,
+  // add specular + height-driven blue glow at ripple crests
+  function render() {
+    var w = simW, h = simH;
+    var o = out, b = base, c = cur;
+    var x, y, i, k, j;
+    var sx, sy, dx, dy, sl, hg;
+    for (y = 0; y < h; y++) {
+      var row = y * w;
+      for (x = 0; x < w; x++) {
+        i = row + x;
+        dx = (x > 0 && x < w - 1) ? c[i + 1] - c[i - 1] : 0;
+        dy = (y > 0 && y < h - 1) ? c[i + w] - c[i - w] : 0;
+        sx = x - dx * REFRACT;
+        sy = y - dy * REFRACT;
+        if (sx < 0) sx = 0; else if (sx > w - 1) sx = w - 1;
+        if (sy < 0) sy = 0; else if (sy > h - 1) sy = h - 1;
+        j = ((sy | 0) * w + (sx | 0)) << 2;
+        k = i << 2;
+        sl = (dy - dx) * SPEC_K;           // light from upper-left
+        hg = c[i] * GLOW_K;                // brighter at ripple peaks
+        o[k]     = b[j]     + sl * 0.35 + hg * 0.16;
+        o[k + 1] = b[j + 1] + sl * 0.50 + hg * 0.34;
+        o[k + 2] = b[j + 2] + sl * 0.85 + hg * 0.72;
+      }
+    }
+    simCtx.putImageData(new ImageData(o, simW, simH), 0, 0);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(simCanvas, 0, 0, canvas.width, canvas.height);
+  }
+
+  function droplet(px, py, radius, amp) {
+    var x0 = (px / cell) | 0;
+    var y0 = (py / cell) | 0;
+    var r = Math.max(1, Math.round(radius / cell));
+    for (var dy = -r; dy <= r; dy++) {
+      for (var dx = -r; dx <= r; dx++) {
+        var d2 = dx * dx + dy * dy;
+        if (d2 > r * r) continue;
+        var x = x0 + dx, y = y0 + dy;
+        if (x < 1 || x >= simW - 1 || y < 1 || y >= simH - 1) continue;
+        cur[y * simW + x] += amp * Math.sqrt(1 - d2 / (r * r));
+      }
+    }
+  }
+
+  // ---- interaction ----
+  var dragging = false;
+  var lastX = -1e9, lastY = -1e9;
+  var hintGone = false;
+
+  function firstTouch() {
+    if (hintGone) return;
+    hintGone = true;
+    hint.classList.add('hidden');
+  }
+
+  function onDown(e) {
+    var p = pt(e);
+    firstTouch();
+    dragging = true;
+    lastX = p.x; lastY = p.y;
+    droplet(p.x, p.y, Math.max(10, cell * 2.6), 300); // strong burst
+  }
+  function onMove(e) {
+    var p = pt(e);
+    var dx = p.x - lastX, dy = p.y - lastY;
+    var dist = Math.hypot(dx, dy);
+    var need = dragging ? cell * 0.7 : cell * 1.7;
+    if (dist < need) return;
+    lastX = p.x; lastY = p.y;
+    if (dragging) {
+      droplet(p.x, p.y, cell * 1.4, 46);  // continuous drag ripples
+      if (dist > cell * 2) droplet(p.x - dx * 0.5, p.y - dy * 0.5, cell * 0.9, 30);
+    } else {
+      droplet(p.x, p.y, cell * 0.9, 11);  // gentle hover trails
+    }
+  }
+  function onUp() { dragging = false; }
+  function pt(e) {
+    return { x: e.clientX, y: e.clientY };
+  }
+
+  canvas.addEventListener('pointerdown', onDown);
+  canvas.addEventListener('pointermove', onMove);
+  window.addEventListener('pointerup', onUp);
+  canvas.addEventListener('pointerleave', onUp);
+  window.addEventListener('resize', resize);
+
+  // ---- ambient life: occasional distant droplets + opening drops ----
+  var nextAmbient = 0;
+  function ambient(now) {
+    if (document.hidden) return;
+    if (now >= nextAmbient) {
+      droplet(simW * (0.08 + Math.random() * 0.84) * cell,
+              simH * (0.08 + Math.random() * 0.84) * cell,
+              cell * (0.8 + Math.random() * 1.0),
+              14 + Math.random() * 22);
+      nextAmbient = now + 1400 + Math.random() * 3800;
+    }
+  }
+
+  function loop(now) {
+    ambient(now);
+    step();
+    render();
+    requestAnimationFrame(loop);
+  }
+
+  resize();
+  // opening gesture: a few gentle drops so the pond is alive on load
+  setTimeout(function () { droplet(vw * 0.32, vh * 0.38, cell * 1.6, 90); }, 350);
+  setTimeout(function () { droplet(vw * 0.68, vh * 0.55, cell * 1.4, 70); }, 950);
+  requestAnimationFrame(function (t) { nextAmbient = t + 1200; loop(t); });
+})();
+</script>
+</body>
+</html>

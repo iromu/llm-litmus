@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cosmic Dust — Nebula Particle Field</title>
+<style>
+  :root{
+    --ink: rgba(205,214,255,.9);
+    --faint: rgba(168,178,230,.48);
+    --ghost: rgba(150,160,215,.35);
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    background:#030410;
+    overflow:hidden;
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+    color:var(--ink);
+    -webkit-font-smoothing:antialiased;
+  }
+  #scene{position:fixed;inset:0;display:block;cursor:crosshair}
+
+  .vignette{
+    position:fixed;inset:0;pointer-events:none;z-index:2;
+    background:
+      radial-gradient(ellipse at 50% 45%, transparent 0%, transparent 40%, rgba(1,2,10,.6) 100%),
+      linear-gradient(to bottom, rgba(8,10,34,.4), transparent 16%);
+  }
+
+  .hud{position:fixed;left:26px;top:24px;pointer-events:none;z-index:3;line-height:1.7}
+  .hud .tag{
+    font-size:10px;letter-spacing:.36em;text-transform:uppercase;color:var(--faint);
+  }
+  .hud .num{font-size:11px;color:rgba(138,148,205,.55)}
+
+  .hud-r{position:fixed;right:26px;top:24px;pointer-events:none;z-index:3;text-align:right;line-height:1.7}
+  .hud-r .tag{font-size:10px;letter-spacing:.36em;text-transform:uppercase;color:var(--ghost)}
+
+  .title{
+    position:fixed;left:50%;top:50%;transform:translate(-50%,-54%);
+    z-index:2;pointer-events:none;text-align:center;user-select:none;
+    font-family:"Segoe UI",system-ui,-apple-system,Helvetica,Arial,sans-serif;
+    font-weight:200;
+    font-size:clamp(56px,13vw,176px);
+    letter-spacing:.085em;
+    line-height:1;
+    color:transparent;
+    background:linear-gradient(180deg, rgba(196,205,255,.17), rgba(150,120,255,.055) 72%);
+    -webkit-background-clip:text;background-clip:text;
+    white-space:nowrap;
+  }
+  .subtitle{
+    position:fixed;left:50%;top:calc(50% + clamp(30px,6.5vw,104px));
+    transform:translateX(-50%);
+    z-index:2;pointer-events:none;user-select:none;white-space:nowrap;
+    font-size:10px;letter-spacing:.52em;text-transform:uppercase;
+    color:rgba(160,170,225,.34);
+  }
+
+  .hint{
+    position:fixed;left:50%;bottom:26px;transform:translateX(-50%);
+    z-index:3;pointer-events:none;user-select:none;white-space:nowrap;
+    font-size:10px;letter-spacing:.44em;text-transform:uppercase;
+    color:rgba(160,170,225,.42);
+    animation:hintPulse 4.2s ease-in-out infinite;
+  }
+  @keyframes hintPulse{0%,100%{opacity:.35}50%{opacity:.85}}
+
+  @media (max-width:560px){
+    .hud{left:16px;top:16px}
+    .hud-r{right:16px;top:16px}
+    .title{font-size:clamp(50px,18vw,96px)}
+    .subtitle{top:calc(50% + 34px);letter-spacing:.4em}
+    .hint{bottom:18px;letter-spacing:.3em}
+  }
+</style>
+</head>
+<body>
+<canvas id="scene"></canvas>
+<div class="vignette"></div>
+
+<div class="hud">
+  <div class="tag">Nebula Field</div>
+  <div class="num" id="count">— particles · — fields</div>
+</div>
+<div class="hud-r">
+  <div class="tag">Deep Space · Interstellar</div>
+</div>
+
+<div class="title">Cosmic Dust</div>
+<div class="subtitle">additive particle dust · drifting nebulae</div>
+<div class="hint">click anywhere — reshape the cosmos</div>
+
+<script>
+(function(){
+  'use strict';
+
+  var canvas = document.getElementById('scene');
+  var ctx = canvas.getContext('2d');
+  var countEl = document.getElementById('count');
+
+  var W = 0, H = 0, DPR = 1;
+  var T = 0, last = 0;
+  var particles = [];
+  var centers = [];
+
+  /* nebula color palettes: blues, purples, pinks, teals, violets */
+  var PALETTES = [
+    [ 96,165,250],   /* blue   */
+    [192,132,252],   /* purple */
+    [244,114,182],   /* pink   */
+    [ 45,212,191],   /* teal   */
+    [167,139,250]    /* violet */
+  ];
+
+  function rand(a, b){ return a + Math.random() * (b - a); }
+  function pick(arr){ return arr[(Math.random() * arr.length) | 0]; }
+
+  /* 16-step dark->bright color ramp per palette, precomputed as fillStyle strings */
+  function makeRamp(c){
+    var s = [], r0 = c[0] * 0.14, g0 = c[1] * 0.14, b0 = c[2] * 0.14;
+    for (var i = 0; i < 16; i++){
+      var t = i / 15;
+      s.push('rgb(' +
+        Math.round(r0 + (c[0] - r0) * t) + ',' +
+        Math.round(g0 + (c[1] - g0) * t) + ',' +
+        Math.round(b0 + (c[2] - b0) * t) + ')');
+    }
+    return s;
+  }
+
+  function targetCount(){
+    return Math.max(1400, Math.min(4200, Math.round((W * H) / 380)));
+  }
+
+  function newCenter(){
+    var m = Math.min(W, H);
+    var c = {
+      x: rand(m * 0.15, W - m * 0.15),
+      y: rand(m * 0.15, H - m * 0.15),
+      vx: rand(-0.28, 0.28),
+      vy: rand(-0.28, 0.28),
+      r: rand(m * 0.30, m * 0.55),
+      color: pick(PALETTES),
+      pulse: rand(0.4, 0.9),
+      phase: rand(0, Math.PI * 2)
+    };
+    if (Math.abs(c.vx) < 0.06) c.vx = 0.06;
+    if (Math.abs(c.vy) < 0.06) c.vy = 0.06;
+    c.ramp = makeRamp(c.color);
+    return c;
+  }
+
+  function newParticle(biased){
+    var p = {
+      x: 0, y: 0,
+      vx: rand(-0.14, 0.14),
+      vy: rand(-0.14, 0.14),
+      s: rand(0.7, 1.8),
+      ph: rand(0, Math.PI * 2),
+      fs: rand(0.6, 2.2),
+      a: rand(0.25, 0.8)
+    };
+    if (biased && centers.length){
+      var c = pick(centers);
+      p.x = c.x + (Math.random() + Math.random() - 1) * c.r * 0.45;
+      p.y = c.y + (Math.random() + Math.random() - 1) * c.r * 0.45;
+    } else {
+      p.x = Math.random() * W;
+      p.y = Math.random() * H;
+    }
+    if (Math.random() < 0.06){ p.s = rand(2, 3); p.a *= 0.5; } /* sparse brighter stars */
+    return p;
+  }
+
+  function regenerate(){
+    var n = 4 + ((Math.random() * 3) | 0); /* 4 to 6 nebula fields */
+    centers = [];
+    for (var i = 0; i < n; i++) centers.push(newCenter());
+    particles = [];
+    var count = targetCount();
+    for (var j = 0; j < count; j++) particles.push(newParticle(Math.random() < 0.72));
+    countEl.textContent = particles.length.toLocaleString() + ' particles · ' + centers.length + ' fields';
+  }
+
+  function resize(){
+    var nw = window.innerWidth, nh = window.innerHeight;
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    var rw = nw / W, rh = nh / H;
+    W = nw; H = nh;
+    canvas.width = W * DPR;
+    canvas.height = H * DPR;
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    if (rw > 0 && rh > 0){
+      for (var i = 0; i < particles.length; i++){
+        particles[i].x *= rw;
+        particles[i].y *= rh;
+      }
+    }
+    ctx.fillStyle = '#030410';
+    ctx.fillRect(0, 0, W, H);
+  }
+  function step(ts){
+    if (!last) last = ts;
+    var dt = Math.min(3, (ts - last) / 16.667); /* normalized to 60fps frames */
+    last = ts;
+    T += 0.02 * dt;
+
+    var i, j, p, c;
+
+    /* trailing effect: fade the previous frame toward deep space */
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = 'rgba(3,4,16,0.16)';
+    ctx.fillRect(0, 0, W, H);
+
+    /* nebula centers drift slowly and bounce off edges */
+    for (i = 0; i < centers.length; i++){
+      c = centers[i];
+      c.x += c.vx * dt;
+      c.y += c.vy * dt;
+      if (c.x < c.r * 0.3)      { c.x = c.r * 0.3;   c.vx =  Math.abs(c.vx); }
+      else if (c.x > W - c.r * 0.3){ c.x = W - c.r * 0.3; c.vx = -Math.abs(c.vx); }
+      if (c.y < c.r * 0.3)      { c.y = c.r * 0.3;   c.vy =  Math.abs(c.vy); }
+      else if (c.y > H - c.r * 0.3){ c.y = H - c.r * 0.3; c.vy = -Math.abs(c.vy); }
+    }
+
+    /* additive blending for the glowing dust */
+    ctx.globalCompositeOperation = 'lighter';
+
+    /* soft pulsing glow at each field center */
+    for (i = 0; i < centers.length; i++){
+      c = centers[i];
+      var g = c.r * (0.42 + 0.08 * Math.sin(T * c.pulse + c.phase));
+      var col = c.color;
+      var grad = ctx.createRadialGradient(c.x, c.y, 0, c.x, c.y, g);
+      grad.addColorStop(0,    'rgba(' + col[0] + ',' + col[1] + ',' + col[2] + ',0.10)');
+      grad.addColorStop(0.55, 'rgba(' + col[0] + ',' + col[1] + ',' + col[2] + ',0.035)');
+      grad.addColorStop(1,    'rgba(' + col[0] + ',' + col[1] + ',' + col[2] + ',0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, g, 0, 6.2832);
+      ctx.fill();
+    }
+
+    /* particles: drift, wrap, color from nearest nebula, flicker */
+    var C = centers.length;
+    for (j = 0; j < particles.length; j++){
+      p = particles[j];
+      p.x += (p.vx + Math.sin(T * 0.35 + p.ph) * 0.05) * dt;
+      p.y += (p.vy + Math.cos(T * 0.30 + p.ph) * 0.05) * dt;
+
+      /* wrap around screen edges for an infinite cosmos */
+      if (p.x < -4) p.x += W + 8; else if (p.x > W + 4) p.x -= W + 8;
+      if (p.y < -4) p.y += H + 8; else if (p.y > H + 4) p.y -= H + 8;
+
+      /* nearest nebula center */
+      var bd = 1e18, ci = 0, dd, dx, dy;
+      for (i = 0; i < C; i++){
+        c = centers[i];
+        dx = p.x - c.x; dy = p.y - c.y;
+        dd = dx * dx + dy * dy;
+        if (dd < bd){ bd = dd; ci = i; }
+      }
+      c = centers[ci];
+      var t = 1 - Math.sqrt(bd) / c.r; if (t < 0) t = 0;
+      var idx = (t * 15) | 0; if (idx > 15) idx = 15;
+
+      ctx.fillStyle = c.ramp[idx];
+      ctx.globalAlpha = p.a * (0.55 + 0.45 * Math.sin(T * p.fs + p.ph));
+      ctx.fillRect(p.x, p.y, p.s, p.s);
+    }
+
+    ctx.globalAlpha = 1;
+    requestAnimationFrame(step);
+  }
+
+  window.addEventListener('resize', resize);
+  canvas.addEventListener('pointerdown', function(){ regenerate(); });
+
+  resize();
+  regenerate();
+  requestAnimationFrame(step);
+})();
+</script>
+</body>
+</html>

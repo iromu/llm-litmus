@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Neon Butterfly</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    height: 100%;
+    background: #05030f;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+  canvas {
+    display: block;
+    position: fixed;
+    inset: 0;
+    touch-action: none;
+    cursor: crosshair;
+  }
+  .vignette {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background: radial-gradient(ellipse at 50% 45%, rgba(0,0,0,0) 52%, rgba(2,1,9,.62) 100%);
+  }
+  .label {
+    position: fixed;
+    left: 50%;
+    bottom: 24px;
+    transform: translateX(-50%);
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .58em;
+    text-indent: .58em;
+    text-transform: uppercase;
+    color: rgba(196, 186, 255, .38);
+    user-select: none;
+    pointer-events: none;
+    white-space: nowrap;
+  }
+  @media (max-width: 480px) {
+    .label { font-size: 9px; letter-spacing: .42em; text-indent: .42em; bottom: 18px; }
+  }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div class="vignette"></div>
+<div class="label">Neon Butterfly</div>
+<script>
+"use strict";
+/* ============================================================
+   Neon Butterfly — self-contained canvas art piece.
+   A luminous butterfly chases the pointer with smooth steering
+   and leaves a rainbow, iridescent trail. Without input it
+   wanders on smooth value-noise steering.
+   ============================================================ */
+
+var TAU = Math.PI * 2;
+var canvas = document.getElementById("c");
+var ctx = canvas.getContext("2d");
+
+var W = 0, H = 0, DPR = 1;
+
+function paintBg(alpha) {
+  ctx.globalCompositeOperation = "source-over";
+  ctx.fillStyle = "rgba(5, 3, 15, " + alpha + ")";
+  ctx.fillRect(0, 0, W, H);
+}
+
+function resize() {
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  W = window.innerWidth;
+  H = window.innerHeight;
+  canvas.width = Math.round(W * DPR);
+  canvas.height = Math.round(H * DPR);
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  paintBg(1);
+}
+window.addEventListener("resize", resize);
+
+/* ---------- HSV -> RGB (color cycling for iridescence) ---------- */
+
+function hsvToRgb(h, s, v) {
+  h = ((h % 360) + 360) % 360;
+  var c = v * s;
+  var x = c * (1 - Math.abs((h / 60) % 2 - 1));
+  var m = v - c;
+  var r = 0, g = 0, b = 0;
+  if (h < 60)       { r = c; g = x; }
+  else if (h < 120) { r = x; g = c; }
+  else if (h < 180) { g = c; b = x; }
+  else if (h < 240) { g = x; b = c; }
+  else if (h < 300) { r = x; b = c; }
+  else              { r = c; b = x; }
+  return [
+    Math.round((r + m) * 255),
+    Math.round((g + m) * 255),
+    Math.round((b + m) * 255)
+  ];
+}
+
+function neon(h, s, v, a) {
+  var c = hsvToRgb(h, s, v);
+  return (a === undefined)
+    ? "rgb(" + c[0] + "," + c[1] + "," + c[2] + ")"
+    : "rgba(" + c[0] + "," + c[1] + "," + c[2] + "," + a + ")";
+}
+
+/* ---------- smooth 1-D value noise (wander steering) ---------- */
+
+function vnoise(t) {
+  var i = Math.floor(t);
+  var f = t - i;
+  var u = f * f * (3 - 2 * f);
+  function hash(n) {
+    var s = Math.sin(n * 127.1 + 311.7) * 43758.5453;
+    return s - Math.floor(s);
+  }
+  return hash(i) * (1 - u) + hash(i + 1) * u; // [0,1)
+}
+
+/* ---------- pointer / touch input ---------- */
+
+var pointer = { x: 0, y: 0, lastMove: -1e9 };
+var tNow = 0;
+
+function setPointer(x, y) {
+  pointer.x = x;
+  pointer.y = y;
+  pointer.lastMove = tNow;
+}
+window.addEventListener("mousemove", function (e) { setPointer(e.clientX, e.clientY); });
+window.addEventListener("touchstart", function (e) {
+  var t = e.touches[0]; setPointer(t.clientX, t.clientY);
+}, { passive: true });
+window.addEventListener("touchmove", function (e) {
+  e.preventDefault();
+  var t = e.touches[0]; setPointer(t.clientX, t.clientY);
+}, { passive: false });
+
+/* ---------- state ---------- */
+
+var b = { x: 0, y: 0, ang: -Math.PI / 2, spd: 0, flap: 0 };
+var trail = [];      // {x, y, hue} — coordinate array with alpha fade
+var MAX_TRAIL = 110;
+var parts = [];      // iridescent sparkles from the wingtips
+var MAX_PARTS = 120;
+
+function lerpAngle(a, target, k) {
+  var d = target - a;
+  while (d > Math.PI) d -= TAU;
+  while (d < -Math.PI) d += TAU;
+  return a + d * k;
+}
+
+resize();
+b.x = W / 2;
+b.y = H * 0.42;
+pointer.x = b.x;
+pointer.y = b.y;
+
+/* ---------- wing geometry (right side, +y span) ---------- */
+
+function pathUpperWing() {
+  ctx.beginPath();
+  ctx.moveTo(3, 4);
+  ctx.bezierCurveTo(16, -3, 36, 6, 43, 28);   // leading edge sweep
+  ctx.bezierCurveTo(46, 40, 38, 50, 28, 48);  // outer tip round
+  ctx.bezierCurveTo(20, 54, 12, 50, 10, 42);  // scallop 1
+  ctx.bezierCurveTo(7, 48, 3, 40, 4, 30);     // scallop 2
+  ctx.bezierCurveTo(3, 20, 3, 10, 3, 4);      // back along body
+  ctx.closePath();
+}
+
+function pathLowerWing() {
+  ctx.beginPath();
+  ctx.moveTo(3, 20);
+  ctx.bezierCurveTo(16, 22, 28, 30, 29, 44);  // leading edge
+  ctx.bezierCurveTo(30, 58, 22, 66, 15, 60);  // tail lobe 1
+  ctx.bezierCurveTo(9, 68, 3, 62, 5, 52);     // tail lobe 2
+  ctx.bezierCurveTo(4, 44, 2, 32, 3, 20);     // back along body
+  ctx.closePath();
+}
+
+function wingVeins() {
+  ctx.beginPath();
+  ctx.moveTo(5, 8);
+  ctx.bezierCurveTo(14, 10, 28, 18, 38, 30);
+  ctx.moveTo(5, 12);
+  ctx.bezierCurveTo(12, 22, 18, 34, 22, 44);
+  ctx.moveTo(4, 26);
+  ctx.bezierCurveTo(10, 34, 16, 44, 17, 54);
+  ctx.stroke();
+}
+
+/* One wing lobe: radial gradient fill, neon outline, faint veins. */
+function drawWing(pathFn, hue, cy, span, flap) {
+  ctx.save();
+  ctx.scale(1, flap); // flap folds the wing toward the body line
+
+  var g = ctx.createRadialGradient(4, cy, 1.5, 6, cy + 8, span);
+  g.addColorStop(0.00, neon(hue, 0.55, 1.0, 0.95));
+  g.addColorStop(0.45, neon(hue + 60, 0.95, 0.9, 0.85));
+  g.addColorStop(1.00, neon(hue + 150, 1.0, 0.55, 0.75));
+  ctx.globalCompositeOperation = "lighter";
+  pathFn();
+  ctx.fillStyle = g;
+  ctx.fill();
+
+  // luminous outline
+  ctx.shadowColor = neon(hue + 90, 1.0, 1.0, 0.9);
+  ctx.shadowBlur = 12;
+  ctx.strokeStyle = neon(hue + 180, 0.85, 1.0, 0.85);
+  ctx.lineWidth = 1.3;
+  ctx.stroke();
+
+  // faint wing veins
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = "rgba(255,255,255,0.22)";
+  ctx.lineWidth = 0.7;
+  wingVeins();
+  ctx.restore();
+}
+
+/* Full butterfly at (b.x, b.y), rotated to heading b.ang. */
+function drawButterfly(t) {
+  var flap = 0.3 + 0.7 * Math.abs(Math.sin(b.flap));
+  var hue = (t * 36) % 360;
+
+  ctx.save();
+  ctx.translate(b.x, b.y + Math.sin(b.flap * 2) * 1.6); // gentle body bob
+  ctx.rotate(b.ang);
+
+  // soft under-glow so the form reads against the dark field
+  ctx.globalCompositeOperation = "lighter";
+  var ug = ctx.createRadialGradient(0, 0, 1, 0, 0, 52);
+  ug.addColorStop(0, neon(hue + 60, 0.9, 1.0, 0.16));
+  ug.addColorStop(1, neon(hue + 60, 0.9, 1.0, 0));
+  ctx.fillStyle = ug;
+  ctx.beginPath();
+  ctx.arc(0, 0, 52, 0, TAU);
+  ctx.fill();
+
+  // right wings (upper then lower), then mirror for the left
+  drawWing(pathUpperWing, hue, 20, 46, flap);
+  drawWing(pathLowerWing, hue + 50, 40, 38, flap * 0.94);
+  ctx.save();
+  ctx.scale(-1, 1); // mirror-drawn wings
+  drawWing(pathUpperWing, hue + 140, 20, 46, flap);
+  drawWing(pathLowerWing, hue + 190, 40, 38, flap * 0.94);
+  ctx.restore();
+
+  // body (thorax + abdomen) with luminous rim
+  ctx.globalCompositeOperation = "lighter";
+  ctx.shadowColor = neon(hue + 40, 1.0, 1.0, 0.9);
+  ctx.shadowBlur = 10;
+  ctx.fillStyle = neon(hue + 30, 0.85, 0.16, 1);
+  ctx.beginPath();
+  ctx.ellipse(-1, 0, 13, 3.6, 0, 0, TAU);
+  ctx.fill();
+  ctx.strokeStyle = neon(hue + 30, 0.9, 0.95, 0.9);
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // head
+  ctx.beginPath();
+  ctx.arc(13, 0, 3, 0, TAU);
+  ctx.fill();
+  ctx.stroke();
+
+  // antennae: two curving filaments with bright tips
+  ctx.beginPath();
+  ctx.moveTo(14.5, -1);
+  ctx.bezierCurveTo(22, -4, 26, -10, 30, -15);
+  ctx.moveTo(14.5, 1);
+  ctx.bezierCurveTo(22, 4, 26, 10, 30, 15);
+  ctx.lineWidth = 1.2;
+  ctx.strokeStyle = neon(hue + 40, 0.9, 1.0, 0.9);
+  ctx.stroke();
+
+  ctx.shadowBlur = 8;
+  ctx.fillStyle = "rgba(255,255,255,0.95)";
+  ctx.beginPath(); ctx.arc(30, -15, 1.4, 0, TAU); ctx.fill();
+  ctx.beginPath(); ctx.arc(30, 15, 1.4, 0, TAU); ctx.fill();
+
+  ctx.restore();
+}
+
+/* ---------- rainbow trail (coordinate array, alpha fade) ---------- */
+
+function drawTrail() {
+  var n = trail.length;
+  if (n < 2) return;
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  for (var i = 1; i < n; i++) {
+    var f = i / n; // 0 = oldest, 1 = newest
+    var a = Math.pow(f, 1.6) * 0.55;
+    if (a < 0.01) continue;
+    ctx.beginPath();
+    ctx.moveTo(trail[i - 1].x, trail[i - 1].y);
+    ctx.lineTo(trail[i].x, trail[i].y);
+    ctx.strokeStyle = neon(trail[i].hue, 1.0, 1.0, a);
+    ctx.lineWidth = 0.6 + f * 4.4;
+    ctx.shadowColor = neon(trail[i].hue, 1.0, 1.0, a * 0.8);
+    ctx.shadowBlur = 8;
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/* ---------- iridescent wingtip sparkles ---------- */
+
+function spawnSparkle(t) {
+  if (parts.length >= MAX_PARTS) return;
+  var side = Math.random() < 0.5 ? -1 : 1;
+  var lx = 10 + Math.random() * 26;
+  var ly = side * (14 + Math.random() * 32);
+  var cos = Math.cos(b.ang), sin = Math.sin(b.ang);
+  var wx = b.x + lx * cos - ly * sin;
+  var wy = b.y + lx * sin + ly * cos;
+  var dir = Math.random() * TAU;
+  var sp = 12 + Math.random() * 34;
+  parts.push({
+    x: wx, y: wy,
+    vx: Math.cos(dir) * sp - Math.cos(b.ang) * b.spd * 0.25,
+    vy: Math.sin(dir) * sp - Math.sin(b.ang) * b.spd * 0.25,
+    life: 0.9 + Math.random() * 0.7,
+    age: 0,
+    r: 1.2 + Math.random() * 1.8,
+    hue: (t * 90 + Math.random() * 70) % 360
+  });
+}
+
+function updateParts(dt) {
+  for (var i = parts.length - 1; i >= 0; i--) {
+    var p = parts[i];
+    p.age += dt;
+    if (p.age >= p.life) { parts.splice(i, 1); continue; }
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    p.vx *= Math.pow(0.25, dt);
+    p.vy *= Math.pow(0.25, dt);
+  }
+}
+
+function drawParts() {
+  if (!parts.length) return;
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  for (var i = 0; i < parts.length; i++) {
+    var p = parts[i];
+    var f = 1 - p.age / p.life;
+    var r = p.r * (0.4 + f);
+    var a = f * 0.75;
+    ctx.shadowColor = neon(p.hue, 1.0, 1.0, a);
+    ctx.shadowBlur = 10;
+    ctx.fillStyle = neon(p.hue, 0.9, 1.0, a);
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, r, 0, TAU);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+/* ---------- simulation ---------- */
+
+function update(dt) {
+  var idle = (tNow - pointer.lastMove) > 0.9;
+  var tx, ty;
+
+  if (idle) {
+    // gentle noise-based wander, kept inside the frame
+    var nx = vnoise(tNow * 0.12 + 7.3);
+    var ny = vnoise(tNow * 0.14 + 57.9);
+    tx = W * (0.14 + 0.72 * nx);
+    ty = H * (0.14 + 0.72 * ny);
+  } else {
+    tx = pointer.x;
+    ty = pointer.y;
+  }
+
+  var dx = tx - b.x;
+  var dy = ty - b.y;
+  var dist = Math.sqrt(dx * dx + dy * dy);
+
+  // smooth heading interpolation toward the target
+  var desired = Math.atan2(dy, dx);
+  var turnK = 1 - Math.exp(-dt * 4.2);
+  b.ang = lerpAngle(b.ang, desired, turnK);
+
+  // target speed: eager while chasing, leisurely while wandering
+  var want = idle ? 85 : Math.min(430, 55 + dist * 1.35);
+  b.spd += (want - b.spd) * (1 - Math.exp(-dt * 2.6));
+
+  b.x += Math.cos(b.ang) * b.spd * dt;
+  b.y += Math.sin(b.ang) * b.spd * dt;
+
+  // keep the form on screen
+  var m = 40;
+  if (b.x < m) { b.x = m; }
+  if (b.x > W - m) { b.x = W - m; }
+  if (b.y < m) { b.y = m; }
+  if (b.y > H - m) { b.y = H - m; }
+
+  // wing beat rate scales with travel speed
+  b.flap += dt * (5 + 0.085 * b.spd);
+
+  // record trail point (rainbow hue cycles faster than the wings)
+  var last = trail[trail.length - 1];
+  if (!last || Math.hypot(b.x - last.x, b.y - last.y) > 2.5) {
+    trail.push({ x: b.x, y: b.y, hue: (tNow * 95) % 360 });
+    if (trail.length > MAX_TRAIL) trail.shift();
+  }
+
+  // sparkles scale with motion
+  var chance = Math.min(0.55, 0.06 + b.spd * 0.0012);
+  if (Math.random() < chance) spawnSparkle(tNow);
+  updateParts(dt);
+}
+
+/* ---------- main loop ---------- */
+
+var lastT = performance.now();
+
+function frame(now) {
+  var dt = Math.min(0.05, (now - lastT) / 1000);
+  lastT = now;
+  tNow = now / 1000;
+
+  // exponential background fade => motion blur
+  paintBg(0.16);
+
+  update(dt);
+  drawTrail();
+  drawParts();
+  drawButterfly(tNow);
+
+  requestAnimationFrame(frame);
+}
+
+document.addEventListener("visibilitychange", function () {
+  if (!document.hidden) lastT = performance.now();
+});
+
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

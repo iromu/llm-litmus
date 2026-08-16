@@ -1,0 +1,24 @@
+Creative prompt (verbatim):
+Create an organic morphing blob visualization with smooth, fluid-like blobs that drift and morph organically. Each blob is composed of points connected with quadratic curves, creating a liquid, amoeba-like shape. Multiple blobs with different sizes drift toward center points while pulsing. The color scheme cycles through purple/blue, warm red/orange, green/teal, and pink/magenta palettes. Clicking changes the color set and regenerates the blobs. The title "Liquid Dream" appears in large, faint white text. A monospace hint at the bottom invites interaction.
+
+Model: Qwen3.8-27B (thinking) — thinking effort: high
+
+Techniques used:
+- Canvas 2D blob rendering using polar coordinate points (9–15 per blob) connected with quadraticCurveTo through ring midpoints for smooth amoeba outlines
+- Radial gradient fills for translucent volumes (per-blob two-color gradient with additive "lighter" compositing for luminous overlaps), plus faint luminous rim strokes and soft white inner-core highlights
+- Sine-wave-based radius oscillation for organic morphing — two out-of-phase sine terms per blob with independent frequencies, per-point angular modulation, and phases, so shapes never repeat
+- Multiple blob instances (4–7 per generation) with fully independent parameters (size, pulse, orbit, morph, rotation, color pair, alpha)
+- Click-driven palette cycling through the four palettes (purple/blue, warm red/orange, green/teal, pink/magenta), each with its own deep background gradient; click also regenerates blob count, sizes, positions, and parameters
+- Center-pull physics: each blob has a wandering target point orbiting the canvas center (cos/sine drift) and is pulled toward it with an exponential ease, giving continuous floating motion
+- Pulsing via per-blob sine scale modulation; smooth scale-in (easeOutCubic) of newly generated blobs
+- Translucent background pass each frame (alpha 0.32) for smooth liquid motion trails; DPR-aware responsive resize
+- HTML/CSS overlay typography: large faint serif "Liquid Dream" title with breathing opacity animation and screen blend, monospace uppercase hint with blinking cursor at the bottom, transient monospace palette-name tag that flashes on each click
+
+Interaction model:
+- Passive observation with continuous organic animation — blobs drift, morph, and pulse indefinitely
+- Click or tap to cycle through the color palettes and regenerate blob configurations (count, sizes, positions, all morphing parameters)
+- The blobs never repeat the same shape twice (independent per-blob sine parameters + random regeneration)
+
+Stats:
+- Wall time: ~6 minutes (estimate)
+- Token count: n/a

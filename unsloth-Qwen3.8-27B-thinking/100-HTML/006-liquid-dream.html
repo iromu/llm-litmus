@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Liquid Dream</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #06050f;
+  }
+
+  #stage {
+    position: fixed;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+    cursor: pointer;
+  }
+
+  /* ---- title overlay ---- */
+  .title {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: clamp(3rem, 12vw, 10rem);
+    font-weight: 300;
+    letter-spacing: 0.08em;
+    color: #ffffff;
+    opacity: 0.14;
+    white-space: nowrap;
+    pointer-events: none;
+    user-select: none;
+    text-shadow:
+      0 0 40px rgba(255, 255, 255, 0.25),
+      0 0 120px rgba(160, 150, 255, 0.20);
+    mix-blend-mode: screen;
+    animation: breathe 9s ease-in-out infinite;
+    will-change: opacity;
+  }
+
+  @keyframes breathe {
+    0%, 100% { opacity: 0.10; }
+    50%      { opacity: 0.20; }
+  }
+
+  /* ---- monospace hint ---- */
+  .hint {
+    position: fixed;
+    bottom: clamp(18px, 4vh, 42px);
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: 'Courier New', Courier, monospace;
+    font-size: clamp(0.62rem, 1.6vw, 0.85rem);
+    letter-spacing: 0.32em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.35);
+    pointer-events: none;
+    user-select: none;
+    white-space: nowrap;
+    animation: hintIn 2.4s ease-out 0.6s both;
+    text-shadow: 0 0 12px rgba(255, 255, 255, 0.15);
+  }
+
+  .hint .cursor-blink {
+    display: inline-block;
+    margin-left: 0.35em;
+    animation: blink 1.4s steps(1) infinite;
+  }
+
+  @keyframes hintIn {
+    from { opacity: 0; transform: translateX(-50%) translateY(12px); }
+    to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+  }
+
+  @keyframes blink {
+    0%, 60% { opacity: 1; }
+    61%, 100% { opacity: 0; }
+  }
+
+  /* ---- palette flash (shown on click) ---- */
+  .palette-tag {
+    position: fixed;
+    top: clamp(18px, 4vh, 42px);
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: 'Courier New', Courier, monospace;
+    font-size: clamp(0.6rem, 1.5vw, 0.8rem);
+    letter-spacing: 0.4em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.0);
+    pointer-events: none;
+    user-select: none;
+    transition: color 0.5s ease, opacity 1.4s ease;
+    opacity: 0;
+    text-shadow: 0 0 14px rgba(255, 255, 255, 0.3);
+  }
+
+  .palette-tag.show {
+    color: rgba(255, 255, 255, 0.6);
+    opacity: 1;
+  }
+
+  .palette-tag.hide {
+    opacity: 0;
+  }
+</style>
+</head>
+<body>
+<canvas id="stage"></canvas>
+<div class="title" aria-hidden="true">Liquid Dream</div>
+<div class="palette-tag" id="paletteTag"></div>
+<div class="hint" aria-hidden="true">click anywhere to shift the dream<span class="cursor-blink">_</span></div>
+
+<script>
+(function () {
+  'use strict';
+
+  var canvas = document.getElementById('stage');
+  var ctx = canvas.getContext('2d');
+  var paletteTag = document.getElementById('paletteTag');
+
+  var TAU = Math.PI * 2;
+  var W = 0, H = 0, DPR = 1;
+
+  /* ---------- color palettes ---------- */
+  var PALETTES = [
+    { name: 'purple / blue',
+      bg: ['#100d24', '#06050f'],
+      colors: [
+        ['#7c6cff', '#3b4bff'],
+        ['#5f8bff', '#8b5cf6'],
+        ['#9d7bff', '#4f7cff'],
+        ['#4f6bff', '#b06bff']
+      ] },
+    { name: 'warm red / orange',
+      bg: ['#1c0d08', '#0c0503'],
+      colors: [
+        ['#ff6b4a', '#ff9e2c'],
+        ['#ff8f3c', '#ff4d5e'],
+        ['#ffb347', '#ff5e5b'],
+        ['#ff7b7b', '#ffa502']
+      ] },
+    { name: 'green / teal',
+      bg: ['#07140f', '#030a08'],
+      colors: [
+        ['#2dd4bf', '#16a085'],
+        ['#38d9a9', '#20bf6b'],
+        ['#6ee7b7', '#0ea4a0'],
+        ['#22c55e', '#14b8a6']
+      ] },
+    { name: 'pink / magenta',
+      bg: ['#180a16', '#0a0409'],
+      colors: [
+        ['#f368e0', '#ff4ecd'],
+        ['#e84393', '#faa2ff'],
+        ['#ff6ec7', '#c44fff'],
+        ['#ff8ae2', '#ff4ecd']
+      ] }
+  ];
+
+  var palIndex = 0;
+  var blobs = [];
+  var startTime = performance.now();
+  var tagTimer = null;
+
+  function rand(a, b) { return a + Math.random() * (b - a); }
+
+  function hexToRgb(hex) {
+    var n = parseInt(hex.slice(1), 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  }
+
+  function rgba(hex, a) {
+    var c = hexToRgb(hex);
+    return 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + a + ')';
+  }
+
+  function easeOutCubic(x) { return 1 - Math.pow(1 - x, 3); }
+
+  /* ---------- blob factory ---------- */
+  function makeBlob(index) {
+    var pal = PALETTES[palIndex];
+    var pair = pal.colors[index % pal.colors.length];
+    var baseR = rand(0.09, 0.20) * Math.min(W, H);
+    return {
+      /* position */
+      x: rand(W * 0.15, W * 0.85),
+      y: rand(H * 0.15, H * 0.85),
+      /* center-pull orbit params (wandering target around canvas center) */
+      orbitAmpX: rand(0.18, 0.36) * W,
+      orbitAmpY: rand(0.15, 0.32) * H,
+      orbitW1: rand(0.05, 0.12) * (Math.random() < 0.5 ? -1 : 1),
+      orbitW2: rand(0.04, 0.10) * (Math.random() < 0.5 ? -1 : 1),
+      orbitPh1: rand(0, TAU),
+      orbitPh2: rand(0, TAU),
+      pull: rand(0.002, 0.005),
+      /* size + pulse */
+      r: baseR,
+      pulseAmp: rand(0.06, 0.14),
+      pulseSpeed: rand(0.4, 0.9),
+      pulsePhase: rand(0, TAU),
+      /* morphing: sine-wave radius oscillation with independent parameters */
+      points: Math.floor(rand(9, 15)),
+      s1: rand(0.18, 0.45), k1: rand(1.7, 2.6), p1: rand(0, TAU),
+      a1: rand(0.12, 0.20),
+      s2: rand(0.10, 0.30), k2: rand(1.3, 2.2), p2: rand(0, TAU),
+      a2: rand(0.07, 0.13),
+      rotSpeed: rand(0.02, 0.08) * (Math.random() < 0.5 ? -1 : 1),
+      rot: rand(0, TAU),
+      /* colors */
+      c1: pair[0],
+      c2: pair[1],
+      alpha: rand(0.35, 0.6)
+    };
+  }
+
+  function regenerate() {
+    var count = Math.floor(rand(4, 8));
+    blobs = [];
+    for (var i = 0; i < count; i++) blobs.push(makeBlob(i));
+    /* newest blobs scale in from zero */
+    for (var j = 0; j < blobs.length; j++) blobs[j].bornAt = performance.now();
+  }
+
+  /* ---------- resize ---------- */
+  function resize() {
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = Math.round(W * DPR);
+    canvas.height = Math.round(H * DPR);
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    /* repaint background solidly after a resize so no stretch artifacts */
+    paintBackground(1);
+  }
+
+  function paintBackground(alpha) {
+    var pal = PALETTES[palIndex];
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = alpha;
+    var g = ctx.createRadialGradient(W / 2, H * 0.42, 0, W / 2, H * 0.5, Math.max(W, H) * 0.8);
+    g.addColorStop(0, pal.bg[0]);
+    g.addColorStop(1, pal.bg[1]);
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+    ctx.globalAlpha = 1;
+  }
+
+  /* ---------- blob rendering ---------- */
+  function drawBlob(b, t) {
+    var age = (performance.now() - b.bornAt) / 1000;
+    var scaleIn = easeOutCubic(Math.min(1, age / 1.3));
+    var pulse = 1 + b.pulseAmp * Math.sin(t * b.pulseSpeed + b.pulsePhase);
+    var r0 = b.r * pulse * scaleIn;
+    if (r0 < 1) return;
+
+    var n = b.points;
+    var pts = new Array(n);
+    for (var i = 0; i < n; i++) {
+      var ang = (i / n) * TAU + b.rot + t * b.rotSpeed;
+      /* organic morphing: two out-of-phase sine waves around the ring */
+      var wob = 1 +
+        b.a1 * Math.sin(t * b.s1 + i * b.k1 + b.p1) +
+        b.a2 * Math.sin(t * b.s2 - i * b.k2 + b.p2);
+      var rr = r0 * wob;
+      pts[i] = {
+        x: b.x + Math.cos(ang) * rr,
+        y: b.y + Math.sin(ang) * rr
+      };
+    }
+
+    /* smooth closed curve: midpoints + quadraticCurveTo */
+    var m0x = (pts[n - 1].x + pts[0].x) / 2;
+    var m0y = (pts[n - 1].y + pts[0].y) / 2;
+
+    ctx.beginPath();
+    ctx.moveTo(m0x, m0y);
+    for (var j = 0; j < n; j++) {
+      var p0 = pts[j];
+      var p1 = pts[(j + 1) % n];
+      var mx = (p0.x + p1.x) / 2;
+      var my = (p0.y + p1.y) / 2;
+      ctx.quadraticCurveTo(p0.x, p0.y, mx, my);
+    }
+    ctx.closePath();
+
+    /* translucent liquid volume */
+    var grad = ctx.createRadialGradient(b.x, b.y, 0, b.x, b.y, r0 * 1.12);
+    grad.addColorStop(0, rgba(b.c1, b.alpha * scaleIn));
+    grad.addColorStop(0.45, rgba(b.c2, b.alpha * 0.5 * scaleIn));
+    grad.addColorStop(1, rgba(b.c2, 0));
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    /* faint luminous rim */
+    ctx.strokeStyle = rgba(b.c1, 0.22 * scaleIn);
+    ctx.lineWidth = 1.25;
+    ctx.stroke();
+
+    /* soft inner highlight — the "wet" core */
+    var coreR = r0 * 0.42;
+    if (coreR > 2) {
+      var core = ctx.createRadialGradient(b.x, b.y, 0, b.x, b.y, coreR);
+      core.addColorStop(0, 'rgba(255,255,255,' + (0.10 * scaleIn) + ')');
+      core.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, coreR, 0, TAU);
+      ctx.fillStyle = core;
+      ctx.fill();
+    }
+  }
+
+  /* ---------- main loop ---------- */
+  function frame(now) {
+    var t = now / 1000;
+
+    /* translucent background pass => smooth liquid trails */
+    paintBackground(0.32);
+
+    ctx.globalCompositeOperation = 'lighter';
+    for (var i = 0; i < blobs.length; i++) {
+      var b = blobs[i];
+      /* wandering target point near canvas center; slow center-pull */
+      var tx = W / 2 + Math.cos(t * b.orbitW1 + b.orbitPh1) * b.orbitAmpX;
+      var ty = H / 2 + Math.sin(t * b.orbitW2 + b.orbitPh2) * b.orbitAmpY;
+      b.x += (tx - b.x) * b.pull;
+      b.y += (ty - b.y) * b.pull;
+      drawBlob(b, t);
+    }
+    ctx.globalCompositeOperation = 'source-over';
+
+    requestAnimationFrame(frame);
+  }
+
+  /* ---------- interaction: click cycles palette + regenerates ---------- */
+  function shiftDream(ev) {
+    palIndex = (palIndex + 1) % PALETTES.length;
+    regenerate();
+    /* repaint background fully so the new palette takes over cleanly */
+    paintBackground(0.9);
+
+    paletteTag.textContent = PALETTES[palIndex].name;
+    paletteTag.classList.remove('hide');
+    paletteTag.classList.add('show');
+    if (tagTimer) clearTimeout(tagTimer);
+    tagTimer = setTimeout(function () {
+      paletteTag.classList.add('hide');
+    }, 1800);
+  }
+
+  canvas.addEventListener('click', shiftDream);
+  window.addEventListener('resize', resize);
+
+  /* ---------- init ---------- */
+  resize();
+  regenerate();
+  paintBackground(1);
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

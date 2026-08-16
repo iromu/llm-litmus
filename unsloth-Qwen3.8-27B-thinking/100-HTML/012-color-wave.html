@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Color Wave — Chromatic Flow</title>
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    overflow: hidden;
+    background: #060312;
+  }
+
+  #scene {
+    position: fixed;
+    inset: 0;
+    display: block;
+    cursor: pointer;
+    z-index: 1;
+  }
+
+  .ui {
+    position: fixed;
+    left: 0;
+    right: 0;
+    z-index: 2;
+    text-align: center;
+    color: #ffffff;
+    pointer-events: none;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  }
+
+  .title {
+    top: 40%;
+    transform: translateY(-50%);
+    mix-blend-mode: overlay;
+  }
+
+  .title h1 {
+    margin: 0;
+    font-weight: 200;
+    letter-spacing: 0.42em;
+    margin-right: -0.42em;
+    font-size: clamp(2.1rem, 8.5vw, 5.8rem);
+    text-shadow: 0 0 44px rgba(255, 255, 255, 0.5);
+  }
+
+  .title .sub {
+    margin: 1.1em 0 0;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: clamp(0.6rem, 1.4vw, 0.78rem);
+    letter-spacing: 0.55em;
+    text-transform: uppercase;
+    opacity: 0.75;
+    text-shadow: 0 0 20px rgba(255, 255, 255, 0.4);
+  }
+
+  .foot {
+    bottom: 4vh;
+  }
+
+  .foot .hint {
+    margin: 0 0 14px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: clamp(0.58rem, 1.3vw, 0.72rem);
+    letter-spacing: 0.4em;
+    text-transform: uppercase;
+    opacity: 0.55;
+  }
+
+  #dots {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    pointer-events: auto;
+  }
+
+  .dot {
+    width: 13px;
+    height: 13px;
+    border-radius: 50%;
+    border: 0;
+    padding: 0;
+    cursor: pointer;
+    opacity: 0.4;
+    transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+                opacity 0.45s ease, box-shadow 0.45s ease;
+  }
+
+  .dot:hover {
+    opacity: 0.85;
+    transform: scale(1.25);
+  }
+
+  .dot.active {
+    opacity: 1;
+    transform: scale(1.4);
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.6), 0 0 14px rgba(255, 255, 255, 0.35);
+  }
+
+  .ui.pulse {
+    animation: uiPulse 0.8s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  @keyframes uiPulse {
+    0%   { opacity: 0.15; transform: translateY(calc(-50% + 6px)); }
+    100% { opacity: 1;    transform: translateY(-50%); }
+  }
+
+  .foot.pulse {
+    animation: footPulse 0.8s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  @keyframes footPulse {
+    0%   { opacity: 0.2; }
+    100% { opacity: 1; }
+  }
+
+  @media (max-width: 560px) {
+    .title { top: 38%; }
+  }
+</style>
+</head>
+<body>
+<canvas id="scene"></canvas>
+
+<div class="ui title" id="titleUI">
+  <h1>CHROMATIC&nbsp;FLOW</h1>
+  <p class="sub">a generative wave study</p>
+</div>
+
+<div class="ui foot" id="footUI">
+  <p class="hint">click &middot; tap &mdash; shift the spectrum</p>
+  <div id="dots"></div>
+</div>
+
+<script>
+(() => {
+'use strict';
+
+const canvas = document.getElementById('scene');
+const ctx = canvas.getContext('2d');
+const titleUI = document.getElementById('titleUI');
+const footUI = document.getElementById('footUI');
+const dotsEl = document.getElementById('dots');
+
+const TAU = Math.PI * 2;
+const WAVE_COUNT = 12;
+const TRANSITION_MS = 1100;
+
+/* ---------- palettes ---------- */
+const PALETTES = [
+  { // pink / blue / purple
+    bg: ['#0b0416', '#241040'],
+    colors: ['#ff4fa0', '#ff8fd8', '#b45cff', '#7a5cff', '#4f6bff', '#2f90ff', '#00c2ff', '#c86bff']
+  },
+  { // green / magenta
+    bg: ['#04140c', '#190426'],
+    colors: ['#2bff88', '#3dff9e', '#a4ff6b', '#00ffd0', '#00ffcc', '#ff2fd6', '#ff5fe0', '#c24dff']
+  },
+  { // cyan / hot pink
+    bg: ['#04101c', '#23051d'],
+    colors: ['#00e5ff', '#3d9bff', '#3d7bff', '#ff1f8f', '#ff5fb0', '#ff3d9e', '#00ffb3', '#66ccff']
+  },
+  { // orange / violet
+    bg: ['#1d0c04', '#160424'],
+    colors: ['#ffb347', '#ff9e3d', '#ff7a3d', '#ff5c5c', '#d96bff', '#b44dff', '#8f4dff', '#ffc94d']
+  },
+  { // pastels
+    bg: ['#2a2642', '#171528'],
+    colors: ['#ffd6e8', '#ffc9c9', '#ffe8c9', '#fff2c9', '#d1ffe0', '#c9fff2', '#c9e4ff', '#e0c9ff']
+  }
+];
+
+const hexToRgb = (h) => {
+  const n = parseInt(h.slice(1), 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+};
+
+PALETTES.forEach((p) => {
+  p.rgb = p.colors.map(hexToRgb);
+  p.bgRgb = p.bg.map(hexToRgb);
+});
+
+/* ---------- helpers ---------- */
+const rand = (a, b) => a + Math.random() * (b - a);
+const lerp = (a, b, t) => a + (b - a) * t;
+const lerpColor = (a, b, t) => [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)];
+const rgba = (c, a) => 'rgba(' + (c[0] | 0) + ',' + (c[1] | 0) + ',' + (c[2] | 0) + ',' + a + ')';
+const easeInOutCubic = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+
+function shuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = (Math.random() * (i + 1)) | 0;
+    const tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
+  }
+  return arr;
+}
+
+/* ---------- wave parameter generation ---------- */
+function genWaveSet() {
+  const cols = shuffle([0, 1, 2, 3, 4, 5, 6, 7]);
+  const waves = [];
+  for (let i = 0; i < WAVE_COUNT; i++) {
+    const f = i / (WAVE_COUNT - 1); // 0 = back (top), 1 = front (bottom)
+    const a1 = (0.028 + Math.random() * 0.045) * (0.55 + 0.75 * f);
+    const f1 = rand(0.9, 2.4);
+    const s1 = rand(0.25, 0.95);
+    waves.push({
+      by: 0.34 + f * 0.74 + rand(-0.03, 0.03),
+      a1: a1,
+      f1: f1,
+      s1: s1,
+      a2: a1 * rand(0.3, 0.55),
+      f2: f1 * rand(1.5, 2.3),
+      s2: s1 * rand(0.5, 1.3),
+      p1: rand(0, TAU),
+      p2: rand(0, TAU),
+      lw: 1.1 + Math.random() * 1.9,
+      alpha: 0.10 + f * 0.20 + rand(0, 0.08),
+      ci: cols[i % 8]
+    });
+  }
+  return waves;
+}
+
+/* ---------- state ---------- */
+let W = 0, H = 0, DPR = 1;
+let mx = -1e5, my = -1e5, mInf = 0, mTarget = 0;
+
+let palIndex = 0;
+let palTo = PALETTES[0];
+let toWaves = genWaveSet();
+let fromWaves = toWaves.map((w) => Object.assign({}, w));
+let palFromColors = palTo.rgb.map((c) => c.slice());
+let bgFrom = palTo.bgRgb.map((c) => c.slice());
+let transStart = -1e9;
+
+let liveBg = palTo.bgRgb.map((c) => c.slice());
+
+/* ---------- palette switching ---------- */
+function setPalette(i, now) {
+  palIndex = ((i % PALETTES.length) + PALETTES.length) % PALETTES.length;
+  // freeze the currently-shown live values as the "from" side
+  const p = transStart < 0 ? 1 : Math.min(1, (now - transStart) / TRANSITION_MS);
+  const e = easeInOutCubic(p);
+  fromWaves = toWaves.map((tw, i2) => {
+    const fw = fromWaves[i2];
+    const out = {};
+    for (const k in tw) {
+      out[k] = (k === 'ci') ? fw.ci : lerp(fw[k], tw[k], e);
+    }
+    return out;
+  });
+  palFromColors = toWaves.map((tw, i2) => lerpColor(palFromColors[fromWaves[i2].ci | 0], palTo.rgb[tw.ci], e));
+  bgFrom = [lerpColor(bgFrom[0], palTo.bgRgb[0], e), lerpColor(bgFrom[1], palTo.bgRgb[1], e)];
+
+  palTo = PALETTES[palIndex];
+  toWaves = genWaveSet();
+  transStart = now;
+  updateDots();
+}
+
+function nextPalette(now) { setPalette(palIndex + 1, now); }
+
+/* ---------- ui pulse ---------- */
+function pulse() {
+  titleUI.classList.remove('pulse');
+  footUI.classList.remove('pulse');
+  // force reflow so the animation restarts
+  void titleUI.offsetWidth;
+  titleUI.classList.add('pulse');
+  footUI.classList.add('pulse');
+}
+
+/* ---------- palette dots ---------- */
+const dotEls = PALETTES.map((pal, i) => {
+  const b = document.createElement('button');
+  b.className = 'dot' + (i === 0 ? ' active' : '');
+  b.type = 'button';
+  b.setAttribute('aria-label', 'palette ' + (i + 1));
+  b.style.background = 'linear-gradient(135deg,' + pal.colors[0] + ',' + pal.colors[3] + ',' + pal.colors[6] + ')';
+  b.addEventListener('click', (ev) => {
+    ev.stopPropagation();
+    if (i !== palIndex) setPalette(i, performance.now());
+    else pulse();
+  });
+  dotsEl.appendChild(b);
+  return b;
+});
+
+function updateDots() {
+  dotEls.forEach((el, i) => el.classList.toggle('active', i === palIndex));
+}
+
+/* ---------- wave geometry ---------- */
+function yAt(px, w, tSec) {
+  let y = w.by * H
+    + w.a1 * H * Math.sin(TAU * w.f1 * (px / W) + w.p1 + tSec * w.s1)
+    + w.a2 * H * Math.sin(TAU * w.f2 * (px / W) + w.p2 - tSec * w.s2);
+  if (mInf > 0.002) {
+    const r = Math.max(140, W * 0.16);
+    const d = px - mx;
+    y -= 30 * mInf * Math.exp(-(d * d) / (2 * r * r));
+  }
+  return y;
+}
+
+/* ---------- rendering ---------- */
+function frame(nowMs) {
+  requestAnimationFrame(frame);
+  const tSec = nowMs / 1000;
+
+  mInf += (mTarget - mInf) * 0.06;
+
+  const p = transStart < 0 ? 1 : Math.min(1, (nowMs - transStart) / TRANSITION_MS);
+  const e = easeInOutCubic(p);
+  if (p >= 1) {
+    fromWaves = toWaves.map((w) => Object.assign({}, w));
+    palFromColors = palTo.rgb.map((c) => c.slice());
+    bgFrom = palTo.bgRgb.map((c) => c.slice());
+  }
+
+  // background gradient
+  const bgTop = lerpColor(bgFrom[0], palTo.bgRgb[0], e);
+  const bgBot = lerpColor(bgFrom[1], palTo.bgRgb[1], e);
+  liveBg = [bgTop, bgBot];
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, rgba(bgTop, 1));
+  g.addColorStop(0.55, rgba(lerpColor(bgTop, bgBot, 0.55), 1));
+  g.addColorStop(1, rgba(bgBot, 1));
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
+
+  const step = Math.max(2, W / 400);
+
+  // waves, back to front: fills first, then glowing crest strokes
+  for (let i = 0; i < WAVE_COUNT; i++) {
+    const fw = fromWaves[i], tw = toWaves[i];
+    const by = lerp(fw.by, tw.by, e);
+    const a1 = lerp(fw.a1, tw.a1, e);
+    const f1 = lerp(fw.f1, tw.f1, e);
+    const s1 = lerp(fw.s1, tw.s1, e);
+    const a2 = lerp(fw.a2, tw.a2, e);
+    const f2 = lerp(fw.f2, tw.f2, e);
+    const s2 = lerp(fw.s2, tw.s2, e);
+    const p1 = lerp(fw.p1, tw.p1, e);
+    const p2 = lerp(fw.p2, tw.p2, e);
+    const lw = lerp(fw.lw, tw.lw, e);
+    const alpha = lerp(fw.alpha, tw.alpha, e);
+    const col = lerpColor(palFromColors[i], palTo.rgb[tw.ci], e);
+
+    const w = { by: by, a1: a1, f1: f1, s1: s1, a2: a2, f2: f2, s2: s2, p1: p1, p2: p2 };
+
+    const curve = new Path2D();
+    const fill = new Path2D();
+    let y0 = yAt(0, w, tSec);
+    curve.moveTo(0, y0);
+    fill.moveTo(0, y0);
+    for (let x = step; x <= W + step; x += step) {
+      const y = yAt(Math.min(x, W), w, tSec);
+      curve.lineTo(Math.min(x, W), y);
+      fill.lineTo(Math.min(x, W), y);
+    }
+    fill.lineTo(W, H);
+    fill.lineTo(0, H);
+    fill.closePath();
+
+    ctx.fillStyle = rgba(col, alpha);
+    ctx.fill(fill);
+
+    ctx.save();
+    ctx.shadowColor = rgba(col, 0.9);
+    ctx.shadowBlur = 12;
+    ctx.strokeStyle = rgba(col, 0.85);
+    ctx.lineWidth = lw;
+    ctx.lineJoin = 'round';
+    ctx.stroke(curve);
+    ctx.restore();
+  }
+
+  // vignette
+  const v = ctx.createRadialGradient(W / 2, H * 0.45, Math.min(W, H) * 0.2, W / 2, H * 0.5, Math.max(W, H) * 0.78);
+  v.addColorStop(0, 'rgba(0,0,0,0)');
+  v.addColorStop(1, 'rgba(0,0,0,0.38)');
+  ctx.fillStyle = v;
+  ctx.fillRect(0, 0, W, H);
+}
+
+/* ---------- interaction ---------- */
+window.addEventListener('pointermove', (ev) => {
+  mx = ev.clientX;
+  my = ev.clientY;
+  mTarget = 1;
+});
+
+window.addEventListener('pointerleave', () => { mTarget = 0; });
+document.documentElement.addEventListener('mouseleave', () => { mTarget = 0; });
+
+window.addEventListener('click', (ev) => {
+  mx = ev.clientX;
+  my = ev.clientY;
+  mTarget = 1;
+  nextPalette(performance.now());
+  pulse();
+});
+
+/* ---------- sizing ---------- */
+function resize() {
+  DPR = Math.min(2, window.devicePixelRatio || 1);
+  W = window.innerWidth;
+  H = window.innerHeight;
+  canvas.width = Math.round(W * DPR);
+  canvas.height = Math.round(H * DPR);
+  canvas.style.width = W + 'px';
+  canvas.style.height = H + 'px';
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
+
+window.addEventListener('resize', resize);
+resize();
+requestAnimationFrame(frame);
+
+})();
+
+</script>
+</body>
+</html>

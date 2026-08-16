@@ -1,0 +1,25 @@
+Creative prompt (verbatim):
+Create a brutalist typography showcase page with raw, unapologetic design. Three massive staggered title lines in contrasting colors (red, white, blue) with glitch animations. The first line is filled red, the second is outlined white, the third is filled blue. A noise texture overlay and scanning scanline add grit. A stats grid with animated bottom bars shows typographic metrics. An italic quote with citation adds editorial weight. A two-column description block explains the brutalist philosophy. Monospace labels and heavy Impact fonts throughout. The aesthetic is raw, industrial, and confrontational.
+
+Model: Qwen3.8-27B (thinking) — thinking effort: high
+
+Techniques used:
+- SVG noise texture with feTurbulence (fractalNoise, desaturated via feColorMatrix saturate=0) inlined as a data-URI CSS background, animated with a steps(4) position-jitter keyframe for analog grain flicker (mix-blend-mode: screen, low opacity)
+- CSS glitch keyframe animations on the three title lines: ::before/::after pseudo-elements driven by data-text, clip-path inset slice bursts (glitch-a / glitch-b) with per-line translate jitter offsets and color channels (blue/ink slices on the red line, red/blue stroked slices on the outlined line, red/ink on the blue line); whole-line micro-jitter keyframes at different delays
+- Second title line rendered as outlined white type via -webkit-text-stroke (clamp-scaled stroke width) with transparent fill — stroke inherited by its glitch slices and re-tinted per slice
+- Scanline system: fixed full-width sweep bar (red→white→blue gradient with glow) scrolling top-to-bottom infinitely, plus a static repeating-linear-gradient scanline texture overlay at 5% opacity
+- Stats grid (4 typographic metrics) with animated bottom bars: staggered delay via --d custom property, width grow-in (both/forwards) then continuous brightness throb pulse; alternating red/ink/blue bar colors; 1px-gap grid for a hairline table look
+- -webkit-text-stroke outline text, clamp() fluid type from 3.6rem to 14.5rem, staggered line indents (left / 10vw / right-aligned) for the three-line hero
+- Monospace ('Courier New'/ui-monospace) labels at 0.28em letter-spacing for all chrome (topbar, bottombar, stat labels, citation) and heavy Impact/Arial Black stack for all display type — zero web fonts
+- Italic heavy quote with oversized red quote-mark pseudo-element and monospace citation; two-column manifesto block (heading column + body column) explaining the brutalist philosophy with tri-color tag row
+- Click-triggered animation reset via JavaScript: class removal + forced reflow + re-add re-runs every glitch timeline from zero, with freshly randomized per-line durations/delays (CSS custom properties), plus a 900ms body.surge mode that runs all glitch layers at ~4x speed; re-arm counter and timestamp in the footer
+- Giant faint outlined "007" watermark, blinking block cursor, hover inversions on stat cells; responsive grids (4→2→1 stats columns, two-column→stacked manifesto) at 860px/480px
+
+Interaction model:
+- Click anywhere resets the glitch animations for intensification (true re-arm with randomized cadence + a 900ms full-speed surge); the footer tracks re-arm count and last re-arm time
+- Stats bars pulse continuously after a staggered grow-in on load
+- Scanline scrolls infinitely; noise texture animates continuously for analog feel; title lines carry a periodic whole-line micro-jitter
+
+Stats:
+- Wall time: ~5 minutes (estimate)
+- Token count: n/a

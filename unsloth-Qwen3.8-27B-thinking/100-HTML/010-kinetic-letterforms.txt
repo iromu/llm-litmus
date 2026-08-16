@@ -1,0 +1,24 @@
+Creative Prompt (verbatim)
+===========================
+Create an interactive kinetic typography visualization where letters dance and respond to mouse movement. The word "KINETIC" forms the core, with each letter springing toward its target position but repelled by the mouse cursor. Additional random floating letters drift around. Letters have subtle rotation, size pulsing, and glow that intensifies near the cursor. Connection lines appear between adjacent main letters when they are close. Clicking re-randomizes all positions. The background is dark, and the letters glow in soft blue-white. The overall feel is playful, responsive, and elegant.
+
+Model
+=====
+Model: Qwen3.8-27B (thinking) — thinking effort: high
+
+Techniques Used
+===============
+Canvas text rendering with spring physics (per-letter target attraction + frictional damping), quadratic mouse-repulsion falloff within a 190px main-letter radius and 60px floater radius, cursor-velocity flick impulse added to fast mouse sweeps, 42 random drifting letters with slow wander steering and soft off-screen wrap, per-letter phase-based oscillation for organic size pulsing (±5%) and subtle rotation (±0.07 rad), shadowBlur glow with dynamic intensity driven by cursor proximity (squared falloff) plus kinetic-energy contribution, curved connection lines (quadratic midpoint bulge) between adjacent KINETIC letters when within 150px, click-driven full re-randomization with a radial fling of letters away from the click point, responsive typography sizing (word fits ~62% of width, clamped 42–170px), DPR-aware canvas (capped at 2x), save/restore for per-letter transforms, subtle motion-blur via semi-transparent fillRect trail, touch support for move/click.
+
+Interaction Model
+=================
+Mouse moves push letters away (squared repulsion, with extra impulse on fast sweeps); letters spring back toward their laid-out target positions in the word "KINETIC". Floater letters wander freely and repel from the cursor at lower force. Connection lines appear between adjacent main letters whenever they come within 150px, curving and brightening as they close. Click (or tap) scatters all letters and drifters to random positions and flings letters away from the click point. HUD shows a live kinetic-energy readout and letter counts; a faint oversized "KINETIC" ghost type sits behind the scene.
+
+Stats
+=====
+Wall time: ~8 minutes (estimated — spec reading, single-pass file authoring, JS syntax verification via node --check)
+Token count: n/a
+
+Output
+======
+File: 010-kinetic-letterforms.html — single self-contained page, all CSS/JS inline, no external dependencies, works fully offline.

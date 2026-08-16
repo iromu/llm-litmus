@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sunset Horizon</title>
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    overflow: hidden;
+    background: #170a33;
+  }
+  #scene {
+    display: block;
+    width: 100vw;
+    height: 100vh;
+  }
+  .title {
+    position: fixed;
+    left: 50%;
+    bottom: 5vh;
+    transform: translateX(-50%);
+    font-family: Georgia, 'Times New Roman', serif;
+    font-style: italic;
+    font-size: clamp(1.8rem, 6.5vw, 5.5rem);
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    color: rgba(255, 232, 205, 0.17);
+    text-shadow: 0 0 34px rgba(255, 150, 80, 0.16);
+    pointer-events: none;
+    user-select: none;
+    z-index: 2;
+  }
+  .hint {
+    position: fixed;
+    left: 50%;
+    bottom: 1.6vh;
+    transform: translateX(-50%);
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: clamp(0.55rem, 1.2vw, 0.72rem);
+    letter-spacing: 0.4em;
+    text-transform: uppercase;
+    color: rgba(255, 215, 175, 0.22);
+    pointer-events: none;
+    user-select: none;
+    z-index: 2;
+  }
+</style>
+</head>
+<body>
+<canvas id="scene"></canvas>
+<div class="title">Sunset&nbsp;Horizon</div>
+<div class="hint">golden hour &mdash; passive observation</div>
+<script>
+(function () {
+  'use strict';
+  var TAU = Math.PI * 2;
+  var canvas = document.getElementById('scene');
+  var ctx = canvas.getContext('2d');
+  var W = 0, H = 0, DPR = 1;
+  var horizonY = 0, sunX = 0, sunY = 0, sunR = 0;
+  var seed = 0;
+  var clouds = [], birds = [], trees = [], dust = [];
+
+  var LAYERS = [
+    { speed: [3, 7],   alpha: [0.20, 0.30], scale: [0.55, 0.95], puffs: [5, 8] },
+    { speed: [9, 15],  alpha: [0.30, 0.44], scale: [0.85, 1.25], puffs: [5, 8] },
+    { speed: [18, 30], alpha: [0.42, 0.58], scale: [1.15, 1.7],  puffs: [6, 9] }
+  ];
+  var TREE_COLORS = ['#150723', '#1a0a29', '#0f0519', '#190a2c'];
+
+  function rand(a, b) { return a + Math.random() * (b - a); }
+
+  function groundY(x) {
+    return horizonY
+      + Math.sin(x * 0.004 + seed) * 5
+      + Math.sin(x * 0.0103 + seed * 1.7) * 3
+      + Math.sin(x * 0.0021 + seed * 0.3) * 7;
+  }
+
+  function makeCloud(layer) {
+    var cfg = LAYERS[layer];
+    var puffs = [];
+    var n = Math.round(rand(cfg.puffs[0], cfg.puffs[1]));
+    for (var i = 0; i < n; i++) {
+      puffs.push({
+        dx: (Math.random() - 0.5) * 2.4,
+        dy: (Math.random() - 0.5) * 0.85,
+        r: rand(16, 42)
+      });
+    }
+    return {
+      x: Math.random() * W,
+      y: rand(H * 0.05, Math.max(H * 0.08, horizonY - H * 0.18)),
+      scale: rand(cfg.scale[0], cfg.scale[1]),
+      alpha: rand(cfg.alpha[0], cfg.alpha[1]),
+      speed: rand(cfg.speed[0], cfg.speed[1]) * (Math.random() < 0.3 ? -1 : 1),
+      puffs: puffs
+    };
+  }
+
+  function initScene() {
+    horizonY = H * 0.78;
+    sunR = Math.min(W, H) * 0.085;
+    sunX = W * 0.5;
+    sunY = horizonY - sunR * 1.15;
+    seed = Math.random() * 100;
+
+    clouds = [];
+    var counts = [
+      Math.max(2, Math.round(W / 420)),
+      Math.max(2, Math.round(W / 320)),
+      Math.max(1, Math.round(W / 260))
+    ];
+    for (var layer = 0; layer < 3; layer++) {
+      for (var i = 0; i < counts[layer]; i++) clouds.push(makeCloud(layer));
+    }
+
+    birds = [];
+    var birdCount = W < 560 ? 3 : 5;
+    for (var b = 0; b < birdCount; b++) {
+      birds.push({
+        x: Math.random() * W,
+        baseY: H * rand(0.16, 0.44),
+        speed: rand(30, 80),
+        dir: Math.random() < 0.5 ? 1 : -1,
+        scale: rand(0.7, 1.6),
+        freq: rand(6, 11),
+        phase: Math.random() * TAU
+      });
+    }
+
+    trees = [];
+    var treeCount = Math.min(26, Math.max(8, Math.round(W / 85)));
+    for (var t = 0; t < treeCount; t++) {
+      var ok = false, x = 0, tries = 0;
+      while (!ok && tries < 40) {
+        tries++;
+        x = Math.random() * W;
+        ok = true;
+        for (var j = 0; j < trees.length; j++) {
+          if (Math.abs(trees[j].x - x) < 34) { ok = false; break; }
+        }
+      }
+      if (!ok) continue;
+      var h = H * rand(0.045, 0.13);
+      trees.push({
+        x: x,
+        h: h,
+        w: h * rand(0.42, 0.6),
+        color: TREE_COLORS[Math.floor(Math.random() * TREE_COLORS.length)]
+      });
+    }
+
+    dust = [];
+    for (var d = 0; d < 36; d++) {
+      dust.push({
+        x: Math.random() * W,
+        y: Math.random() * horizonY * 0.9,
+        r: rand(0.5, 1.8),
+        ph: Math.random() * TAU,
+        sp: rand(2, 7)
+      });
+    }
+  }
+
+  function resize() {
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = Math.round(W * DPR);
+    canvas.height = Math.round(H * DPR);
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    initScene();
+  }
+
+  function drawSky(t) {
+    var wob = Math.sin(t * 0.06) * 0.015;
+    var g = ctx.createLinearGradient(0, 0, 0, horizonY + 60);
+    g.addColorStop(0.00, '#170a33');
+    g.addColorStop(0.30 + wob, '#3d1254');
+    g.addColorStop(0.55 + wob * 1.5, '#7a2a63');
+    g.addColorStop(0.75, '#c44f52');
+    g.addColorStop(0.90, '#e8823f');
+    g.addColorStop(1.00, '#f7b755');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  function halo(r, rgb, a) {
+    var g = ctx.createRadialGradient(sunX, sunY, 0, sunX, sunY, r);
+    g.addColorStop(0, 'rgba(' + rgb + ',' + a + ')');
+    g.addColorStop(1, 'rgba(' + rgb + ',0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(sunX - r, sunY - r, r * 2, r * 2);
+  }
+
+  function drawSun(t) {
+    var R = sunR * (1 + 0.02 * Math.sin(t * 0.7));
+    halo(R * 4.8, '255,150,70', 0.16);
+    halo(R * 2.7, '255,170,90', 0.30);
+    halo(R * 1.55, '255,205,130', 0.5);
+    var g = ctx.createRadialGradient(sunX, sunY, 0, sunX, sunY, R);
+    g.addColorStop(0, '#fffbe9');
+    g.addColorStop(0.55, '#ffe9b0');
+    g.addColorStop(0.85, '#ffbe63');
+    g.addColorStop(1, 'rgba(255,150,60,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(sunX, sunY, R, 0, TAU);
+    ctx.fill();
+  }
+
+  function drawHorizonGlow() {
+    var g = ctx.createRadialGradient(sunX, horizonY, 0, sunX, horizonY, W * 0.55);
+    g.addColorStop(0, 'rgba(255,160,70,0.20)');
+    g.addColorStop(0.5, 'rgba(255,120,80,0.07)');
+    g.addColorStop(1, 'rgba(255,120,80,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  function drawCloud(c) {
+    for (var i = 0; i < c.puffs.length; i++) {
+      var p = c.puffs[i];
+      var px = c.x + p.dx * c.scale * 34;
+      var py = c.y + p.dy * c.scale * 20;
+      var r = p.r * c.scale;
+      var g = ctx.createRadialGradient(px, py, 0, px, py, r);
+      g.addColorStop(0, 'rgba(255,216,180,' + c.alpha + ')');
+      g.addColorStop(0.55, 'rgba(240,160,130,' + (c.alpha * 0.55) + ')');
+      g.addColorStop(1, 'rgba(220,140,120,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(px, py, r, 0, TAU);
+      ctx.fill();
+    }
+  }
+
+  function drawBird(b, t) {
+    var s = b.scale;
+    var w = Math.sin(t * b.freq + b.phase);
+    var L = 10 * s;
+    var tipY = -L * 0.8 * w;
+    var y = b.baseY + Math.sin(t * 0.8 + b.phase) * 5;
+    ctx.save();
+    ctx.translate(b.x, y);
+    if (b.dir < 0) ctx.scale(-1, 1);
+    ctx.strokeStyle = 'rgba(28,10,38,0.92)';
+    ctx.lineCap = 'round';
+    ctx.lineWidth = 1.7 * s;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.quadraticCurveTo(-L * 0.5, -L * 0.3 + tipY * 0.35, -L, tipY);
+    ctx.moveTo(0, 0);
+    ctx.quadraticCurveTo(L * 0.5, -L * 0.3 + tipY * 0.35, L, tipY);
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(28,10,38,0.92)';
+    ctx.beginPath();
+    ctx.arc(0, 0, 1.5 * s, 0, TAU);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawDust(t) {
+    for (var i = 0; i < dust.length; i++) {
+      var d = dust[i];
+      var a = 0.06 + 0.22 * (0.5 + 0.5 * Math.sin(t * 1.3 + d.ph));
+      a *= 1 - (d.y / horizonY) * 0.3;
+      ctx.fillStyle = 'rgba(255,207,158,' + a.toFixed(3) + ')';
+      ctx.beginPath();
+      ctx.arc(d.x, d.y, d.r, 0, TAU);
+      ctx.fill();
+    }
+  }
+
+  function drawGround() {
+    ctx.beginPath();
+    ctx.moveTo(0, groundY(0));
+    for (var x = 0; x <= W; x += 8) ctx.lineTo(x, groundY(x));
+    ctx.lineTo(W, H);
+    ctx.lineTo(0, H);
+    ctx.closePath();
+    var g = ctx.createLinearGradient(0, horizonY - 20, 0, H);
+    g.addColorStop(0, '#241038');
+    g.addColorStop(0.4, '#170a26');
+    g.addColorStop(1, '#0c0517');
+    ctx.fillStyle = g;
+    ctx.fill();
+
+    ctx.strokeStyle = 'rgba(255,170,90,0.32)';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(0, groundY(0) - 0.5);
+    for (var xx = 8; xx <= W; xx += 8) ctx.lineTo(xx, groundY(xx) - 0.5);
+    ctx.stroke();
+  }
+
+  function drawTree(tr) {
+    var x = tr.x;
+    var baseY = groundY(x) - 2;
+    ctx.fillStyle = tr.color;
+    ctx.fillRect(x - tr.w * 0.06, baseY - tr.h * 0.18, tr.w * 0.12, tr.h * 0.18);
+    var y0 = baseY - tr.h * 0.15;
+    var hc = tr.h * 0.85;
+    for (var i = 0; i < 3; i++) {
+      var yBot = y0 - i * (hc / 3.2);
+      var tipY = yBot - hc / 2.2;
+      var halfW = (tr.w / 2) * (1 - i * 0.28);
+      ctx.beginPath();
+      ctx.moveTo(x - halfW, yBot);
+      ctx.lineTo(x + halfW, yBot);
+      ctx.lineTo(x, tipY);
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+
+  function drawVignette() {
+    var g = ctx.createRadialGradient(
+      W / 2, H * 0.55, Math.min(W, H) * 0.35,
+      W / 2, H * 0.6, Math.max(W, H) * 0.75
+    );
+    g.addColorStop(0, 'rgba(0,0,0,0)');
+    g.addColorStop(1, 'rgba(10,4,20,0.38)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  function update(dt) {
+    var i;
+    for (i = 0; i < clouds.length; i++) {
+      var c = clouds[i];
+      c.x += c.speed * dt;
+      if (c.x > W + 320) c.x = -320;
+      else if (c.x < -320) c.x = W + 320;
+    }
+    for (i = 0; i < birds.length; i++) {
+      var b = birds[i];
+      b.x += b.speed * b.dir * dt;
+      if (b.x > W + 90) b.x = -90;
+      else if (b.x < -90) b.x = W + 90;
+    }
+    for (i = 0; i < dust.length; i++) {
+      var d = dust[i];
+      d.x -= d.sp * dt * 0.3;
+      d.y += Math.sin(i * 0.7) * 0.05;
+      if (d.x < -5) d.x = W + 5;
+      if (d.y < 0) d.y = horizonY * 0.9;
+      else if (d.y > horizonY * 0.9) d.y = 0;
+    }
+  }
+
+  var t0 = performance.now();
+  var prev = t0;
+
+  function frame(now) {
+    var dt = Math.min((now - prev) / 1000, 0.05);
+    prev = now;
+    var t = (now - t0) / 1000;
+
+    update(dt);
+    drawSky(t);
+    drawSun(t);
+    drawHorizonGlow();
+    var i;
+    for (i = 0; i < clouds.length; i++) drawCloud(clouds[i]);
+    for (i = 0; i < birds.length; i++) drawBird(birds[i], t);
+    drawDust(t);
+    drawGround();
+    for (i = 0; i < trees.length; i++) drawTree(trees[i]);
+    drawVignette();
+
+    requestAnimationFrame(frame);
+  }
+
+  window.addEventListener('resize', resize);
+  resize();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

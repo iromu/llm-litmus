@@ -1,0 +1,24 @@
+Creative Prompt (verbatim)
+===========================
+Create a cyberpunk/retrowave inspired page with a glitch text effect, animated scanline overlay, grid background with perspective, and neon cards. The main title "NEON//DREAM" has a glitch animation with cyan and magenta offset layers. A scanning line travels down the screen. Four neon-accented cards display system-like metrics with animated progress bars on hover. Corner brackets appear on card hover. The color palette is deep purple/black with hot pink (#ff0080) and cyan (#00c8ff) neon accents. Monospace typography throughout.
+
+Model
+=====
+Model: Qwen3.8-27B (thinking) — thinking effort: high
+
+Techniques Used
+===============
+CSS glitch text with pseudo-element offsets and clip-path animation, scanline overlay with linear-gradient, CSS grid background, neon glow with text-shadow and box-shadow, hover-triggered corner brackets, animated progress bars, flicker animation with JavaScript reset.
+
+Interaction Model
+=================
+Cards respond to hover with lift, glow, and corner bracket reveal. Progress bars animate on page load. Glitch text randomly resets its flicker animation. Scanline scrolls continuously.
+
+Stats
+=====
+Wall time: ~3 minutes (estimated — file authoring + JS syntax verification)
+Token count: n/a
+
+Output
+======
+File: 003-neon-cyberpunk.html — single self-contained page, all CSS/JS inline, no external dependencies, works fully offline.

@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NEON//DREAM — Cyberpunk System Interface</title>
+<style>
+  :root {
+    --bg-0: #0a0114;
+    --bg-1: #120324;
+    --pink: #ff0080;
+    --cyan: #00c8ff;
+    --purple: #7b2fff;
+    --ink: #e8e0ff;
+    --dim: #8a7bb8;
+    --grid: 64px;
+    --mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, "Liberation Mono", monospace;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    height: 100%;
+    overflow-x: hidden;
+    background: var(--bg-0);
+    color: var(--ink);
+    font-family: var(--mono);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body {
+    background:
+      radial-gradient(ellipse 90% 60% at 50% -10%, rgba(123,47,255,.22), transparent 60%),
+      radial-gradient(ellipse 70% 50% at 50% 110%, rgba(255,0,128,.14), transparent 60%),
+      linear-gradient(180deg, var(--bg-0) 0%, var(--bg-1) 55%, #05010c 100%);
+    min-height: 100vh;
+  }
+
+  /* ============ PERSPECTIVE GRID FLOOR ============ */
+  .grid-floor {
+    position: fixed;
+    left: -50%;
+    right: -50%;
+    top: 32vh;
+    bottom: -20vh;
+    pointer-events: none;
+    background-image:
+      linear-gradient(rgba(0,200,255,.30) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,200,255,.30) 1px, transparent 1px);
+    background-size: var(--grid) var(--grid);
+    transform: perspective(520px) rotateX(62deg) scale(1.6);
+    transform-origin: 50% 0;
+    animation: grid-scroll 2.4s linear infinite;
+    -webkit-mask-image: linear-gradient(180deg, transparent 0%, black 18%, black 100%);
+            mask-image: linear-gradient(180deg, transparent 0%, black 18%, black 100%);
+  }
+  @keyframes grid-scroll {
+    from { background-position: 0 0; }
+    to   { background-position: 0 var(--grid); }
+  }
+
+  /* Faint vertical grid on the upper sky half */
+  .grid-sky {
+    position: fixed;
+    inset: 0 0 32vh 0;
+    pointer-events: none;
+    background-image:
+      linear-gradient(rgba(123,47,255,.10) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(123,47,255,.10) 1px, transparent 1px);
+    background-size: var(--grid) var(--grid);
+    -webkit-mask-image: linear-gradient(180deg, black 0%, transparent 92%);
+            mask-image: linear-gradient(180deg, black 0%, transparent 92%);
+    opacity: .5;
+  }
+
+  /* Horizon glow line */
+  .horizon {
+    position: fixed;
+    left: 0; right: 0;
+    top: 32vh;
+    height: 2px;
+    pointer-events: none;
+    background: linear-gradient(90deg, transparent, var(--cyan) 30%, var(--pink) 70%, transparent);
+    box-shadow:
+      0 0 12px rgba(0,200,255,.8),
+      0 0 42px rgba(255,0,128,.55);
+    opacity: .8;
+  }
+
+  /* ============ SCANLINES ============ */
+  .scanlines {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 60;
+    background: repeating-linear-gradient(
+      180deg,
+      rgba(0,0,0,0) 0px,
+      rgba(0,0,0,0) 2px,
+      rgba(0,0,0,.16) 3px,
+      rgba(0,0,0,.16) 4px
+    );
+    mix-blend-mode: multiply;
+  }
+
+  /* Traveling scan band */
+  .scanline {
+    position: fixed;
+    left: 0; right: 0;
+    top: -140px;
+    height: 120px;
+    z-index: 61;
+    pointer-events: none;
+    background: linear-gradient(180deg,
+      transparent 0%,
+      rgba(0,200,255,.05) 35%,
+      rgba(0,200,255,.14) 50%,
+      rgba(0,200,255,.05) 65%,
+      transparent 100%);
+    border-top: 1px solid rgba(0,200,255,.35);
+    animation: scan-travel 5.5s cubic-bezier(.45,0,.55,1) infinite;
+  }
+  @keyframes scan-travel {
+    0%   { transform: translateY(-160px); }
+    100% { transform: translateY(115vh); }
+  }
+
+  /* Vignette */
+  .vignette {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 59;
+    background: radial-gradient(ellipse 120% 90% at 50% 45%, transparent 55%, rgba(2,0,10,.75) 100%);
+  }
+
+  /* ============ LAYOUT ============ */
+  .wrap {
+    position: relative;
+    z-index: 10;
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: clamp(24px, 5vh, 56px) clamp(18px, 4vw, 48px) 48px;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    gap: clamp(24px, 4vh, 44px);
+  }
+
+  /* ============ HEADER / GLITCH TITLE ============ */
+  header { text-align: center; }
+
+  .sys-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 11px;
+    letter-spacing: .42em;
+    color: var(--cyan);
+    text-transform: uppercase;
+    border: 1px solid rgba(0,200,255,.4);
+    padding: 7px 16px 7px 20px;
+    background: rgba(0,200,255,.05);
+    box-shadow: 0 0 14px rgba(0,200,255,.18), inset 0 0 10px rgba(0,200,255,.08);
+    text-shadow: 0 0 8px rgba(0,200,255,.7);
+  }
+  .sys-tag .dot {
+    width: 7px; height: 7px;
+    background: var(--cyan);
+    border-radius: 50%;
+    box-shadow: 0 0 8px var(--cyan);
+    animation: pulse-dot 1.6s ease-in-out infinite;
+  }
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%      { opacity: .35; transform: scale(.72); }
+  }
+
+  .glitch {
+    position: relative;
+    display: inline-block;
+    margin-top: clamp(18px, 3vh, 30px);
+    font-size: clamp(2.6rem, 9vw, 6.4rem);
+    font-weight: 800;
+    letter-spacing: .06em;
+    line-height: 1.05;
+    color: var(--ink);
+    text-transform: uppercase;
+    text-shadow:
+      0 0 12px rgba(232,224,255,.35),
+      0 0 42px rgba(123,47,255,.45);
+    animation: flicker 4s steps(1) infinite;
+  }
+  .glitch .slash { color: var(--pink); text-shadow: 0 0 14px var(--pink); }
+
+  .glitch::before,
+  .glitch::after {
+    content: attr(data-text);
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+  }
+  .glitch::before {
+    left: 3px;
+    color: var(--cyan);
+    text-shadow: -2px 0 var(--cyan);
+    animation: glitch-a 2.7s infinite linear alternate-reverse;
+  }
+  .glitch::after {
+    left: -3px;
+    color: var(--pink);
+    text-shadow: 2px 0 var(--pink);
+    animation: glitch-b 3.1s infinite linear alternate-reverse;
+  }
+  @keyframes glitch-a {
+    0%   { clip-path: inset(4% 0 88% 0);  transform: translate(-4px, -2px); }
+    12%  { clip-path: inset(70% 0 12% 0); transform: translate(3px, 1px); }
+    24%  { clip-path: inset(30% 0 55% 0); transform: translate(-2px, 2px); }
+    36%  { clip-path: inset(85% 0 3% 0);  transform: translate(5px, -1px); }
+    48%  { clip-path: inset(12% 0 74% 0); transform: translate(-5px, 1px); }
+    60%  { clip-path: inset(55% 0 30% 0); transform: translate(2px, -2px); }
+    72%  { clip-path: inset(93% 0 2% 0);  transform: translate(-3px, 2px); }
+    84%  { clip-path: inset(24% 0 60% 0); transform: translate(4px, -1px); }
+    100% { clip-path: inset(5% 0 84% 0);  transform: translate(-2px, 1px); }
+  }
+  @keyframes glitch-b {
+    0%   { clip-path: inset(80% 0 8% 0);  transform: translate(4px, 1px); }
+    14%  { clip-path: inset(10% 0 82% 0); transform: translate(-3px, -1px); }
+    28%  { clip-path: inset(48% 0 40% 0); transform: translate(2px, 2px); }
+    42%  { clip-path: inset(68% 0 20% 0); transform: translate(-5px, -2px); }
+    56%  { clip-path: inset(2% 0 90% 0);  transform: translate(3px, 2px); }
+    70%  { clip-path: inset(60% 0 28% 0); transform: translate(-4px, 1px); }
+    84%  { clip-path: inset(34% 0 52% 0); transform: translate(5px, -2px); }
+    100% { clip-path: inset(76% 0 14% 0); transform: translate(-2px, -1px); }
+  }
+  @keyframes flicker {
+    0%, 100%   { opacity: 1; }
+    7%         { opacity: 1; }
+    8%         { opacity: .62; }
+    9%         { opacity: 1; }
+    36%        { opacity: 1; }
+    37%        { opacity: .8; }
+    38%        { opacity: 1; }
+    71%        { opacity: 1; }
+    72%        { opacity: .5; }
+    73%        { opacity: 1; }
+    74%        { opacity: .9; }
+    75%        { opacity: 1; }
+  }
+
+  .subtitle {
+    margin-top: clamp(14px, 2.4vh, 22px);
+    font-size: clamp(11px, 1.6vw, 13px);
+    letter-spacing: .34em;
+    color: var(--dim);
+    text-transform: uppercase;
+  }
+  .subtitle b { color: var(--pink); text-shadow: 0 0 10px rgba(255,0,128,.6); font-weight: 400; }
+
+  /* ============ CARD GRID ============ */
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(232px, 1fr));
+    gap: clamp(14px, 2vw, 22px);
+  }
+
+  .card {
+    position: relative;
+    padding: clamp(16px, 2.4vw, 24px);
+    background: linear-gradient(160deg, rgba(123,47,255,.10), rgba(10,1,20,.72) 45%);
+    border: 1px solid rgba(0,200,255,.28);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    transition: transform .35s cubic-bezier(.22,1,.36,1), box-shadow .35s ease, border-color .35s ease;
+    box-shadow: 0 0 0 rgba(0,0,0,0);
+  }
+  .card::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(120deg, transparent 30%, rgba(0,200,255,.07) 48%, transparent 60%);
+    transform: translateX(-120%);
+    transition: transform .8s ease;
+    pointer-events: none;
+  }
+  .card:hover {
+    transform: translateY(-7px);
+    border-color: var(--accent, var(--cyan));
+    box-shadow:
+      0 14px 38px -12px rgba(0,0,0,.85),
+      0 0 22px -4px var(--accent, var(--cyan)),
+      inset 0 0 18px -12px var(--accent, var(--cyan));
+  }
+  .card:hover::before { transform: translateX(120%); }
+
+  .card.pink  { --accent: var(--pink);  --glow: rgba(255,0,128,.55); }
+  .card.cyan  { --accent: var(--cyan);  --glow: rgba(0,200,255,.55); }
+  .card.purp  { --accent: var(--purple);--glow: rgba(123,47,255,.55); }
+  .card.hot   { --accent: #ff5e00;      --glow: rgba(255,94,0,.5); }
+
+  /* Corner brackets */
+  .corner {
+    position: absolute;
+    width: 16px; height: 16px;
+    border: 2px solid var(--accent, var(--cyan));
+    opacity: 0;
+    transform: scale(.4);
+    transition: opacity .28s ease, transform .28s cubic-bezier(.34,1.56,.64,1);
+    box-shadow: 0 0 8px var(--glow, rgba(0,200,255,.5));
+    pointer-events: none;
+  }
+  .corner.tl { top: -2px;    left: -2px;   border-right: none;  border-bottom: none; }
+  .corner.tr { top: -2px;    right: -2px;  border-left: none;   border-bottom: none; }
+  .corner.bl { bottom: -2px; left: -2px;   border-right: none;  border-top: none; }
+  .corner.br { bottom: -2px; right: -2px;  border-left: none;   border-top: none; }
+  .card:hover .corner { opacity: 1; transform: scale(1); }
+
+  .card-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 11px;
+    letter-spacing: .3em;
+    text-transform: uppercase;
+    color: var(--dim);
+  }
+  .card-head .glyph {
+    font-size: 15px;
+    color: var(--accent, var(--cyan));
+    text-shadow: 0 0 10px var(--glow, rgba(0,200,255,.5));
+  }
+
+  .metric {
+    margin: clamp(12px, 2vh, 18px) 0 6px;
+    font-size: clamp(26px, 3.4vw, 34px);
+    font-weight: 700;
+    letter-spacing: .04em;
+    color: var(--accent, var(--cyan));
+    text-shadow: 0 0 14px var(--glow, rgba(0,200,255,.5));
+    font-variant-numeric: tabular-nums;
+  }
+  .metric small {
+    font-size: .45em;
+    font-weight: 400;
+    color: var(--dim);
+    letter-spacing: .2em;
+    margin-left: 6px;
+  }
+
+  .bar {
+    height: 8px;
+    background: rgba(255,255,255,.06);
+    border: 1px solid rgba(0,200,255,.18);
+    overflow: hidden;
+    position: relative;
+  }
+  .bar .fill {
+    height: 100%;
+    width: 0;
+    background: linear-gradient(90deg, var(--accent, var(--cyan)), var(--accent, var(--cyan)) 60%, #fff 98%);
+    box-shadow: 0 0 12px var(--glow, rgba(0,200,255,.5));
+    transition: width 1.4s cubic-bezier(.22,1,.36,1);
+    position: relative;
+  }
+  .bar .fill::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(90deg, transparent 0 6px, rgba(0,0,0,.28) 6px 8px);
+    animation: bar-stripes 1s linear infinite;
+  }
+  @keyframes bar-stripes {
+    from { transform: translateX(0); }
+    to   { transform: translateX(8px); }
+  }
+
+  .card-foot {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 12px;
+    font-size: 10px;
+    letter-spacing: .26em;
+    color: var(--dim);
+    text-transform: uppercase;
+  }
+  .card-foot .ok { color: var(--accent, var(--cyan)); text-shadow: 0 0 8px var(--glow, rgba(0,200,255,.5)); }
+
+  /* ============ FOOTER ============ */
+  footer {
+    margin-top: auto;
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    font-size: 10px;
+    letter-spacing: .3em;
+    color: var(--dim);
+    text-transform: uppercase;
+    border-top: 1px solid rgba(0,200,255,.2);
+    padding-top: 16px;
+  }
+  footer .clock { color: var(--cyan); text-shadow: 0 0 8px rgba(0,200,255,.55); font-variant-numeric: tabular-nums; }
+
+  @media (max-width: 560px) {
+    .scanline { height: 80px; }
+    footer { letter-spacing: .18em; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .glitch, .glitch::before, .glitch::after, .scanline, .grid-floor, .sys-tag .dot, .bar .fill::after { animation: none; }
+  }
+</style>
+</head>
+<body>
+  <div class="grid-sky" aria-hidden="true"></div>
+  <div class="grid-floor" aria-hidden="true"></div>
+  <div class="horizon" aria-hidden="true"></div>
+
+  <div class="wrap">
+    <header>
+      <span class="sys-tag"><span class="dot"></span>SYS://ONLINE — GRID 7.7.7</span>
+      <h1 class="glitch" data-text="NEON//DREAM">NEON<span class="slash">//</span>DREAM</h1>
+      <p class="subtitle">NIGHT CITY UPLINK &mdash; <b>SIGNAL LOCKED</b> &mdash; CHANNEL 003</p>
+    </header>
+
+    <main class="grid" aria-label="System metrics">
+      <section class="card pink">
+        <span class="corner tl"></span><span class="corner tr"></span>
+        <span class="corner bl"></span><span class="corner br"></span>
+        <div class="card-head"><span class="glyph">&#9656;</span>CPU CORES</div>
+        <div class="metric"><span data-metric="94">0</span><small>%</small></div>
+        <div class="bar"><div class="fill" data-val="94"></div></div>
+        <div class="card-foot"><span>THREADS 32/32</span><span class="ok">NOMINAL</span></div>
+      </section>
+
+      <section class="card cyan">
+        <span class="corner tl"></span><span class="corner tr"></span>
+        <span class="corner bl"></span><span class="corner br"></span>
+        <div class="card-head"><span class="glyph">&#9708;</span>MEM HEAP</div>
+        <div class="metric"><span data-metric="71">0</span><small>%</small></div>
+        <div class="bar"><div class="fill" data-val="71"></div></div>
+        <div class="card-foot"><span>64 GB POOLED</span><span class="ok">STABLE</span></div>
+      </section>
+
+      <section class="card purp">
+        <span class="corner tl"></span><span class="corner tr"></span>
+        <span class="corner bl"></span><span class="corner br"></span>
+        <div class="card-head"><span class="glyph">&#9737;</span>NET UPLINK</div>
+        <div class="metric"><span data-metric="62">0</span><small>MB/S</small></div>
+        <div class="bar"><div class="fill" data-val="62"></div></div>
+        <div class="card-foot"><span>LATENCY 4MS</span><span class="ok">ENCRYPTED</span></div>
+      </section>
+
+      <section class="card hot">
+        <span class="corner tl"></span><span class="corner tr"></span>
+        <span class="corner bl"></span><span class="corner br"></span>
+        <div class="card-head"><span class="glyph">&#9724;</span>GPU RENDER</div>
+        <div class="metric"><span data-metric="88">0</span><small>%</small></div>
+        <div class="bar"><div class="fill" data-val="88"></div></div>
+        <div class="card-foot"><span>VRAM 24 GB</span><span class="ok">OVERDRIVE</span></div>
+      </section>
+    </main>
+
+    <footer>
+      <span>NEON//DREAM &copy; 2077 &mdash; SECTOR 7</span>
+      <span class="clock" id="clock">--:--:--</span>
+      <span>REFRESH CYCLE ACTIVE</span>
+    </footer>
+  </div>
+
+  <div class="vignette" aria-hidden="true"></div>
+  <div class="scanlines" aria-hidden="true"></div>
+  <div class="scanline" aria-hidden="true"></div>
+<script>
+(function () {
+  "use strict";
+
+  /* ---------- Progress bars: animate on load, staggered ---------- */
+  var fills = document.querySelectorAll(".bar .fill");
+  fills.forEach(function (fill, i) {
+    var val = Math.max(0, Math.min(100, parseFloat(fill.getAttribute("data-val")) || 0));
+    setTimeout(function () {
+      fill.style.width = val + "%";
+    }, 250 + i * 220);
+  });
+
+  /* ---------- Metric counters: count up toward target ---------- */
+  var metrics = document.querySelectorAll(".metric [data-metric]");
+  metrics.forEach(function (el, i) {
+    var target = Math.max(0, Math.min(100, parseFloat(el.getAttribute("data-metric")) || 0));
+    var start = null;
+    var dur = 1400;
+    function step(ts) {
+      if (start === null) start = ts;
+      var p = Math.min(1, (ts - start) / dur);
+      var eased = 1 - Math.pow(1 - p, 3);
+      el.textContent = String(Math.round(target * eased));
+      if (p < 1) requestAnimationFrame(step);
+    }
+    setTimeout(function () { requestAnimationFrame(step); }, 250 + i * 220);
+  });
+
+  /* ---------- Live metric jitter: values breathe slightly ---------- */
+  function jitter() {
+    metrics.forEach(function (el) {
+      var base = parseFloat(el.getAttribute("data-metric")) || 0;
+      var delta = Math.round((Math.random() - 0.5) * 6);
+      el.textContent = String(Math.max(0, Math.min(100, base + delta)));
+    });
+    setTimeout(jitter, 1800 + Math.random() * 2200);
+  }
+  setTimeout(jitter, 4200);
+
+  /* ---------- Glitch flicker: random restart via JS ---------- */
+  var glitch = document.querySelector(".glitch");
+  function resetGlitch() {
+    if (!glitch) return;
+    glitch.style.animation = "none";
+    var before = glitch.querySelectorAll("*"); /* force reflow */
+    void glitch.offsetWidth;
+    glitch.style.animation = "";
+    void before;
+    setTimeout(resetGlitch, 2600 + Math.random() * 3800);
+  }
+  setTimeout(resetGlitch, 3000);
+
+  /* ---------- Footer clock ---------- */
+  var clock = document.getElementById("clock");
+  function pad(n) { return n < 10 ? "0" + n : String(n); }
+  function tick() {
+    var d = new Date();
+    clock.textContent = pad(d.getHours()) + ":" + pad(d.getMinutes()) + ":" + pad(d.getSeconds());
+    setTimeout(tick, 1000);
+  }
+  tick();
+
+  /* ---------- Occasional system-tag flicker for atmosphere ---------- */
+  var tag = document.querySelector(".sys-tag");
+  if (tag) {
+    (function flick() {
+      setTimeout(function () {
+        tag.style.opacity = "0.35";
+        setTimeout(function () {
+          tag.style.opacity = "1";
+          flick();
+        }, 90);
+      }, 4000 + Math.random() * 6000);
+    })();
+  }
+})();
+</script>
+</body>
+</html>

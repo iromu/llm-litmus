@@ -1,0 +1,21 @@
+Creative prompt (verbatim):
+Create a cosmic visualization with orbiting planets around a central typography piece. Five planets of varying sizes and colors orbit at different speeds and radii, some reversing direction. Each planet has a realistic radial gradient sphere with shadow and glow. Two semi-transparent rings rotate slowly. A canvas starfield with twinkling stars forms the background. The title "Cosmos" is centered with wide letter-spacing and a soft purple glow. The overall feel is meditative, vast, and celestial.
+
+Model: Qwen3.8-27B (thinking) — thinking effort: high
+
+Techniques used:
+- CSS orbit animation using transform rotate + translateX
+- CSS custom property-driven animation parameters (--period, --radius, --size, --floatPeriod per planet)
+- Radial gradient planet spheres with inset shadows for 3D effect
+- Floating animation on planets (alternating translateY keyframes with per-planet delay/period)
+- Canvas starfield with twinkling (per-star phase/speed sine twinkle, occasional shooting star, DPR-aware, density scales with viewport area)
+- 3D perspective scene (perspective on stage, preserve-3d scene with slow rotateX/rotateY sway; tilted rotating rings)
+- Responsive scaling via vmin-based --scene-size custom property; resize handler rebuilds starfield
+
+Interaction model:
+- Passive observation — all elements animate continuously. The viewer watches the orbital dance.
+- Resize adjusts starfield and planet positions proportionally.
+
+Stats:
+- Wall time: ~4 minutes (estimate)
+- Token count: n/a

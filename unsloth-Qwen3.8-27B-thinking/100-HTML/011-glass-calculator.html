@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Glass Calculator</title>
+<style>
+  :root {
+    --cyan: #35e6ff;
+    --cyan-soft: rgba(53, 230, 255, 0.18);
+    --white: rgba(255, 255, 255, 0.10);
+    --white-hover: rgba(255, 255, 255, 0.20);
+    --func: rgba(255, 255, 255, 0.05);
+    --func-hover: rgba(255, 255, 255, 0.12);
+    --ink: #eef2ff;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    background: radial-gradient(120% 120% at 20% 10%, #2a1250 0%, #170a30 45%, #0a0618 100%);
+    color: var(--ink);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    position: relative;
+  }
+
+  /* Drifting blurred orbs */
+  .orb {
+    position: fixed;
+    border-radius: 50%;
+    filter: blur(90px);
+    opacity: 0.55;
+    z-index: 0;
+    pointer-events: none;
+    will-change: transform;
+  }
+  .orb.one {
+    width: 55vmax;
+    height: 55vmax;
+    background: radial-gradient(circle at 30% 30%, #7b4dff, #3a1b8a 60%, transparent 75%);
+    top: -12vmax;
+    left: -10vmax;
+    animation: driftA 26s ease-in-out infinite alternate;
+  }
+  .orb.two {
+    width: 48vmax;
+    height: 48vmax;
+    background: radial-gradient(circle at 60% 40%, #19c7ff, #14478f 60%, transparent 75%);
+    bottom: -14vmax;
+    right: -8vmax;
+    animation: driftB 32s ease-in-out infinite alternate;
+  }
+  @keyframes driftA {
+    0%   { transform: translate(0, 0) scale(1); }
+    50%  { transform: translate(9vmax, 6vmax) scale(1.08); }
+    100% { transform: translate(-5vmax, 10vmax) scale(0.95); }
+  }
+  @keyframes driftB {
+    0%   { transform: translate(0, 0) scale(1); }
+    50%  { transform: translate(-8vmax, -7vmax) scale(1.1); }
+    100% { transform: translate(6vmax, -4vmax) scale(0.96); }
+  }
+
+  /* Subtle grain to add depth */
+  .grain {
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    opacity: 0.05;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  .stage {
+    position: relative;
+    z-index: 2;
+    width: min(92vw, 380px);
+  }
+
+  .calculator {
+    position: relative;
+    border-radius: 34px;
+    padding: 26px;
+    background: linear-gradient(160deg, rgba(255,255,255,0.10), rgba(255,255,255,0.03));
+    backdrop-filter: blur(28px) saturate(150%);
+    -webkit-backdrop-filter: blur(28px) saturate(150%);
+    border: 1px solid rgba(255,255,255,0.22);
+    box-shadow:
+      0 40px 80px -20px rgba(0,0,0,0.6),
+      0 0 0 1px rgba(255,255,255,0.05) inset,
+      0 1px 0 rgba(255,255,255,0.4) inset;
+    animation: floatIn 0.9s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  @keyframes floatIn {
+    from { opacity: 0; transform: translateY(26px) scale(0.96); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  /* Top edge highlight */
+  .calculator::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 34px;
+    padding: 1px;
+    background: linear-gradient(160deg, rgba(255,255,255,0.7), rgba(255,255,255,0) 45%, rgba(53,230,255,0.25));
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+            mask-composite: exclude;
+    pointer-events: none;
+  }
+
+  .display {
+    position: relative;
+    text-align: right;
+    padding: 8px 6px 22px;
+    min-height: 108px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    gap: 10px;
+  }
+
+  .expr {
+    font-size: 22px;
+    font-weight: 300;
+    color: rgba(238, 242, 255, 0.55);
+    min-height: 1.3em;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .result {
+    font-size: clamp(52px, 15vw, 74px);
+    font-weight: 500;
+    line-height: 1;
+    letter-spacing: -1px;
+    color: var(--ink);
+    text-shadow: 0 0 26px rgba(53, 230, 255, 0.25);
+    white-space: nowrap;
+    overflow: hidden;
+  }
+
+  .keys {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+  }
+
+  .key {
+    position: relative;
+    aspect-ratio: 1 / 1;
+    border: none;
+    border-radius: 20px;
+    font-family: inherit;
+    font-size: 26px;
+    font-weight: 500;
+    color: var(--ink);
+    cursor: pointer;
+    overflow: hidden;
+    outline: none;
+    transition: transform 0.09s ease, background-color 0.18s ease, box-shadow 0.2s ease;
+    -webkit-tap-highlight-color: transparent;
+    background: var(--white);
+    box-shadow:
+      0 8px 20px -8px rgba(0,0,0,0.5),
+      0 1px 0 rgba(255,255,255,0.25) inset;
+  }
+
+  /* mouse-tracking radial shine overlay */
+  .key::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: radial-gradient(
+      160px circle at var(--mx, 50%) var(--my, 50%),
+      rgba(255,255,255,0.35),
+      transparent 60%
+    );
+    opacity: 0;
+    transition: opacity 0.25s ease;
+    pointer-events: none;
+    mix-blend-mode: screen;
+  }
+  .key:hover::after { opacity: 1; }
+
+  .key:hover {
+    background: var(--white-hover);
+    box-shadow:
+      0 12px 26px -8px rgba(0,0,0,0.55),
+      0 1px 0 rgba(255,255,255,0.35) inset;
+  }
+
+  .key:active, .key.pressed {
+    transform: scale(0.92);
+    box-shadow:
+      0 4px 12px -8px rgba(0,0,0,0.6),
+      0 1px 0 rgba(255,255,255,0.2) inset;
+  }
+
+  .key.fn {
+    background: var(--func);
+    color: rgba(238, 242, 255, 0.9);
+    font-size: 24px;
+  }
+  .key.fn:hover { background: var(--func-hover); }
+
+  .key.op {
+    background: var(--cyan-soft);
+    color: var(--cyan);
+    font-size: 30px;
+    box-shadow:
+      0 8px 20px -10px rgba(53,230,255,0.5),
+      0 1px 0 rgba(53,230,255,0.4) inset;
+  }
+  .key.op:hover {
+    background: rgba(53, 230, 255, 0.30);
+    box-shadow:
+      0 12px 26px -8px rgba(53,230,255,0.55),
+      0 1px 0 rgba(53,230,255,0.5) inset;
+  }
+
+  .key.op.active-op {
+    background: rgba(53, 230, 255, 0.35);
+    color: #fff;
+    box-shadow:
+      0 0 0 2px rgba(53,230,255,0.7),
+      0 0 26px rgba(53,230,255,0.55);
+  }
+
+  .key.eq {
+    background: linear-gradient(135deg, #57d8ff 0%, #7a5cff 100%);
+    color: #0a0618;
+    font-size: 34px;
+    font-weight: 600;
+    grid-column: span 2;
+    aspect-ratio: auto;
+    grid-row: span 1;
+    box-shadow:
+      0 10px 26px -8px rgba(87, 150, 255, 0.7),
+      0 1px 0 rgba(255,255,255,0.5) inset;
+  }
+  .key.eq:hover {
+    box-shadow:
+      0 14px 32px -8px rgba(87, 150, 255, 0.85),
+      0 1px 0 rgba(255,255,255,0.6) inset;
+  }
+
+  .hint {
+    text-align: center;
+    margin-top: 20px;
+    font-size: 12px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: rgba(238,242,255,0.35);
+    font-weight: 400;
+  }
+
+  @media (max-width: 420px) {
+    .stage { width: 94vw; }
+    .calculator { padding: 18px; border-radius: 28px; }
+    .keys { gap: 10px; }
+    .key { font-size: 22px; border-radius: 16px; }
+    .key.op, .key.eq { font-size: 26px; }
+  }
+</style>
+</head>
+<body>
+  <div class="orb one"></div>
+  <div class="orb two"></div>
+  <div class="grain"></div>
+
+  <div class="stage">
+    <div class="calculator" role="application" aria-label="Glass calculator">
+      <div class="display">
+        <div class="expr" id="expr" aria-hidden="true"></div>
+        <div class="result" id="result" role="status">0</div>
+      </div>
+      <div class="keys" id="keys"></div>
+    </div>
+    <p class="hint">crafted from crystal</p>
+  </div>
+
+<script>
+(function () {
+  "use strict";
+
+  var resultEl = document.getElementById("result");
+  var exprEl = document.getElementById("expr");
+  var keysEl = document.getElementById("keys");
+
+  // ---- State ----------------------------------------------------------
+  var current = "0";        // value being edited / shown
+  var accumulator = null;   // first operand (string)
+  var operator = null;      // pending operator symbol
+  var waitingForOperand = false;
+  var lastEquals = false;
+  var justEvaluated = false;
+
+  var OP = { "+": "+", "-": "−", "*": "×", "/": "÷" };
+  var MAX_DIGITS = 15;
+
+  // ---- Button layout --------------------------------------------------
+  var LAYOUT = [
+    { label: "AC", fn: "fn", data: "clear" },
+    { label: "±", fn: "fn", data: "sign" },
+    { label: "%", fn: "fn", data: "pct" },
+    { label: "÷", op: true, data: "/" },
+
+    { label: "7", num: true, data: "7" },
+    { label: "8", num: true, data: "8" },
+    { label: "9", num: true, data: "9" },
+    { label: "×", op: true, data: "*" },
+
+    { label: "4", num: true, data: "4" },
+    { label: "5", num: true, data: "5" },
+    { label: "6", num: true, data: "6" },
+    { label: "−", op: true, data: "-" },
+
+    { label: "1", num: true, data: "1" },
+    { label: "2", num: true, data: "2" },
+    { label: "3", num: true, data: "3" },
+    { label: "+", op: true, data: "+" },
+
+    { label: "0", num: true, data: "0" },
+    { label: ".", num: true, data: "." },
+    { label: "=", eq: true, data: "eq" }
+  ];
+
+  var buttonRefs = [];
+
+  LAYOUT.forEach(function (spec) {
+    var b = document.createElement("button");
+    b.type = "button";
+    b.textContent = spec.label;
+    if (spec.num) b.classList.add("num");
+    if (spec.op) b.classList.add("op");
+    if (spec.fn) b.classList.add("fn");
+    if (spec.eq) b.classList.add("eq");
+    b.dataset.action = spec.data;
+    b.setAttribute("aria-label", spec.label);
+
+    // mouse-tracking shine
+    b.addEventListener("pointermove", function (e) {
+      var r = b.getBoundingClientRect();
+      b.style.setProperty("--mx", ((e.clientX - r.left) / r.width * 100).toFixed(1) + "%");
+      b.style.setProperty("--my", ((e.clientY - r.top) / r.height * 100).toFixed(1) + "%");
+    });
+    b.addEventListener("pointerdown", function () {
+      b.classList.add("pressed");
+    });
+    b.addEventListener("pointerup", function () {
+      b.classList.remove("pressed");
+    });
+    b.addEventListener("pointerleave", function () {
+      b.classList.remove("pressed");
+    });
+    b.addEventListener("click", function () {
+      handleAction(spec.data, spec.op);
+    });
+
+    keysEl.appendChild(b);
+    buttonRefs.push({ el: b, data: spec.data, isOp: !!spec.op });
+  });
+
+  function highlightActiveOp() {
+    buttonRefs.forEach(function (r) {
+      if (r.isOp) {
+        r.el.classList.toggle("active-op", r.data === operator && !waitingForOperand === false);
+      }
+    });
+  }
+
+  // ---- Number helpers -------------------------------------------------
+  function countDigits(s) {
+    var m = String(s).match(/[\d]/g);
+    return m ? m.length : 0;
+  }
+
+  function cleanNumber(numStr) {
+    // Collapse floating point noise like 0.1+0.2 => 0.30000000000000004
+    if (numStr === "Error") return "Error";
+    var n = parseFloat(numStr);
+    if (!isFinite(n)) return "Error";
+    var rounded = Math.round(n * 1e12) / 1e12;
+    return String(rounded);
+  }
+
+  function formatDisplay(numStr) {
+    if (numStr === "Error") return "Error";
+    if (numStr === "") return "0";
+    var n = parseFloat(numStr);
+    if (isNaN(n)) return "0";
+    // Keep short results readable; switch to exponential only for extreme magnitudes
+    if (Math.abs(n) >= 1e15 || (Math.abs(n) < 1e-9 && n !== 0)) {
+      return n.toExponential(6).replace(/\.?0+e/, "e");
+    }
+    var s = String(n);
+    if (s.indexOf(".") === -1 && Math.abs(n) >= 1e15) {
+      return n.toExponential(6).replace(/\.?0+e/, "e");
+    }
+    return s;
+  }
+
+  // ---- Core actions ---------------------------------------------------
+  function inputDigit(d) {
+    if (justEvaluated || lastEquals) {
+      // start fresh on next digit after equals
+      accumulator = null;
+      operator = null;
+      waitingForOperand = false;
+      lastEquals = false;
+      justEvaluated = false;
+    }
+    if (waitingForOperand) {
+      current = d;
+      waitingForOperand = false;
+    } else {
+      if (current === "0" && d === "0") return;
+      if (countDigits(current) >= MAX_DIGITS) return;
+      current = current === "0" ? d : current + d;
+    }
+    justEvaluated = false;
+    render();
+  }
+
+  function inputDecimal() {
+    if (justEvaluated || lastEquals) {
+      accumulator = null;
+      operator = null;
+      waitingForOperand = false;
+      lastEquals = false;
+      justEvaluated = false;
+      current = "0.";
+      render();
+      return;
+    }
+    if (waitingForOperand) {
+      current = "0.";
+      waitingForOperand = false;
+    } else if (current.indexOf(".") === -1) {
+      current = current + ".";
+    }
+    justEvaluated = false;
+    render();
+  }
+
+  function chooseOperator(nextOp) {
+    justEvaluated = false;
+    lastEquals = false;
+    if (operator && !waitingForOperand) {
+      var r = compute(accumulator, current, operator);
+      if (r === "Error") {
+        showError();
+        return;
+      }
+      accumulator = r;
+    } else if (operator === null) {
+      accumulator = current;
+    }
+    operator = nextOp;
+    waitingForOperand = true;
+    justEvaluated = false;
+    render();
+  }
+
+  function compute(aStr, bStr, op) {
+    var a = parseFloat(aStr);
+    var b = parseFloat(bStr);
+    var res;
+    if (op === "+") res = a + b;
+    else if (op === "-") res = a - b;
+    else if (op === "*") res = a * b;
+    else if (op === "/") {
+      if (b === 0) return "Error";
+      res = a / b;
+    } else return aStr;
+    if (!isFinite(res)) return "Error";
+    return cleanNumber(res);
+  }
+
+  function equals() {
+    if (operator === null || accumulator === null) {
+      // no pending op: echo current as expression result
+      justEvaluated = true;
+      lastEquals = true;
+      exprEl.textContent = formatDisplay(current) + " =";
+      renderResult(current);
+      return;
+    }
+    var b = waitingForOperand ? accumulator : current;
+    var a = accumulator;
+    var r = compute(a, b, operator);
+    exprEl.textContent = formatDisplay(a) + " " + OP[operator] + " " + formatDisplay(b) + " =";
+    operator = null;
+    accumulator = null;
+    waitingForOperand = false;
+    justEvaluated = true;
+    lastEquals = true;
+    if (r === "Error") { showError(); return; }
+    current = r;
+    renderResult(current);
+  }
+
+  function clearAll() {
+    current = "0";
+    accumulator = null;
+    operator = null;
+    waitingForOperand = false;
+    lastEquals = false;
+    justEvaluated = false;
+    exprEl.textContent = "";
+    resultEl.textContent = "0";
+    highlightActiveOp();
+  }
+
+  function toggleSign() {
+    if (current === "0" || current === "Error") return;
+    if (current.charAt(0) === "-") current = current.slice(1);
+    else current = "-" + current;
+    render();
+  }
+
+  function percent() {
+    if (current === "Error") return;
+    var v = parseFloat(current);
+    current = cleanNumber(v / 100);
+    render();
+  }
+
+  // ---- Rendering ------------------------------------------------------
+  function renderResult(str) {
+    resultEl.textContent = formatDisplay(str);
+    // auto shrink font if long
+    var len = resultEl.textContent.length;
+    if (len > 9) resultEl.style.fontSize = "40px";
+    else if (len > 6) resultEl.style.fontSize = "54px";
+    else resultEl.style.fontSize = "";
+  }
+
+  function showError() {
+    resultEl.textContent = "Error";
+    resultEl.style.fontSize = "";
+    current = "0";
+    accumulator = null;
+    operator = null;
+    waitingForOperand = false;
+    justEvaluated = true;
+    lastEquals = false;
+    exprEl.textContent = "";
+  }
+
+  function render() {
+    renderResult(current);
+    if (operator && accumulator !== null) {
+      exprEl.textContent = formatDisplay(accumulator) + " " + OP[operator];
+    } else {
+      exprEl.textContent = "";
+    }
+    highlightActiveOp();
+  }
+
+  // ---- Dispatcher -----------------------------------------------------
+  function handleAction(data, isOp) {
+    if (resultEl.textContent === "Error") {
+      if (data === "clear") { clearAll(); return; }
+      showError(); // ignore everything else until cleared
+      return;
+    }
+    if (data === "clear") clearAll();
+    else if (data === "sign") toggleSign();
+    else if (data === "pct") percent();
+    else if (data === ".") inputDecimal();
+    else if (data === "eq") equals();
+    else if (isOp) chooseOperator(data);
+    else inputDigit(data);
+  }
+
+  // ---- Keyboard support ----------------------------------------------
+  var KEY_MAP = {
+    "+": "+", "-": "-", "*": "*", "/": "/",
+    "Enter": "eq", "=": "eq",
+    "Escape": "clear", "c": "clear", "C": "clear",
+    "Backspace": "back", "%": "pct", ".": "."
+  };
+
+  function backspace() {
+    if (justEvaluated || lastEquals || waitingForOperand || current === "Error") return;
+    if (current.length <= 1 || (current.length === 2 && current.charAt(0) === "-")) {
+      current = "0";
+    } else {
+      current = current.slice(0, -1);
+    }
+    render();
+  }
+
+  document.addEventListener("keydown", function (e) {
+    var k = e.key;
+    if (k >= "0" && k <= "9") { inputDigit(k); return; }
+    if (KEY_MAP[k] !== undefined) {
+      if (KEY_MAP[k] === "back") { backspace(); }
+      else if (KEY_MAP[k] === ".") inputDecimal();
+      else if (KEY_MAP[k] === "eq") equals();
+      else if (KEY_MAP[k] === "clear") clearAll();
+      else if (KEY_MAP[k] === "pct") percent();
+      else chooseOperator(KEY_MAP[k]);
+    }
+  });
+
+  highlightActiveOp();
+})();
+</script>
+</body>
+</html>

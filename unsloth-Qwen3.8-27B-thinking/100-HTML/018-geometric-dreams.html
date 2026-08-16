@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Geometric Dreams — Platonic Solids</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #05060d;
+  }
+
+  body {
+    font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    color: #cfd6ff;
+    -webkit-tap-highlight-color: transparent;
+    cursor: crosshair;
+  }
+
+  #bg {
+    position: fixed;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 80% 60% at 50% 42%, rgba(56, 72, 160, 0.22) 0%, rgba(20, 24, 60, 0.10) 45%, transparent 72%),
+      radial-gradient(ellipse 120% 90% at 50% 110%, rgba(24, 18, 58, 0.55) 0%, transparent 60%),
+      radial-gradient(ellipse 100% 80% at 50% -10%, rgba(14, 16, 40, 0.6) 0%, transparent 55%),
+      linear-gradient(180deg, #05060d 0%, #070a16 50%, #05060d 100%);
+    z-index: 0;
+  }
+
+  canvas#scene {
+    position: fixed;
+    inset: 0;
+    display: block;
+    z-index: 1;
+  }
+
+  .hud {
+    position: fixed;
+    z-index: 2;
+    pointer-events: none;
+    user-select: none;
+  }
+
+  .hud-top {
+    top: 0;
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: clamp(16px, 3vw, 32px);
+    font-size: clamp(9px, 1.4vw, 12px);
+    letter-spacing: 0.32em;
+    text-transform: uppercase;
+    color: rgba(190, 200, 255, 0.55);
+  }
+
+  .hud-top .mark {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .hud-top .mark::before {
+    content: "";
+    width: 7px;
+    height: 7px;
+    background: #8fa0ff;
+    transform: rotate(45deg);
+    box-shadow: 0 0 10px rgba(143, 160, 255, 0.9);
+    flex: none;
+  }
+
+  .hud-bottom {
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    padding: clamp(16px, 3vw, 32px);
+  }
+
+  .solid-name {
+    font-family: "Avenir Next", "Segoe UI", system-ui, -apple-system, sans-serif;
+    font-weight: 200;
+    font-size: clamp(28px, 6.5vw, 76px);
+    letter-spacing: clamp(0.35em, 1.2vw, 0.6em);
+    text-transform: uppercase;
+    color: rgba(224, 229, 255, 0.92);
+    text-shadow: 0 0 28px rgba(130, 150, 255, 0.45);
+    line-height: 1;
+    white-space: nowrap;
+    transition: opacity 0.35s ease, transform 0.35s ease;
+  }
+
+  .solid-name.swapping {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  .solid-stats {
+    margin-top: 12px;
+    margin-left: 4px;
+    font-size: clamp(9px, 1.3vw, 12px);
+    letter-spacing: 0.3em;
+    color: rgba(150, 165, 235, 0.6);
+  }
+
+  .hint {
+    text-align: right;
+    font-size: clamp(9px, 1.3vw, 11px);
+    letter-spacing: 0.26em;
+    text-transform: uppercase;
+    color: rgba(150, 165, 235, 0.5);
+    line-height: 2;
+  }
+
+  .dots {
+    position: fixed;
+    z-index: 2;
+    top: 50%;
+    right: clamp(14px, 3vw, 34px);
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .dots span {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    border: 1px solid rgba(160, 175, 255, 0.45);
+    background: transparent;
+    transition: all 0.5s ease;
+  }
+
+  .dots span.active {
+    background: #aeb9ff;
+    border-color: #aeb9ff;
+    box-shadow: 0 0 12px rgba(174, 185, 255, 0.95);
+    transform: scale(1.35);
+  }
+
+  .flash {
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    background: radial-gradient(circle at 50% 50%, rgba(140, 160, 255, 0.16), transparent 55%);
+    opacity: 0;
+  }
+
+  .flash.on {
+    animation: flashPulse 0.7s ease-out;
+  }
+
+  @keyframes flashPulse {
+    0% { opacity: 1; transform: scale(0.96); }
+    100% { opacity: 0; transform: scale(1.06); }
+  }
+
+  .vignette {
+    position: fixed;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+    background: radial-gradient(ellipse 90% 80% at 50% 50%, transparent 55%, rgba(3, 4, 10, 0.55) 100%);
+  }
+</style>
+</head>
+<body>
+  <div id="bg"></div>
+  <canvas id="scene"></canvas>
+  <div class="flash" id="flash"></div>
+  <div class="vignette"></div>
+
+  <div class="hud hud-top">
+    <div class="mark">Geometric Dreams</div>
+    <div>N&deg;018 &mdash; Platonic Solids</div>
+  </div>
+
+  <div class="hud hud-bottom">
+    <div>
+      <div class="solid-name" id="solidName">Tetra&shy;hedron</div>
+      <div class="solid-stats" id="solidStats">4 V &middot; 6 E &middot; 4 F</div>
+    </div>
+    <div class="hint">
+      move &mdash; rotate<br>
+      click / tap &mdash; morph
+    </div>
+  </div>
+
+  <div class="dots" id="dots">
+    <span class="active"></span><span></span><span></span><span></span>
+  </div>
+
+<script>
+(function () {
+  "use strict";
+
+  var canvas = document.getElementById("scene");
+  var ctx = canvas.getContext("2d");
+  var nameEl = document.getElementById("solidName");
+  var statsEl = document.getElementById("solidStats");
+  var flashEl = document.getElementById("flash");
+  var dotsEl = document.getElementById("dots");
+  var dots = dotsEl.querySelectorAll("span");
+
+  var W = 0, H = 0, DPR = 1;
+
+  // ---------- Solid definitions ----------
+  var PHI = (1 + Math.sqrt(5)) / 2;
+  var RADIUS = 1.35;
+  var N = 24; // shared point count for morph mapping
+
+  function scaleTo(vs, r) {
+    var m = 0;
+    for (var i = 0; i < vs.length; i++) {
+      var l = Math.sqrt(vs[i][0] * vs[i][0] + vs[i][1] * vs[i][1] + vs[i][2] * vs[i][2]);
+      if (l > m) m = l;
+    }
+    var s = r / m;
+    for (var j = 0; j < vs.length; j++) {
+      vs[j][0] *= s; vs[j][1] *= s; vs[j][2] *= s;
+    }
+    return vs;
+  }
+
+  function computeEdges(vs) {
+    var min = Infinity;
+    var i, j, dx, dy, dz, d;
+    for (i = 0; i < vs.length; i++) {
+      for (j = i + 1; j < vs.length; j++) {
+        dx = vs[i][0] - vs[j][0];
+        dy = vs[i][1] - vs[j][1];
+        dz = vs[i][2] - vs[j][2];
+        d = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        if (d < min) min = d;
+      }
+    }
+    var edges = [];
+    for (i = 0; i < vs.length; i++) {
+      for (j = i + 1; j < vs.length; j++) {
+        dx = vs[i][0] - vs[j][0];
+        dy = vs[i][1] - vs[j][1];
+        dz = vs[i][2] - vs[j][2];
+        d = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        if (d <= min * 1.02) edges.push([i, j]);
+      }
+    }
+    return edges;
+  }
+
+  function makeSolid(name, verts) {
+    verts = scaleTo(verts, RADIUS);
+    var edges = computeEdges(verts);
+    var V = verts.length;
+    var E = edges.length;
+    return {
+      name: name,
+      verts: verts,
+      edges: edges,
+      V: V,
+      E: E,
+      F: E - V + 2,
+      // map a real point index i in [0, N) to a vertex of this solid
+      pointIndex: function (i) {
+        return Math.floor((i * V) / N);
+      },
+      // the canonical point-index for vertex a (cell midpoint)
+      vertexIndex: function (a) {
+        return (a * N) / V + N / V / 2;
+      }
+    };
+  }
+
+  var SOLIDS = [
+    makeSolid("Tetra\u200bhedron", [
+      [1, 1, 1], [1, -1, -1], [-1, 1, -1], [-1, -1, 1]
+    ]),
+    (function () {
+      var v = [];
+      for (var x = -1; x <= 1; x += 2)
+        for (var y = -1; y <= 1; y += 2)
+          for (var z = -1; z <= 1; z += 2) v.push([x, y, z]);
+      return makeSolid("Cube", v);
+    })(),
+    makeSolid("Octa\u200bhedron", [
+      [1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]
+    ]),
+    (function () {
+      var v = [];
+      var i, j;
+      for (i = -1; i <= 1; i += 2) for (j = -1; j <= 1; j += 2) v.push([0, i, j * PHI]);
+      for (i = -1; i <= 1; i += 2) for (j = -1; j <= 1; j += 2) v.push([i, j * PHI, 0]);
+      for (i = -1; i <= 1; i += 2) for (j = -1; j <= 1; j += 2) v.push([i * PHI, 0, j]);
+      return makeSolid("Icosa\u200bhedron", v);
+    })()
+  ];
+
+  // ---------- State ----------
+  var current = 0;
+  var morph = null; // { from, to, start, dur }
+  var MORPH_DUR = 1250;
+
+  var rx = 0.35, ry = -0.5, rz = 0;
+  var tRx = 0.35, tRy = -0.5;
+  var mx = 0.5, my = 0.5; // pointer, 0..1
+  var hasPointer = false;
+
+  // ---------- Stars ----------
+  var stars = [];
+  function initStars() {
+    stars = [];
+    var count = Math.min(170, Math.floor((W * H) / 9000));
+    for (var i = 0; i < count; i++) {
+      stars.push({
+        x: Math.random() * W,
+        y: Math.random() * H,
+        r: 0.4 + Math.random() * 1.1,
+        p: Math.random() * Math.PI * 2,
+        s: 0.3 + Math.random() * 0.8,
+        vx: -0.02 - Math.random() * 0.04,
+        vy: 0.015 + Math.random() * 0.03
+      });
+    }
+  }
+
+  function resize() {
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = Math.floor(W * DPR);
+    canvas.height = Math.floor(H * DPR);
+    canvas.style.width = W + "px";
+    canvas.style.height = H + "px";
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    initStars();
+  }
+  window.addEventListener("resize", resize);
+  resize();
+
+  // ---------- Math ----------
+  var FOV = 4.6;
+
+  function rotY(p, c, s) {
+    return [p[0] * c + p[2] * s, p[1], -p[0] * s + p[2] * c];
+  }
+  function rotX(p, c, s) {
+    return [p[0], p[1] * c - p[2] * s, p[1] * s + p[2] * c];
+  }
+  function rotZ(p, c, s) {
+    return [p[0] * c - p[1] * s, p[0] * s + p[1] * c, p[2]];
+  }
+
+  // ease in-out cubic
+  function ease(t) {
+    return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+  }
+
+  // point i (real, [0,N)) on a solid, with optional morph wobble
+  function solidPoint(solid, i, wobble, time) {
+    var v = solid.verts[solid.pointIndex(i % N)];
+    var p = [v[0], v[1], v[2]];
+    if (wobble > 0.001) {
+      var l = Math.sqrt(p[0] * p[0] + p[1] * p[1] + p[2] * p[2]) || 1;
+      var k = Math.sin(i * 2.399 + time * 4.2) * wobble / l;
+      p = [p[0] + p[0] * k, p[1] + p[1] * k, p[2] + p[2] * k];
+    }
+    return p;
+  }
+
+  var unit = 100, cx = 0, cy = 0;
+
+  // returns { x, y, z, s }
+  function project(p, time) {
+    var c = Math.cos(ry), s = Math.sin(ry);
+    var q = rotY(p, c, s);
+    c = Math.cos(rx); s = Math.sin(rx);
+    q = rotX(q, c, s);
+    c = Math.cos(rz); s = Math.sin(rz);
+    q = rotZ(q, c, s);
+    var sc = FOV / (FOV + q[2]);
+    return { x: cx + q[0] * sc * unit, y: cy - q[1] * sc * unit, z: q[2], s: sc };
+  }
+
+  // ---------- HUD ----------
+  function setHud(idx) {
+    var sol = SOLIDS[idx];
+    var clean = sol.name.replace(/\u200b/g, "");
+    nameEl.textContent = clean;
+    statsEl.textContent = sol.V + " V \u00B7 " + sol.E + " E \u00B7 " + sol.F + " F";
+    for (var i = 0; i < dots.length; i++) dots[i].classList.toggle("active", i === idx);
+  }
+
+  function startMorph() {
+    if (morph) return;
+    var to = (current + 1) % SOLIDS.length;
+    morph = { from: SOLIDS[current], to: SOLIDS[to], toIdx: to, start: performance.now(), dur: MORPH_DUR };
+    nameEl.classList.add("swapping");
+    setTimeout(function () {
+      setHud(to);
+      nameEl.classList.remove("swapping");
+      current = to;
+    }, MORPH_DUR / 2 - 60);
+    flashEl.classList.remove("on");
+    void flashEl.offsetWidth;
+    flashEl.classList.add("on");
+  }
+
+  // ---------- Drawing ----------
+  function drawEdge(a, b, hue, alphaMul, time) {
+    var depth = (a.z + b.z) / 2; // -z toward viewer
+    var t = (depth + RADIUS) / (2 * RADIUS); // 0 front .. 1 back
+    var depthFade = (1 - t) * 0.75 + 0.25;
+    var alpha = Math.max(0, Math.min(1, depthFade * alphaMul));
+    var lw = (0.7 + (1 - t) * 1.6) * Math.min(a.s, b.s);
+    var h = (hue + t * 40) % 360;
+    ctx.strokeStyle = "hsla(" + h.toFixed(0) + ", 90%, " + (52 + (1 - t) * 16).toFixed(0) + "%, " + alpha.toFixed(3) + ")";
+    ctx.lineWidth = Math.max(0.5, lw);
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
+    ctx.stroke();
+  }
+
+  function drawVertex(pt, hue, alphaMul) {
+    var t = (pt.z + RADIUS) / (2 * RADIUS);
+    var depthFade = (1 - t) * 0.85 + 0.15;
+    var alpha = Math.max(0, Math.min(1, depthFade * alphaMul));
+    var r = (1.6 + (1 - t) * 2.6) * pt.s;
+    var h = hue % 360;
+    var g = ctx.createRadialGradient(pt.x, pt.y, 0, pt.x, pt.y, r * 2.6);
+    g.addColorStop(0, "hsla(" + h + ", 100%, 88%, " + alpha.toFixed(3) + ")");
+    g.addColorStop(0.35, "hsla(" + h + ", 95%, 65%, " + (alpha * 0.55).toFixed(3) + ")");
+    g.addColorStop(1, "hsla(" + h + ", 95%, 55%, 0)");
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(pt.x, pt.y, r * 2.6, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // draws the edges of `solid`, with points interpolated between `solid` (1-te)
+  // and `blend` (te), alpha `alphaMul`
+  function drawMorphEdges(solid, blend, te, wobble, time, alphaMul, hueBase) {
+    var list = [];
+    var k, e, ia, ib, pa, pb, ja, jb, ma, mb;
+    for (k = 0; k < solid.edges.length; k++) {
+      e = solid.edges[k];
+      ia = solid.vertexIndex(e[0]);
+      ib = solid.vertexIndex(e[1]);
+      pa = solidPoint(solid, ia, wobble, time);
+      pb = solidPoint(solid, ib, wobble, time);
+      ja = solidPoint(blend, ia, wobble, time);
+      jb = solidPoint(blend, ib, wobble, time);
+      ma = [pa[0] + (ja[0] - pa[0]) * te, pa[1] + (ja[1] - pa[1]) * te, pa[2] + (ja[2] - pa[2]) * te];
+      mb = [pb[0] + (jb[0] - pb[0]) * te, pb[1] + (jb[1] - pb[1]) * te, pb[2] + (jb[2] - pb[2]) * te];
+      var A = project(ma, time);
+      var B = project(mb, time);
+      list.push({ A: A, B: B, k: k });
+    }
+    list.sort(function (p, q) { return (q.A.z + q.B.z) - (p.A.z + p.B.z); });
+    for (k = 0; k < list.length; k++) {
+      var hue = hueBase + list[k].k * 37 + (list[k].A.z + list[k].B.z) * 26;
+      drawEdge(list[k].A, list[k].B, hue, alphaMul, time);
+    }
+  }
+
+  function drawVertices(solid, te, blend, wobble, time, alphaMul, hueBase) {
+    var k, p, q;
+    for (k = 0; k < solid.verts.length; k++) {
+      p = solidPoint(solid, solid.vertexIndex(k), wobble, time);
+      if (blend) {
+        q = solidPoint(blend, solid.vertexIndex(k), wobble, time);
+        p = [p[0] + (q[0] - p[0]) * te, p[1] + (q[1] - p[1]) * te, p[2] + (q[2] - p[2]) * te];
+      }
+      var pt = project(p, time);
+      drawVertex(pt, hueBase + k * 47, alphaMul);
+    }
+  }
+
+  function frame(now) {
+    var time = now / 1000;
+
+    // rotation targets
+    if (!hasPointer) {
+      tRy = -0.5 + Math.sin(time * 0.17) * 0.55;
+      tRx = 0.3 + Math.cos(time * 0.13) * 0.3;
+    }
+    rx += (tRx - rx) * 0.055;
+    ry += (tRy - ry) * 0.055;
+    rz += 0.0038; // subtle continuous Z auto-rotation
+
+    unit = Math.min(W, H) * 0.24;
+    cx = W / 2;
+    cy = H / 2;
+
+    // background
+    ctx.clearRect(0, 0, W, H);
+
+    // stars
+    var i, st;
+    for (i = 0; i < stars.length; i++) {
+      st = stars[i];
+      st.x += st.vx; st.y += st.vy;
+      if (st.x < -4) st.x = W + 4;
+      if (st.y > H + 4) st.y = -4;
+      var tw = 0.25 + 0.55 * (0.5 + 0.5 * Math.sin(time * st.s * 2 + st.p));
+      ctx.fillStyle = "rgba(170, 185, 255, " + (tw * 0.5).toFixed(3) + ")";
+      ctx.beginPath();
+      ctx.arc(st.x, st.y, st.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.lineCap = "round";
+
+    var hueBase = time * 46;
+
+    if (morph) {
+      var rawT = (now - morph.start) / morph.dur;
+      if (rawT >= 1) {
+        morph = null;
+      } else {
+        var te = ease(rawT);
+        var wobble = Math.sin(Math.PI * rawT) * 0.28;
+        var pulse = 1 + Math.sin(Math.PI * rawT) * 0.08;
+        unit *= pulse;
+        if (rawT < 0.5) {
+          // old edges morphing toward new shape, fading out
+          drawMorphEdges(morph.from, morph.to, te, wobble, time, (1 - rawT * 2) * 0.9 + 0.1, hueBase);
+          drawVertices(morph.from, te, morph.to, wobble, time, (1 - rawT * 2) * 0.8 + 0.2, hueBase);
+        } else {
+          // new edges emerging at morphed positions, fading in
+          drawMorphEdges(morph.to, morph.to, te, wobble, time, (rawT - 0.5) * 2 * 0.9 + 0.1, hueBase);
+          drawVertices(morph.to, te, morph.to, wobble, time, (rawT - 0.5) * 2 * 0.8 + 0.2, hueBase);
+        }
+      }
+    }
+    if (!morph) {
+      var sol = SOLIDS[current];
+      drawMorphEdges(sol, sol, 0, 0, time, 0.95, hueBase);
+      drawVertices(sol, 0, null, 0, time, 0.9, hueBase);
+    }
+
+    requestAnimationFrame(frame);
+  }
+
+  // ---------- Input ----------
+  var downX = 0, downY = 0, downT = 0;
+
+  function onPointerMove(x, y) {
+    mx = x / W;
+    my = y / H;
+    hasPointer = true;
+    tRy = -0.5 + (mx - 0.5) * 2.2;
+    tRx = 0.3 + (my - 0.5) * 1.8;
+  }
+
+  window.addEventListener("pointermove", function (e) {
+    onPointerMove(e.clientX, e.clientY);
+  });
+
+  window.addEventListener("pointerdown", function (e) {
+    downX = e.clientX; downY = e.clientY; downT = performance.now();
+    onPointerMove(e.clientX, e.clientY);
+  });
+
+  window.addEventListener("pointerup", function (e) {
+    var dx = e.clientX - downX, dy = e.clientY - downY;
+    var dt = performance.now() - downT;
+    if (dx * dx + dy * dy < 100 && dt < 450) startMorph();
+  });
+
+  // keyboard: space/enter also morphs (accessibility nicety)
+  window.addEventListener("keydown", function (e) {
+    if (e.key === " " || e.key === "Enter") {
+      e.preventDefault();
+      startMorph();
+    }
+  });
+
+  setHud(0);
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

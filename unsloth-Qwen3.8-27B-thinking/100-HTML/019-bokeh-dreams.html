@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<meta name="color-scheme" content="dark" />
+<title>Bokeh Dreams</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+    background: #05060f;
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
+    cursor: crosshair;
+  }
+
+  body {
+    font-family: "Helvetica Neue", "Segoe UI", system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* animated dark gradient background */
+  #bg {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    background:
+      radial-gradient(120% 90% at 18% 28%, rgba(58, 44, 132, 0.55) 0%, transparent 58%),
+      radial-gradient(110% 100% at 82% 72%, rgba(18, 82, 96, 0.50) 0%, transparent 60%),
+      radial-gradient(90% 80% at 62% 18%, rgba(120, 40, 96, 0.34) 0%, transparent 55%),
+      radial-gradient(80% 70% at 34% 84%, rgba(40, 96, 70, 0.30) 0%, transparent 55%),
+      linear-gradient(158deg, #070814 0%, #0a0d20 38%, #12102a 68%, #05060f 100%);
+    background-size: 170% 170%, 170% 170%, 170% 170%, 170% 170%, 100% 100%;
+    background-position: 0% 0%, 100% 100%, 40% 0%, 60% 100%, 0 0;
+    animation: bgdrift 34s ease-in-out infinite alternate;
+    will-change: background-position;
+  }
+
+  @keyframes bgdrift {
+    0%   { background-position: 0% 0%, 100% 100%, 40% 0%, 60% 100%, 0 0; }
+    100% { background-position: 100% 100%, 0% 0%, 100% 100%, 0% 0%, 0 0; }
+  }
+
+  canvas {
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+    display: block;
+    filter: blur(2px);
+  }
+
+  #vignette {
+    position: fixed;
+    inset: 0;
+    z-index: 3;
+    pointer-events: none;
+    background: radial-gradient(125% 125% at 50% 50%, transparent 42%, rgba(0, 0, 0, 0.55) 100%);
+  }
+
+  /* faint overlay title */
+  .ui {
+    position: fixed;
+    inset: 0;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    text-align: center;
+    padding: 0 6vw;
+  }
+
+  .title {
+    font-weight: 200;
+    font-size: clamp(2.6rem, 10vw, 8rem);
+    letter-spacing: 0.16em;
+    line-height: 1;
+    color: rgba(255, 255, 255, 0.5);
+    mix-blend-mode: screen;
+    text-shadow:
+      0 0 40px rgba(184, 202, 255, 0.35),
+      0 0 90px rgba(255, 186, 224, 0.18);
+  }
+
+  .title .sub {
+    display: block;
+    margin-top: 1.1rem;
+    font-size: clamp(0.6rem, 1.4vw, 0.85rem);
+    font-weight: 400;
+    letter-spacing: 0.55em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.32);
+  }
+
+  .label {
+    position: fixed;
+    top: clamp(1.1rem, 3vh, 2rem);
+    left: clamp(1.1rem, 3vw, 2rem);
+    z-index: 4;
+    font-size: 0.62rem;
+    font-weight: 500;
+    letter-spacing: 0.42em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.26);
+    pointer-events: none;
+  }
+
+  .hint {
+    position: fixed;
+    bottom: clamp(1.1rem, 4vh, 2.2rem);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 4;
+    font-size: 0.66rem;
+    letter-spacing: 0.34em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.3);
+    pointer-events: none;
+    animation: hintpulse 4s ease-in-out infinite;
+    white-space: nowrap;
+  }
+
+  @keyframes hintpulse {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
+  }
+
+  .counter {
+    position: fixed;
+    bottom: clamp(1.1rem, 4vh, 2.2rem);
+    right: clamp(1.1rem, 3vw, 2rem);
+    z-index: 4;
+    font-size: 0.66rem;
+    letter-spacing: 0.22em;
+    color: rgba(255, 255, 255, 0.34);
+    font-variant-numeric: tabular-nums;
+    pointer-events: none;
+  }
+
+  .counter span {
+    color: rgba(255, 255, 255, 0.6);
+    font-weight: 600;
+  }
+</style>
+</head>
+<body>
+  <div id="bg"></div>
+  <canvas id="c"></canvas>
+  <div class="ui">
+    <h1 class="title">Bokeh&nbsp;Dreams<span class="sub">dreamy&nbsp;light&nbsp;field</span></h1>
+  </div>
+  <div class="label">N&#8539; 019 &middot; Bokeh Dreams</div>
+  <div class="hint">click &middot; tap to burst light</div>
+  <div class="counter"><span id="count">0</span> orbs</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var canvas = document.getElementById("c");
+  var ctx = canvas.getContext("2d");
+  var countEl = document.getElementById("count");
+
+  var W = 0, H = 0, DPR = 1;
+  var MAX = 200;          // hard performance cap
+  var orbs = [];
+  var time = 0;
+
+  // Photographic bokeh hue set spread across the spectrum (warm to cool).
+  var HUES = [16, 24, 33, 44, 48, 150, 168, 178, 190, 202, 214, 226, 250, 272, 296, 320, 340];
+
+  function rand(a, b) { return a + Math.random() * (b - a); }
+  function pick(arr) { return arr[(Math.random() * arr.length) | 0]; }
+
+  function baseCount() {
+    var area = W * H;
+    var n = Math.round(area / 14000);
+    if (n < 40) n = 40;
+    if (n > 110) n = 110;
+    return n;
+  }
+
+  function makeOrb(x, y, burst) {
+    var r = burst ? rand(16, 66) : rand(22, 150);
+    var o = {
+      x: x,
+      y: y,
+      r: r,
+      vx: 0, vy: 0,                                  // burst velocity (decays)
+      drift: burst ? rand(0.14, 0.34) : rand(0.12, 0.5),
+      freq: rand(0.18, 0.7),
+      phase: rand(0, Math.PI * 2),
+      hue: pick(HUES),
+      sat: rand(58, 95),
+      light: rand(55, 72),
+      alpha: burst ? rand(0.34, 0.6) : rand(0.12, 0.5),
+      soft: rand(0.5, 1.0),
+      twinkleFreq: rand(0.3, 1.3)
+    };
+    if (burst) {
+      var a = rand(0, Math.PI * 2);
+      var sp = rand(2.5, 15);
+      o.vx = Math.cos(a) * sp;
+      o.vy = Math.sin(a) * sp;
+    }
+    return o;
+  }
+
+  function updateCount() { countEl.textContent = String(orbs.length); }
+
+  function seed() {
+    orbs.length = 0;
+    var n = baseCount();
+    for (var i = 0; i < n; i++) {
+      orbs.push(makeOrb(rand(0, W), rand(0, H), false));
+    }
+    updateCount();
+  }
+
+  function burst(x, y) {
+    var n = 14 + ((Math.random() * 10) | 0);
+    for (var i = 0; i < n; i++) {
+      orbs.push(makeOrb(x, y, true));
+    }
+    while (orbs.length > MAX) orbs.shift();           // enforce the 200 cap
+    updateCount();
+  }
+
+  function resize() {
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = Math.floor(W * DPR);
+    canvas.height = Math.floor(H * DPR);
+    canvas.style.width = W + "px";
+    canvas.style.height = H + "px";
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  }
+
+  function step(dt) {
+    time += dt;
+    var f = dt * 60;                                   // frame-normalised drift
+    for (var i = 0; i < orbs.length; i++) {
+      var o = orbs[i];
+      o.vx *= 0.955;                                    // burst velocity decay
+      o.vy *= 0.955;
+      var t = time * o.freq + o.phase;
+      var ax = Math.cos(t) * o.drift;                   // sine-wave acceleration
+      var ay = Math.sin(t * 0.9 + o.phase) * o.drift;
+      o.x += o.vx + ax * f;
+      o.y += o.vy + ay * f;
+      var m = o.r * 1.6;
+      if (o.x < -m) o.x = W + m;
+      else if (o.x > W + m) o.x = -m;
+      if (o.y < -m) o.y = H + m;
+      else if (o.y > H + m) o.y = -m;
+    }
+  }
+
+  function drawOrb(o) {
+    var pulse = 0.72 + 0.28 * Math.sin(time * o.twinkleFreq + o.phase);
+    var a = o.alpha * pulse;
+    var rr = o.r * (1 + 0.05 * Math.sin(time * 0.6 + o.phase));
+    var x = o.x, y = o.y;
+    var g = ctx.createRadialGradient(x, y, rr * 0.04, x, y, rr);
+    g.addColorStop(0.0, "hsla(" + o.hue + ", " + o.sat + "%, " + (o.light + 18) + "%, " + a + ")");
+    g.addColorStop(0.25, "hsla(" + o.hue + ", " + o.sat + "%, " + o.light + "%, " + (a * 0.85) + ")");
+    g.addColorStop(0.7, "hsla(" + o.hue + ", " + (o.sat * 0.9) + "%, " + (o.light - 8) + "%, " + (a * 0.34) + ")");
+    g.addColorStop(1.0, "hsla(" + o.hue + ", " + o.sat + "%, " + (o.light - 10) + "%, 0)");
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(x, y, rr, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+    ctx.globalCompositeOperation = "screen";
+    for (var i = 0; i < orbs.length; i++) drawOrb(orbs[i]);
+    ctx.globalCompositeOperation = "source-over";
+  }
+
+  var last = performance.now();
+  function frame(now) {
+    var dt = (now - last) / 1000;
+    last = now;
+    if (dt > 0.05) dt = 0.05;                          // clamp big frame gaps
+    step(dt);
+    draw();
+    requestAnimationFrame(frame);
+  }
+
+  window.addEventListener("pointerdown", function (e) {
+    burst(e.clientX, e.clientY);
+  });
+  window.addEventListener("resize", resize);
+
+  resize();
+  seed();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

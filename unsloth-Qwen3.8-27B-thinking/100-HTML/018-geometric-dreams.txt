@@ -1,0 +1,26 @@
+Creative prompt (verbatim):
+Create an interactive 3D geometric shape visualization that morphs between platonic solids (tetrahedron, cube, octahedron, icosahedron). The shape is rendered as a wireframe with glowing colored edges and vertices on a dark background. The rotation follows the mouse cursor. Clicking or tapping morphs the shape into the next solid with a smooth ease-in-out transition. Edges and vertices have hue cycling based on position and time. The projection uses a simple 3D-to-2D perspective transform. The overall aesthetic is futuristic, minimalist, and hypnotic.
+
+Model: Qwen3.8-27B (thinking) - thinking effort: high
+
+Techniques used:
+- Canvas 3D wireframe rendering with hand-rolled rotation matrices (rotY -> rotX -> rotZ applied per point) and a simple perspective projection (scale = FOV / (FOV + z), FOV = 4.6)
+- All four platonic solids defined analytically (tetrahedron from 4 vertices, cube from 8 corner sign combos, octahedron from 6 axis points, icosahedron from 12 golden-ratio vertices); edges derived programmatically by minimum-distance-threshold pair filtering (verified counts: 6 / 12 / 12 / 30)
+- Shape morphing between unequal vertex counts via a shared 24-point mapping: each vertex of a V-vertex solid maps to a real-valued index in [0, 24) at its cell midpoint, so edges of both shapes can be interpolated point-by-point
+- Ease-in-out cubic timing (1250ms) with crossfade: old edges morph toward the new shape while fading out (first half), new edges emerge at the morphed positions while fading in (second half), plus a mid-morph radial wobble and scale pulse for organic feel
+- Painter's algorithm: edges sorted back-to-front by mean z; per-edge depth-based alpha, line width, and brightness (front edges brighter and thicker)
+- Hue cycling via HSL: hue = time * 46 + edgeIndex * 37 + depth offset; vertex glow rendered as radial-gradient halos (bright core -> saturated mid -> transparent)
+- Mouse-driven rotation: pointer position maps to rotation targets (rx/ry) with exponential smoothing (lerp 0.055); subtle continuous Z auto-rotation (0.0038 rad/frame) and idle drift when no pointer input
+- Faint twinkling starfield (up to 170 stars, screen-size adaptive) with slow drift for depth; layered radial-gradient background + vignette overlay for the dark, futuristic look
+- HUD overlay: title mark, solid name (crossfades on morph), V/E/F stats, 4-dot solid-position indicator, interaction hint; flash pulse on each morph
+- Pointer events with tap-vs-drag detection (distance < 10px and < 450ms = tap -> morph); Space/Enter also morph as an accessibility nicety
+- Responsive + DPR-aware canvas (devicePixelRatio clamped to 2); shape scale from min(width, height)
+
+Interaction model:
+- Mouse movement controls rotation (smoothed follow of cursor position; auto-drifts gently when idle).
+- Click or tap morphs to the next platonic solid (tetrahedron -> cube -> octahedron -> icosahedron -> repeat) with a smooth ease-in-out transition; all 4 solids cycle in sequence.
+- The shape rotates continuously with subtle auto-rotation on the Z axis.
+
+Stats:
+- Wall time: ~5-6 minutes
+- Token count: n/a

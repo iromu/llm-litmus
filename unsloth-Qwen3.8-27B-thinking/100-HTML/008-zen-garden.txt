@@ -1,0 +1,24 @@
+Creative prompt (verbatim):
+Create a digital zen rock garden with a warm sand-colored background, raked sand patterns (horizontal lines and concentric ellipses around rocks), and five hand-crafted stone shapes rendered as SVG paths with subtle highlight strokes. Bamboo stalks on the right side, a stepping-stone path on the left, and minimalist "Zen Garden" text centered at the bottom. The rocks have a drop shadow and hover lift effect. Mouse movement causes the rocks to drift subtly in response to cursor position, like a gentle breeze. The overall mood is serene, balanced, and meditative.
+
+Model: Qwen3.8-27B (thinking) — thinking effort: high
+
+Techniques used:
+- Full-bleed inline SVG (viewBox 0 0 1200 800, preserveAspectRatio slice) as the garden canvas: warm radial sand background, an SVG <pattern> of horizontal raked-sand lines (two stroke weights/opacities per 16px cell) tiled over the whole field, and concentric <ellipse> ring sets raked around each rock group (two nested rings on the main stone, plus lone flowing rake-stroke paths between clusters)
+- Five hand-crafted stones as organic multi-segment cubic-Bézier SVG <path> silhouettes, each with: a vertical linearGradient body fill (lit upper-left to dark base), a faint dark outline, a subtle curved highlight stroke on the upper-left rim, a dark occlusion wedge on the lower-right, and a radialGradient sheen overlay — each rock individually rotated/scaled so no two repeat
+- CSS filter drop-shadow on each rock for depth; hovering a rock adds the .is-hover class → translateY(-13px) lift with a taller, wider drop-shadow, both on a long soft cubic-bezier transition so stones settle gently back
+- Mouse-driven parallax drift: pointermove/touchmove normalizes the cursor to -1..1, an exponential (frame-rate-independent) lerp eases the scene drift, and each rock's SVG group transform combines its anchor translate + depth-scaled drift (data-depth 20–44) + a per-phase sine idle drift and near-imperceptible scale "breathing" — the bamboo cluster counter-drifts at reduced magnitude for depth
+- Bamboo on the right built from four CSS gradient stalks: linear-gradient bark (light→dark horizontal bands) plus a repeating-linear-gradient of thin dark joint lines (the joint seams), inset shadow for roundness, slow ±0.6° stalkSway keyframes, and eight leaf shapes (border-radius petal ellipses, leafSway rotation via per-leaf --r custom property with staggered negative delays)
+- Stepping-stone path on the left: six irregular ellipses (varying size/rotation) in muted sand-grey with a lighter inner ellipse rim light, plus soft contact-shadow ellipses under the rock clusters
+- Atmosphere: drifting dust motes (fixed spans, radial-gradient glow dots, long staggered moteFloat keyframes rising ~92vh), warm vignette overlay, and a fine multiply-blended paper grain via an inline feTurbulence SVG data-URI (no external assets)
+- Minimalist typography: "ZEN GARDEN" bottom-centered in serif with wide clamp()-scaled letter-spacing (text-indent compensates trailing tracking) under a faint kanji glyph 枯山水; small tracked corner labels (禅 / STONE · SAND · BREATH / No. 008 — GARDEN SERIES)
+- Responsive media queries (720px width trims bamboo to two stalks and prunes leaves; 560px height compacts the title and hides chrome) and a prefers-reduced-motion fallback that freezes all animation and leaves the scene static and contemplative
+
+Interaction model:
+- Mouse movement creates subtle parallax drift on the rocks (depth-scaled, eased "gentle breeze"); bamboo counter-drifts slightly
+- Hovering a rock lifts it (translateY(-13px)) with a deepened drop shadow; it settles back on mouse leave
+- Otherwise still and contemplative: only slow stalk/leaf sway and drifting dust motes keep the scene alive
+
+Stats:
+- Wall time: ~6 minutes (estimate)
+- Token count: n/a

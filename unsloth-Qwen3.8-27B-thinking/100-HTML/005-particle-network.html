@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Particle Network — Connected</title>
+<style>
+  :root {
+    --ink-0: #04060e;
+    --ink-1: #070b18;
+    --ink-2: #0c1326;
+    --cyan: #63d6ff;
+    --azure: #4f9bff;
+    --violet: #9d8bff;
+    --text: rgba(206, 224, 255, 0.92);
+    --text-dim: rgba(150, 175, 214, 0.62);
+    --text-faint: rgba(120, 145, 185, 0.42);
+    --glow: rgba(99, 214, 255, 0.55);
+    --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --font-mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, "Liberation Mono", monospace;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+    background: var(--ink-0);
+    font-family: var(--font-sans);
+    color: var(--text);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  body { cursor: crosshair; }
+
+  /* faint data-grid backdrop */
+  .grid {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background-image:
+      linear-gradient(rgba(90, 140, 200, 0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(90, 140, 200, 0.05) 1px, transparent 1px);
+    background-size: 48px 48px;
+    -webkit-mask-image: radial-gradient(ellipse 90% 80% at 50% 50%, #000 0%, transparent 78%);
+    mask-image: radial-gradient(ellipse 90% 80% at 50% 50%, #000 0%, transparent 78%);
+  }
+
+  canvas {
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  /* depth vignette on top of canvas */
+  .vignette {
+    position: fixed;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+    background:
+      radial-gradient(ellipse 120% 100% at 50% 50%, transparent 55%, rgba(2, 4, 10, 0.55) 100%),
+      linear-gradient(180deg, rgba(4, 6, 14, 0.35), transparent 18%, transparent 82%, rgba(4, 6, 14, 0.5));
+  }
+
+  /* corner HUD brackets */
+  .frame { position: fixed; inset: 0; z-index: 3; pointer-events: none; }
+  .frame::before,
+  .frame::after {
+    content: "";
+    position: absolute;
+    width: 26px;
+    height: 26px;
+    border: 1px solid rgba(120, 175, 235, 0.28);
+  }
+  .frame::before { top: 18px; left: 18px; border-right: none; border-bottom: none; }
+  .frame::after  { bottom: 18px; right: 18px; border-left: none; border-top: none; }
+
+  .ui {
+    position: fixed;
+    inset: 0;
+    z-index: 4;
+    pointer-events: none;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: clamp(20px, 3.4vw, 48px);
+    user-select: none;
+  }
+
+  .row { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
+  .row.bottom { align-items: flex-end; }
+
+  /* brand / title */
+  .brand { display: flex; flex-direction: column; gap: 13px; }
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: clamp(9px, 1vw, 11px);
+    letter-spacing: 0.42em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    display: flex;
+    align-items: center;
+    gap: 11px;
+  }
+  .dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--cyan);
+    box-shadow: 0 0 10px var(--glow), 0 0 3px #fff;
+    animation: pulse 2.6s ease-in-out infinite;
+    flex: none;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 0.45; transform: scale(0.82); }
+    50%      { opacity: 1; transform: scale(1.15); }
+  }
+
+  h1.title {
+    font-size: clamp(26px, 6.2vw, 72px);
+    font-weight: 200;
+    letter-spacing: clamp(0.28em, 0.5vw, 0.55em);
+    line-height: 1;
+    text-transform: uppercase;
+    color: var(--text);
+    padding-left: 0.12em; /* balance trailing letter-spacing */
+    text-shadow: 0 0 34px rgba(99, 214, 255, 0.35), 0 0 8px rgba(150, 200, 255, 0.25);
+  }
+  .subtitle {
+    font-family: var(--font-mono);
+    font-size: clamp(10px, 1.1vw, 13px);
+    letter-spacing: 0.34em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+
+  .sys {
+    text-align: right;
+    font-family: var(--font-mono);
+    font-size: clamp(9px, 1vw, 11px);
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    line-height: 2;
+  }
+  .sys b { color: var(--cyan); font-weight: 400; }
+
+  /* bottom stats */
+  .stats { display: flex; gap: clamp(18px, 3vw, 42px); }
+  .stat { display: flex; flex-direction: column; gap: 6px; }
+  .stat .label {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 0.36em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+  }
+  .stat .value {
+    font-family: var(--font-mono);
+    font-size: clamp(20px, 2.6vw, 30px);
+    font-weight: 300;
+    letter-spacing: 0.06em;
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+  }
+  .stat .value small { font-size: 0.5em; color: var(--text-faint); letter-spacing: 0.14em; }
+
+  .hint {
+    font-family: var(--font-mono);
+    font-size: clamp(9px, 1vw, 11px);
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    text-align: center;
+    display: flex; align-items: center; gap: 14px;
+    white-space: nowrap;
+  }
+  .hint .sep { color: var(--cyan); }
+
+  .meta {
+    text-align: right;
+    font-family: var(--font-mono);
+    font-size: clamp(9px, 1vw, 11px);
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    line-height: 1.9;
+  }
+  .meta b { color: var(--text-dim); font-weight: 400; font-variant-numeric: tabular-nums; }
+
+  @media (max-width: 620px) {
+    .ui { padding: 22px; }
+    .sys, .meta { display: none; }
+    .hint { letter-spacing: 0.2em; }
+    .stats { gap: 26px; }
+  }
+</style>
+</head>
+<body>
+  <div class="grid"></div>
+  <canvas id="scene"></canvas>
+  <div class="vignette"></div>
+  <div class="frame"></div>
+
+  <div class="ui">
+    <div class="row">
+      <div class="brand">
+        <div class="eyebrow"><span class="dot"></span>Node&nbsp;Map&nbsp;/&nbsp;Live</div>
+        <h1 class="title">Connected</h1>
+        <div class="subtitle">Realtime Particle Network</div>
+      </div>
+      <div class="sys">
+        System&nbsp;//&nbsp;Mesh<br />
+        Signal&nbsp;<b>&#9679; Stable</b>
+      </div>
+    </div>
+
+    <div class="row bottom">
+      <div class="stats">
+        <div class="stat">
+          <div class="label">Links</div>
+          <div class="value" id="links">0000</div>
+        </div>
+        <div class="stat">
+          <div class="label">Nodes</div>
+          <div class="value" id="nodes">000</div>
+        </div>
+      </div>
+
+      <div class="hint">
+        <span>Move&nbsp;to&nbsp;attract</span><span class="sep">/</span><span>Click&nbsp;to&nbsp;spark</span>
+      </div>
+
+      <div class="meta">
+        <b id="fps">60</b>&nbsp;fps<br />
+        v1&nbsp;/&nbsp;canvas2d
+      </div>
+    </div>
+  </div>
+
+  <script>
+  (function () {
+    "use strict";
+
+    var canvas = document.getElementById("scene");
+    var ctx = canvas.getContext("2d");
+    var elLinks = document.getElementById("links");
+    var elNodes = document.getElementById("nodes");
+    var elFps = document.getElementById("fps");
+
+    // --- configuration -----------------------------------------------------
+    var LINK_DIST = 132;       // particle<->particle connection threshold (px)
+    var MOUSE_LINK = 190;      // cursor<->particle bright-link radius (px)
+    var ATTRACT_R = 250;       // cursor attractor influence radius (px)
+    var ATTRACTION = 0.055;    // strength of cursor pull
+    var MAX_SPEED = 1.9;       // speed cap (px/frame) keeps it meditative
+    var FRICTION = 0.986;      // gentle velocity damping
+    var TRAIL = 0.34;          // background wash alpha per frame (motion blur)
+    var MAX_PARTICLES = 300;   // hard cap incl. click bursts
+    var BURST_COUNT = 14;      // particles spawned per click
+
+    var W = 0, H = 0, DPR = 1;
+    var T2 = LINK_DIST * LINK_DIST;
+    var bg = null;             // cached radial background gradient
+    var particles = [];
+    var mouse = { x: 0, y: 0, active: false };
+    var linkCount = 0;
+
+    // --- sizing ------------------------------------------------------------
+    function resize() {
+      W = window.innerWidth;
+      H = window.innerHeight;
+      DPR = Math.min(window.devicePixelRatio || 1, 2);
+      canvas.width = Math.max(1, Math.floor(W * DPR));
+      canvas.height = Math.max(1, Math.floor(H * DPR));
+      ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+      T2 = LINK_DIST * LINK_DIST;
+      buildBackground();
+      // keep any out-of-bounds particles inside the new viewport
+      for (var i = 0; i < particles.length; i++) {
+        var p = particles[i];
+        if (p.x > W) p.x = W - 1;
+        if (p.y > H) p.y = H - 1;
+      }
+    }
+
+    function buildBackground() {
+      var cx = W * 0.5, cy = H * 0.46;
+      var r = Math.max(W, H) * 0.78;
+      bg = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+      bg.addColorStop(0.0, "#0c152c");
+      bg.addColorStop(0.45, "#080f22");
+      bg.addColorStop(1.0, "#03050d");
+    }
+
+    // --- particle factory --------------------------------------------------
+    function rand(min, max) { return min + Math.random() * (max - min); }
+
+    function makeParticle(x, y, vx, vy, burst) {
+      var tr = rand(1.1, 2.4);                 // settled radius
+      return {
+        x: x, y: y,
+        vx: vx, vy: vy,
+        tr: tr,
+        r: burst ? tr * 0.22 : tr,             // bursts bloom in
+        hue: rand(186, 224),                   // cyan -> azure -> violet
+        phase: rand(0, Math.PI * 2),
+        ps: rand(0.8, 2.1),                     // pulse speed (rad/s)
+        baseA: rand(0.62, 0.95)
+      };
+    }
+
+    function seedParticles() {
+      particles.length = 0;
+      var target = Math.round((W * H) / 14500);
+      target = Math.max(40, Math.min(150, target));
+      for (var i = 0; i < target; i++) {
+        particles.push(makeParticle(
+          rand(0, W), rand(0, H),
+          rand(-0.5, 0.5), rand(-0.5, 0.5), false
+        ));
+      }
+    }
+
+    function burst(x, y) {
+      for (var i = 0; i < BURST_COUNT; i++) {
+        var a = rand(0, Math.PI * 2);
+        var s = rand(1.6, 4.6);
+        particles.push(makeParticle(x, y, Math.cos(a) * s, Math.sin(a) * s, true));
+      }
+      // trim oldest so the population stays bounded
+      var excess = particles.length - MAX_PARTICLES;
+      if (excess > 0) particles.splice(0, excess);
+    }
+
+    // --- input -------------------------------------------------------------
+    function setMouse(cx, cy) {
+      mouse.x = cx;
+      mouse.y = cy;
+      mouse.active = true;
+    }
+    window.addEventListener("mousemove", function (e) {
+      setMouse(e.clientX, e.clientY);
+    }, { passive: true });
+    window.addEventListener("mouseleave", function () { mouse.active = false; });
+    window.addEventListener("mousedown", function (e) {
+      setMouse(e.clientX, e.clientY);
+      burst(e.clientX, e.clientY);
+    });
+    window.addEventListener("touchstart", function (e) {
+      if (e.touches.length) {
+        setMouse(e.touches[0].clientX, e.touches[0].clientY);
+        burst(e.touches[0].clientX, e.touches[0].clientY);
+      }
+    }, { passive: true });
+    window.addEventListener("touchmove", function (e) {
+      if (e.touches.length) setMouse(e.touches[0].clientX, e.touches[0].clientY);
+    }, { passive: true });
+    window.addEventListener("touchend", function () { mouse.active = false; });
+    window.addEventListener("resize", resize, { passive: true });
+
+    // --- physics -----------------------------------------------------------
+    var MAX_DRAW = 800;        // per-frame line budget (keeps FPS smooth in dense clusters)
+
+    function update(dt) {
+      for (var i = 0; i < particles.length; i++) {
+        var p = particles[i];
+
+        // cursor attractor: pull inward, with a soft repelling core so
+        // particles orbit the cursor instead of piling into a single point
+        if (mouse.active) {
+          var adx = mouse.x - p.x, ady = mouse.y - p.y;
+          var ad = Math.sqrt(adx * adx + ady * ady);
+          if (ad < ATTRACT_R && ad > 0.001) {
+            var f, force;
+            if (ad < 60) {
+              f = -ATTRACTION * (1 - ad / 60) * 0.7;   // soft core repel
+            } else {
+              f = (1 - ad / ATTRACT_R) * ATTRACTION;   // outer pull
+            }
+            force = f;
+            p.vx += (adx / ad) * force;
+            p.vy += (ady / ad) * force;
+          }
+        }
+
+        // organic jitter + damping
+        p.vx += (Math.random() - 0.5) * 0.02;
+        p.vy += (Math.random() - 0.5) * 0.02;
+        p.vx *= FRICTION;
+        p.vy *= FRICTION;
+
+        // speed cap keeps the motion slow and meditative
+        var sp = Math.sqrt(p.vx * p.vx + p.vy * p.vy);
+        if (sp > MAX_SPEED) { var k = MAX_SPEED / sp; p.vx *= k; p.vy *= k; }
+
+        p.x += p.vx;
+        p.y += p.vy;
+
+        // self-bouncing boundaries
+        if (p.x < 0) { p.x = 0; p.vx = -p.vx; }
+        else if (p.x > W) { p.x = W; p.vx = -p.vx; }
+        if (p.y < 0) { p.y = 0; p.vy = -p.vy; }
+        else if (p.y > H) { p.y = H; p.vy = -p.vy; }
+
+        // radius eases toward target (bursts bloom), sine alpha pulse
+        p.r += (p.tr - p.r) * 0.12;
+        p.phase += p.ps * dt;
+      }
+    }
+
+    // --- rendering ---------------------------------------------------------
+    function render() {
+      linkCount = 0;
+      var budget = MAX_DRAW;
+
+      // motion-blur wash toward the cached background gradient
+      ctx.globalCompositeOperation = "source-over";
+      ctx.globalAlpha = TRAIL;
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, W, H);
+      ctx.globalAlpha = 1;
+
+      // additive glow pass for links + particles
+      ctx.globalCompositeOperation = "lighter";
+      ctx.lineCap = "round";
+
+      var i, j, p, q;
+
+      // cursor attractor halo
+      if (mouse.active) {
+        var cg = ctx.createRadialGradient(mouse.x, mouse.y, 0, mouse.x, mouse.y, 150);
+        cg.addColorStop(0.0, "rgba(120,220,255,0.18)");
+        cg.addColorStop(0.5, "rgba(80,160,255,0.06)");
+        cg.addColorStop(1.0, "rgba(80,160,255,0)");
+        ctx.fillStyle = cg;
+        ctx.beginPath();
+        ctx.arc(mouse.x, mouse.y, 150, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // particle <-> particle connections (distance-based alpha)
+      for (i = 0; i < particles.length; i++) {
+        p = particles[i];
+        for (j = i + 1; j < particles.length; j++) {
+          q = particles[j];
+          var dx = p.x - q.x, dy = p.y - q.y;
+          var d2 = dx * dx + dy * dy;
+          if (d2 < T2) {
+            var d = Math.sqrt(d2);
+            var a = 1 - d / LINK_DIST;
+            var hue = (p.hue + q.hue) * 0.5;
+            linkCount++;
+            if (budget > 0) {
+              budget--;
+              ctx.strokeStyle = "hsla(" + hue + ",90%,68%," + (a * 0.12).toFixed(3) + ")";
+              ctx.lineWidth = 2.4;
+              ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(q.x, q.y); ctx.stroke();
+              ctx.strokeStyle = "hsla(" + hue + ",95%,82%," + (a * 0.5).toFixed(3) + ")";
+              ctx.lineWidth = 0.8;
+              ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(q.x, q.y); ctx.stroke();
+            }
+          }
+        }
+      }
+
+      // cursor <-> nearby particles (brighter links)
+      if (mouse.active) {
+        var m2 = MOUSE_LINK * MOUSE_LINK;
+        for (i = 0; i < particles.length; i++) {
+          p = particles[i];
+          var mdx = p.x - mouse.x, mdy = p.y - mouse.y;
+          var md2 = mdx * mdx + mdy * mdy;
+          if (md2 < m2) {
+            var md = Math.sqrt(md2);
+            var ma = 1 - md / MOUSE_LINK;
+            linkCount++;
+            if (budget > 0) {
+              budget--;
+              ctx.strokeStyle = "hsla(192,95%,80%," + (ma * 0.2).toFixed(3) + ")";
+              ctx.lineWidth = 2.2;
+              ctx.beginPath(); ctx.moveTo(mouse.x, mouse.y); ctx.lineTo(p.x, p.y); ctx.stroke();
+              ctx.strokeStyle = "hsla(198,100%,92%," + (ma * 0.72).toFixed(3) + ")";
+              ctx.lineWidth = 1.1;
+              ctx.beginPath(); ctx.moveTo(mouse.x, mouse.y); ctx.lineTo(p.x, p.y); ctx.stroke();
+            }
+          }
+        }
+      }
+
+      // particle nodes (glow + pulsing core)
+      for (i = 0; i < particles.length; i++) {
+        p = particles[i];
+        var s = 0.5 + 0.5 * Math.sin(p.phase);
+        var na = p.baseA * (0.45 + 0.55 * s);
+        var gr = p.r * 6;
+        var g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, gr);
+        g.addColorStop(0.0, "hsla(" + p.hue + ",100%,86%," + (na * 0.9).toFixed(3) + ")");
+        g.addColorStop(0.28, "hsla(" + p.hue + ",95%,64%," + (na * 0.35).toFixed(3) + ")");
+        g.addColorStop(1.0, "hsla(" + p.hue + ",95%,60%,0)");
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(p.x, p.y, gr, 0, Math.PI * 2); ctx.fill();
+
+        ctx.fillStyle = "hsla(" + p.hue + ",100%,96%," + na.toFixed(3) + ")";
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill();
+      }
+
+      ctx.globalCompositeOperation = "source-over";
+    }
+
+    // --- HUD ---------------------------------------------------------------
+    function pad(n, w) {
+      n = Math.max(0, Math.floor(n));
+      var str = String(n);
+      while (str.length < w) str = "0" + str;
+      return str;
+    }
+    function updateHud(fps) {
+      elLinks.textContent = pad(linkCount, 4);
+      elNodes.textContent = pad(particles.length, 3);
+      if (fps != null) elFps.textContent = String(fps);
+    }
+
+    // --- loop --------------------------------------------------------------
+    var last = performance.now();
+    var fpsFrames = 0, fpsLast = performance.now();
+
+    function loop(now) {
+      var dt = (now - last) / 1000;
+      last = now;
+      if (dt > 0.05) dt = 0.05;
+      if (dt < 0) dt = 0;
+
+      update(dt);
+      render();
+
+      fpsFrames++;
+      var span = now - fpsLast;
+      if (span >= 500) {
+        var fps = Math.round(fpsFrames * 1000 / span);
+        updateHud(fps);
+        fpsLast = now;
+        fpsFrames = 0;
+      }
+      requestAnimationFrame(loop);
+    }
+
+    // --- init --------------------------------------------------------------
+    resize();
+    seedParticles();
+    updateHud(null);
+    requestAnimationFrame(loop);
+  })();
+  </script>
+</body>
+</html>

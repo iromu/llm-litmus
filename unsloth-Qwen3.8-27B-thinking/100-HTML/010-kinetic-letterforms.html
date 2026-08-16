@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kinetic Letterforms</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #05070d;
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    cursor: crosshair;
+  }
+
+  #scene {
+    position: fixed;
+    inset: 0;
+    display: block;
+  }
+
+  /* Soft vignette + ambient glow behind the canvas scene */
+  .vignette {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(ellipse 90% 70% at 50% 45%, rgba(80, 130, 255, 0.07), transparent 60%),
+      radial-gradient(ellipse 120% 100% at 50% 110%, rgba(10, 14, 30, 0.9), transparent 55%),
+      radial-gradient(ellipse 120% 100% at 50% -10%, rgba(6, 9, 20, 0.8), transparent 55%);
+  }
+
+  .overlay-title {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    font-size: clamp(9rem, 34vw, 34rem);
+    font-weight: 900;
+    letter-spacing: 0.04em;
+    color: rgba(160, 200, 255, 0.028);
+    white-space: nowrap;
+    user-select: none;
+    -webkit-user-select: none;
+    z-index: 1;
+  }
+
+  .header {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    padding: 28px 34px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    pointer-events: none;
+    z-index: 3;
+  }
+
+  .brand {
+    font-size: 11px;
+    letter-spacing: 0.42em;
+    text-transform: uppercase;
+    color: rgba(190, 215, 255, 0.72);
+    font-weight: 600;
+  }
+
+  .brand small {
+    display: block;
+    margin-top: 6px;
+    font-size: 9px;
+    letter-spacing: 0.3em;
+    font-weight: 400;
+    color: rgba(140, 165, 210, 0.4);
+  }
+
+  .counter {
+    font-size: 10px;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: rgba(140, 165, 210, 0.5);
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .footer {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 26px 34px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    pointer-events: none;
+    z-index: 3;
+  }
+
+  .hint {
+    font-size: 10px;
+    letter-spacing: 0.34em;
+    text-transform: uppercase;
+    color: rgba(170, 195, 240, 0.55);
+  }
+
+  .hint .dot {
+    display: inline-block;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: rgba(150, 200, 255, 0.85);
+    margin-right: 10px;
+    vertical-align: middle;
+    box-shadow: 0 0 8px rgba(150, 200, 255, 0.9);
+    animation: pulse 2.4s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 0.35; transform: scale(0.8); }
+    50%      { opacity: 1;    transform: scale(1.15); }
+  }
+
+  .energy {
+    font-size: 10px;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: rgba(140, 165, 210, 0.42);
+    font-variant-numeric: tabular-nums;
+  }
+
+  @media (max-width: 640px) {
+    .header, .footer { padding: 20px 22px; }
+    .counter { display: none; }
+  }
+</style>
+</head>
+<body>
+  <canvas id="scene"></canvas>
+  <div class="vignette"></div>
+  <div class="overlay-title" aria-hidden="true">KINETIC</div>
+
+  <div class="header">
+    <div class="brand">Kinetic Letterforms<small>spring physics · type in motion</small></div>
+    <div class="counter" id="counter">7 forms · 42 drifters</div>
+  </div>
+
+  <div class="footer">
+    <div class="hint"><span class="dot"></span>move the cursor — letters repel · click to scatter</div>
+    <div class="energy" id="energy">energy 0.00</div>
+  </div>
+
+<script>
+(function () {
+  "use strict";
+
+  var canvas = document.getElementById("scene");
+  var ctx = canvas.getContext("2d");
+  var counterEl = document.getElementById("counter");
+  var energyEl = document.getElementById("energy");
+
+  var WORD = "KINETIC";
+  var DRIFTERS = 42;
+  var FLOAT_CHARS = "KINETYCLRBDFGJOPQWXZ0123456789";
+
+  var W = 0, H = 0, DPR = 1;
+  var mouse = { x: -9999, y: -9999, px: -9999, py: -9999, vx: 0, vy: 0, speed: 0, active: false };
+  var time = 0;
+
+  // ---- Tunables ----------------------------------------------------------
+  var SPRING = 0.045;       // attraction to target
+  var FRICTION = 0.88;      // velocity damping
+  var REPEL_RADIUS = 190;   // mouse repulsion radius
+  var REPEL_FORCE = 2.6;    // repulsion strength
+  var DRIFT_RADIUS = 60;    // floater repulsion radius
+  var DRIFT_FORCE = 0.9;
+  var CONNECT_MAX = 150;    // max distance for connection lines
+
+  var letters = [];
+  var floaters = [];
+  var fontBase = 100;
+
+  // ---- Utilities ---------------------------------------------------------
+  function rand(min, max) { return min + Math.random() * (max - min); }
+  function randSign() { return Math.random() < 0.5 ? -1 : 1; }
+
+  // HSL color string with alpha
+  function hsla(h, s, l, a) {
+    return "hsla(" + h + "," + s + "%," + l + "%," + a + ")";
+  }
+
+  // ---- Setup / sizing ----------------------------------------------------
+  function resize() {
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = W * DPR;
+    canvas.height = H * DPR;
+    canvas.style.width = W + "px";
+    canvas.style.height = H + "px";
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+
+    // Responsive typography sizing: fit the word across ~62% of width
+    fontBase = Math.min(H * 0.22, (W * 0.62) / (WORD.length * 0.78));
+    fontBase = Math.max(42, Math.min(170, fontBase));
+
+    layoutTargets();
+  }
+
+  function layoutTargets() {
+    var total = WORD.length;
+    var gap = fontBase * 0.78;
+    var startX = W / 2 - (gap * (total - 1)) / 2;
+    for (var i = 0; i < letters.length; i++) {
+      letters[i].tx = startX + i * gap;
+      letters[i].ty = H / 2;
+    }
+  }
+
+  // ---- Letter model ------------------------------------------------------
+  function makeLetter(ch, x, y, isMain, index) {
+    return {
+      ch: ch,
+      x: x, y: y,
+      vx: rand(-4, 4), vy: rand(-4, 4),
+      tx: x, ty: y,
+      size: isMain ? fontBase : rand(fontBase * 0.22, fontBase * 0.5),
+      baseSize: isMain ? fontBase : 0,
+      phase: rand(0, Math.PI * 2),
+      freq: rand(0.5, 1.4),
+      rotPhase: rand(0, Math.PI * 2),
+      rotFreq: rand(0.15, 0.5),
+      hue: rand(205, 225),
+      isMain: isMain,
+      index: index
+    };
+  }
+
+  function initLetters() {
+    letters = [];
+    for (var i = 0; i < WORD.length; i++) {
+      letters.push(makeLetter(WORD[i], rand(0, W), rand(0, H), true, i));
+    }
+  }
+
+  function makeFloater() {
+    var f = makeLetter(
+      FLOAT_CHARS.charAt(Math.floor(Math.random() * FLOAT_CHARS.length)),
+      rand(0, W), rand(0, H), false, -1
+    );
+    f.baseSize = f.size;
+    f.targetX = rand(0, W);
+    f.targetY = rand(0, H);
+    f.wander = rand(0, Math.PI * 2);
+    f.wanderSpeed = rand(0.004, 0.012);
+    f.speed = rand(0.15, 0.5);
+    return f;
+  }
+
+  function initFloaters() {
+    floaters = [];
+    for (var i = 0; i < DRIFTERS; i++) {
+      floaters.push(makeFloater());
+    }
+  }
+
+  // Full re-randomization (click)
+  function scatter() {
+    for (var i = 0; i < letters.length; i++) {
+      var L = letters[i];
+      L.x = rand(0, W);
+      L.y = rand(0, H);
+      L.vx = rand(-9, 9);
+      L.vy = rand(-9, 9);
+      L.hue = rand(200, 240);
+    }
+    for (var j = 0; j < floaters.length; j++) {
+      var F = floaters[j];
+      F.x = rand(0, W);
+      F.y = rand(0, H);
+      F.vx = rand(-7, 7);
+      F.vy = rand(-7, 7);
+      F.targetX = rand(0, W);
+      F.targetY = rand(0, H);
+    }
+  }
+
+  // ---- Physics step ------------------------------------------------------
+  function physicsStep(L) {
+    // Spring toward target (mains only; floaters wander)
+    if (L.isMain) {
+      L.vx += (L.tx - L.x) * SPRING;
+      L.vy += (L.ty - L.y) * SPRING;
+    } else {
+      // slow wander
+      L.wander += L.wanderSpeed;
+      L.targetX += Math.cos(L.wander) * L.speed;
+      L.targetY += Math.sin(L.wander * 0.8) * L.speed;
+      // wrap floaters softly
+      if (L.targetX < -80) L.targetX = W + 80;
+      if (L.targetX > W + 80) L.targetX = -80;
+      if (L.targetY < -80) L.targetY = H + 80;
+      if (L.targetY > H + 80) L.targetY = -80;
+      L.vx += (L.targetX - L.x) * 0.006;
+      L.vy += (L.targetY - L.y) * 0.006;
+    }
+
+    // Mouse repulsion
+    if (mouse.active) {
+      var r = L.isMain ? REPEL_RADIUS : DRIFT_RADIUS;
+      var force = L.isMain ? REPEL_FORCE : DRIFT_FORCE;
+      var dx = L.x - mouse.x;
+      var dy = L.y - mouse.y;
+      var dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < r && dist > 0.001) {
+        var t = 1 - dist / r;
+        var push = (t * t) * force * (L.isMain ? 3.4 : 1.4);
+        L.vx += (dx / dist) * push;
+        L.vy += (dy / dist) * push;
+        // a flick of the cursor adds impulse
+        if (mouse.speed > 4) {
+          L.vx += (dx / dist) * mouse.speed * 0.06 * t;
+          L.vy += (dy / dist) * mouse.speed * 0.06 * t;
+        }
+      }
+    }
+
+    L.vx *= FRICTION;
+    L.vy *= FRICTION;
+    L.x += L.vx;
+    L.y += L.vy;
+  }
+
+  // ---- Glow / pulse helpers ---------------------------------------------
+  // Returns {proximity, pulse, rot} for a letter at time `time`
+  function dynamics(L) {
+    var pulse = 1 + Math.sin(time * L.freq + L.phase) * 0.05;
+    var rot = Math.sin(time * L.rotFreq + L.rotPhase) * 0.07;
+
+    var proximity = 0;
+    if (mouse.active) {
+      var dx = L.x - mouse.x;
+      var dy = L.y - mouse.y;
+      var dist = Math.sqrt(dx * dx + dy * dy);
+      var radius = L.isMain ? REPEL_RADIUS * 1.5 : REPEL_RADIUS;
+      if (dist < radius) {
+        proximity = 1 - dist / radius;
+        proximity = proximity * proximity;
+      }
+    }
+
+    // kinetic energy also lifts the glow a bit
+    var speedGlow = Math.min(1, Math.sqrt(L.vx * L.vx + L.vy * L.vy) * 0.12);
+    var glow = Math.max(proximity, speedGlow);
+
+    return { pulse: pulse, rot: rot, proximity: proximity, glow: glow };
+  }
+
+  // ---- Rendering ---------------------------------------------------------
+  function drawConnections() {
+    for (var i = 0; i < letters.length - 1; i++) {
+      var A = letters[i];
+      var B = letters[i + 1];
+      var dx = B.x - A.x;
+      var dy = B.y - A.y;
+      var dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < CONNECT_MAX) {
+        var strength = 1 - dist / CONNECT_MAX;
+        // curve the line with a midpoint bulge for elegance
+        var mx = (A.x + B.x) / 2 - dy * 0.12;
+        var my = (A.y + B.y) / 2 + dx * 0.12;
+        ctx.save();
+        ctx.strokeStyle = hsla(215, 90, 72, 0.05 + strength * 0.45);
+        ctx.lineWidth = 0.6 + strength * 1.4;
+        ctx.shadowColor = hsla(215, 100, 75, strength * 0.7);
+        ctx.shadowBlur = 10 * strength;
+        ctx.beginPath();
+        ctx.moveTo(A.x, A.y);
+        ctx.quadraticCurveTo(mx, my, B.x, B.y);
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+  }
+
+  function drawLetter(L, dyn, alphaScale) {
+    var size = L.size * dyn.pulse * (1 + dyn.proximity * 0.18);
+    var alpha = alphaScale * (L.isMain ? 0.95 : 0.38);
+    alpha += dyn.proximity * 0.15;
+    if (alpha > 1) alpha = 1;
+
+    var light = L.isMain ? 74 + dyn.glow * 20 : 62 + dyn.glow * 22;
+
+    ctx.save();
+    ctx.translate(L.x, L.y);
+    ctx.rotate(dyn.rot);
+    ctx.font = "900 " + size + "px 'Helvetica Neue', Helvetica, Arial, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+
+    // glow layer
+    ctx.shadowColor = hsla(L.hue, 100, 68, 0.5 + dyn.glow * 0.5);
+    ctx.shadowBlur = (L.isMain ? 14 : 5) + dyn.glow * 42;
+    ctx.fillStyle = hsla(L.hue, L.isMain ? 85 : 60, light, alpha);
+    ctx.fillText(L.ch, 0, 0);
+
+    // crisp core pass for the main letters
+    if (L.isMain) {
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = hsla(218, 100, 92, alpha * 0.85);
+      ctx.fillText(L.ch, 0, 0);
+    }
+    ctx.restore();
+  }
+
+  function drawCursorAura() {
+    if (!mouse.active) return;
+    var g = ctx.createRadialGradient(mouse.x, mouse.y, 0, mouse.x, mouse.y, 130);
+    g.addColorStop(0, "rgba(150, 200, 255, 0.06)");
+    g.addColorStop(0.5, "rgba(120, 170, 255, 0.02)");
+    g.addColorStop(1, "rgba(120, 170, 255, 0)");
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(mouse.x, mouse.y, 130, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  function frame() {
+    time += 1 / 60;
+
+    // fade trails for a subtle motion blur
+    ctx.fillStyle = "rgba(5, 7, 13, 0.5)";
+    ctx.fillRect(0, 0, W, H);
+
+    // physics
+    var energy = 0;
+    var i, L, dyn;
+    for (i = 0; i < letters.length; i++) {
+      physicsStep(letters[i]);
+      energy += letters[i].vx * letters[i].vx + letters[i].vy * letters[i].vy;
+    }
+    for (i = 0; i < floaters.length; i++) {
+      physicsStep(floaters[i]);
+    }
+
+    drawCursorAura();
+    drawConnections();
+
+    // floaters behind
+    for (i = 0; i < floaters.length; i++) {
+      dyn = dynamics(floaters[i]);
+      drawLetter(floaters[i], dyn, 0.9);
+    }
+    // main letters on top
+    for (i = 0; i < letters.length; i++) {
+      dyn = dynamics(letters[i]);
+      drawLetter(letters[i], dyn, 1);
+    }
+
+    // smooth mouse speed decay
+    mouse.speed *= 0.9;
+
+    // HUD updates (throttled)
+    if (frameCount % 12 === 0) {
+      energyEl.textContent = "energy " + Math.sqrt(energy / letters.length).toFixed(2);
+    }
+
+    frameCount++;
+    requestAnimationFrame(frame);
+  }
+
+  var frameCount = 0;
+
+  // ---- Events ------------------------------------------------------------
+  window.addEventListener("resize", resize);
+
+  function onMove(x, y) {
+    mouse.px = mouse.x;
+    mouse.py = mouse.y;
+    mouse.x = x;
+    mouse.y = y;
+    if (mouse.px > -9000) {
+      mouse.vx = x - mouse.px;
+      mouse.vy = y - mouse.py;
+      mouse.speed = Math.sqrt(mouse.vx * mouse.vx + mouse.vy * mouse.vy);
+    }
+    mouse.active = true;
+  }
+
+  window.addEventListener("mousemove", function (e) { onMove(e.clientX, e.clientY); });
+  window.addEventListener("mouseleave", function () { mouse.active = false; });
+
+  window.addEventListener("touchmove", function (e) {
+    if (e.touches.length > 0) {
+      onMove(e.touches[0].clientX, e.touches[0].clientY);
+      if (e.cancelable) e.preventDefault();
+    }
+  }, { passive: false });
+
+  window.addEventListener("touchend", function () { mouse.active = false; });
+
+  window.addEventListener("click", function (e) {
+    // click also flings the nearest letters outward
+    scatter();
+    for (var i = 0; i < letters.length; i++) {
+      var L = letters[i];
+      var dx = L.x - e.clientX;
+      var dy = L.y - e.clientY;
+      var d = Math.sqrt(dx * dx + dy * dy) || 1;
+      L.vx += (dx / d) * 10;
+      L.vy += (dy / d) * 10;
+    }
+  });
+
+  // ---- Boot --------------------------------------------------------------
+  resize();
+  initLetters();
+  initFloaters();
+  counterEl.textContent = letters.length + " forms · " + floaters.length + " drifters";
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

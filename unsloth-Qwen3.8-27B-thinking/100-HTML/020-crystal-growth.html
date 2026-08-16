@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Crystal Growth — Generative Nucleation</title>
+<style>
+  :root{
+    --bg:#05060a;
+    --ink:#c9d2ff;
+    --dim:#6b7398;
+    --mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  html,body{height:100%;width:100%;overflow:hidden;background:var(--bg);}
+  body{
+    font-family:var(--sans);
+    color:var(--ink);
+    -webkit-user-select:none;user-select:none;
+    touch-action:none;
+    cursor:crosshair;
+  }
+  #c{position:fixed;inset:0;display:block;z-index:0;}
+
+  /* Microscope eyepiece vignette + circular field */
+  .vignette{
+    position:fixed;inset:0;z-index:2;pointer-events:none;
+    background:
+      radial-gradient(130% 130% at 50% 50%, transparent 42%, rgba(3,4,8,0.55) 82%, rgba(2,3,6,0.92) 100%);
+  }
+  .ring{
+    position:fixed;left:50%;top:50%;z-index:3;pointer-events:none;
+    width:min(88vmin, 760px);height:min(88vmin, 760px);
+    transform:translate(-50%,-50%);
+    border:1px solid rgba(150,160,255,0.10);
+    border-radius:50%;
+    box-shadow:
+      inset 0 0 0 1px rgba(150,160,255,0.04),
+      0 0 60px rgba(90,110,255,0.10);
+  }
+  .ring::before{
+    content:"";position:absolute;inset:26px;border-radius:50%;
+    border:1px dashed rgba(150,160,255,0.06);
+  }
+
+  /* Corner HUD */
+  .hud{position:fixed;z-index:5;pointer-events:none;font-family:var(--mono);}
+  .title{top:clamp(16px,3.2vh,34px);left:clamp(18px,3.5vw,44px);}
+  .title .label{
+    font-size:clamp(9px,1.1vw,11px);letter-spacing:0.42em;
+    text-transform:uppercase;color:var(--dim);margin-bottom:8px;
+    display:flex;align-items:center;gap:10px;
+  }
+  .title .label::before{
+    content:"";width:7px;height:7px;border-radius:50%;
+    background:#8f7bff;box-shadow:0 0 10px 2px rgba(143,123,255,0.8);
+    animation:pulse 2.6s ease-in-out infinite;
+  }
+  .title h1{
+    font-size:clamp(22px,4.2vw,46px);font-weight:300;letter-spacing:0.14em;
+    color:var(--ink);line-height:1.05;
+    text-shadow:0 0 26px rgba(120,110,255,0.35);
+  }
+  .title h1 b{font-weight:600;background:linear-gradient(100deg,#7fd0ff,#9d8bff,#e58bff);-webkit-background-clip:text;background-clip:text;color:transparent;}
+  .title .sub{
+    margin-top:10px;font-size:clamp(10px,1.1vw,12px);letter-spacing:0.06em;
+    color:var(--dim);max-width:min(46ch,60vw);line-height:1.7;
+  }
+
+  .hint{
+    left:clamp(18px,3.5vw,44px);bottom:clamp(16px,3.4vh,34px);
+    font-size:clamp(9px,1.1vw,11.5px);letter-spacing:0.18em;text-transform:uppercase;
+    color:var(--dim);display:flex;flex-direction:column;gap:6px;
+  }
+  .hint .k{color:#a7a9d8;}
+  .hint span{opacity:0;animation:fadein .8s ease forwards;}
+  .hint span:nth-child(2){animation-delay:.15s}
+  .hint span:nth-child(3){animation-delay:.3s}
+
+  .counter{
+    right:clamp(18px,3.5vw,44px);bottom:clamp(16px,3.4vh,34px);
+    font-size:clamp(10px,1.15vw,12px);letter-spacing:0.16em;color:var(--dim);
+    text-align:right;line-height:1.9;
+  }
+  .counter b{color:var(--ink);font-weight:600;}
+  .counter .bar{
+    display:inline-block;width:70px;height:3px;border-radius:2px;margin-left:10px;
+    background:rgba(150,160,255,0.14);overflow:hidden;vertical-align:middle;
+  }
+  .counter .bar i{
+    display:block;height:100%;width:0%;
+    background:linear-gradient(90deg,#6fb8ff,#b48bff);
+    transition:width .3s ease;
+  }
+
+  @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.7)}}
+  @keyframes fadein{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+  .fallback{
+    position:fixed;inset:0;z-index:9;display:flex;align-items:center;justify-content:center;
+    font-family:var(--mono);font-size:13px;color:var(--dim);text-align:center;padding:20px;
+  }
+  @media (max-width:560px){
+    .title .sub{display:none}
+    .hint{flex-direction:row;flex-wrap:wrap;gap:4px 16px}
+  }
+</style>
+</head>
+<body>
+  <canvas id="c"></canvas>
+  <div class="vignette"></div>
+  <div class="ring"></div>
+
+  <header class="hud title">
+    <div class="label">Generative &middot; Nucleation Study</div>
+    <h1>Crystal <b>Growth</b></h1>
+    <p class="sub">Faceted lattices germinating from nucleation points — a frozen,
+      luminescent field observed under the microscope.</p>
+  </header>
+
+  <div class="hud hint">
+    <span><i class="k">click</i> &middot; nucleate a cluster</span>
+    <span><i class="k">move</i> &middot; seed the path</span>
+    <span><i class="k">wait</i> &middot; watch it crystallize</span>
+  </div>
+
+  <div class="hud counter">
+    <div>crystals <b id="cnt">0</b><span class="bar"><i id="bar"></i></span></div>
+    <div>facets <b id="fac">0</b> &middot; fps <b id="fps">60</b></div>
+  </div>
+
+  <div class="fallback" id="fallback" style="display:none">
+    This piece needs canvas + JavaScript. Please enable them and reload.
+  </div>
+
+<script>
+"use strict";
+(function(){
+  var canvas = document.getElementById("c");
+  if(!canvas || !canvas.getContext){
+    var fb=document.getElementById("fallback"); if(fb) fb.style.display="flex";
+    return;
+  }
+  var ctx = canvas.getContext("2d");
+
+  var W=0,H=0,DPR=1;
+  var MAX = 120;
+
+  // ---- pre-rendered glow sprites (blue -> purple), 64x64 radial ----
+  var GL=[];
+  function makeGlow(hue){
+    var s=document.createElement("canvas"); s.width=64;s.height=64;
+    var c=s.getContext("2d");
+    var g=c.createRadialGradient(32,32,0,32,32,32);
+    g.addColorStop(0,   "hsla("+hue+",100%,90%,0.95)");
+    g.addColorStop(0.25,"hsla("+hue+",100%,70%,0.55)");
+    g.addColorStop(0.6, "hsla("+hue+",100%,58%,0.16)");
+    g.addColorStop(1,   "hsla("+hue+",100%,55%,0)");
+    c.fillStyle=g; c.fillRect(0,0,64,64);
+    return s;
+  }
+  for(var h=190; h<=300; h+=10) GL.push(makeGlow(h));
+  function glowSprite(hue){
+    var i=Math.round((hue-190)/10);
+    if(i<0)i=0; if(i>GL.length-1)i=GL.length-1;
+    return GL[i];
+  }
+  function clamp(v,a,b){ return v<a?a:(v>b?b:v); }
+  function R(a){ return Math.random()*a; }
+
+  // ---- Crystal ----
+  function Crystal(x,y,hueBase){
+    this.x=x; this.y=y;
+    this.hueBase=hueBase;
+    this.facets=[];
+    this.rotation=R(Math.PI*2);
+    this.rotSpeed=(Math.random()-0.5)*0.00045;
+    this.born=performance.now();
+    this.life=1;
+    this.dying=false;
+    this.growTimer=0;
+    this.maxGen=8+Math.floor(R(7));      // 8..14
+    var start=3+Math.floor(R(3));         // 3..5
+    for(var i=0;i<start;i++) this.addFacet();
+  }
+  Crystal.prototype.addFacet=function(){
+    if(this.facets.length>=this.maxGen) return;
+    var ang=R(Math.PI*2);
+    var len=18+R(46)+R(52);
+    this.facets.push({
+      angle:ang,
+      len:0,
+      lenTarget:len,
+      width:3+R(9),
+      hue:clamp(this.hueBase+(Math.random()-0.5)*80,185,305),
+      alpha:0.08+R(0.17),
+      r0:1+R(12),
+      glow:0.7+R(0.9),
+      taper:0.10+R(0.14)
+    });
+  };
+  Crystal.prototype.update=function(dt){
+    this.rotation+=this.rotSpeed*dt;
+    var k=1-Math.exp(-dt/250);
+    for(var i=0;i<this.facets.length;i++){
+      var f=this.facets[i];
+      f.len+=(f.lenTarget-f.len)*k;
+    }
+    if(this.facets.length<this.maxGen){
+      this.growTimer+=dt;
+      var interval=400+this.facets.length*130;
+      if(this.growTimer>interval){ this.growTimer=0; this.addFacet(); }
+    }
+  };
+  Crystal.prototype.draw=function(c){
+    c.save();
+    c.translate(this.x,this.y);
+    c.rotate(this.rotation);
+    c.globalAlpha=clamp(this.life*0.5,0,1);
+    c.drawImage(glowSprite(this.hueBase),-15,-15,30,30); // nucleation core
+    for(var i=0;i<this.facets.length;i++){
+      var f=this.facets[i], L=f.len;
+      if(L<1) continue;
+      var rTip=f.r0+L;
+      var ca=Math.cos(f.angle), sa=Math.sin(f.angle);
+      var pf=f.angle+Math.PI/2, cpa=Math.cos(pf), spa=Math.sin(pf);
+      var tw=f.width*f.taper;
+      var ax=ca*f.r0+cpa*f.width,  ay=sa*f.r0+spa*f.width;
+      var bx=ca*rTip+cpa*tw,       by=sa*rTip+spa*tw;
+      var ex=ca*rTip-cpa*tw,       ey=sa*rTip-spa*tw;
+      var dx=ca*f.r0-cpa*f.width,  dy=sa*f.r0-spa*f.width;
+      c.globalAlpha=clamp(this.life,0,1);
+      c.beginPath();
+      c.moveTo(ax,ay); c.lineTo(bx,by); c.lineTo(ex,ey); c.lineTo(dx,dy); c.closePath();
+      c.fillStyle="hsla("+f.hue+",82%,60%,"+f.alpha+")";
+      c.fill();
+      c.strokeStyle="hsla("+f.hue+",100%,88%,"+Math.min(f.alpha+0.16,0.6)+")";
+      c.lineWidth=0.7;
+      c.stroke();
+      if(L>9){ // tip glow
+        var tx=ca*rTip, ty=sa*rTip;
+        var gr=(9+L*0.12)*f.glow;
+        c.globalAlpha=clamp(this.life*f.alpha*1.6,0,0.9);
+        c.drawImage(glowSprite(f.hue),tx-gr,ty-gr,gr*2,gr*2);
+      }
+    }
+    c.restore();
+  };
+
+  // ---- population ----
+  var crystals=[];
+  function capPopulation(){
+    var over=crystals.length-MAX;
+    if(over>0){ for(var i=0;i<over;i++){ if(!crystals[i].dying) crystals[i].dying=true; } }
+  }
+  function randHue(){ return 210+R(70); }
+  function spawn(x,y,scale){
+    var cr=new Crystal(x,y,randHue());
+    if(scale<1){
+      cr.maxGen=Math.max(4,Math.round(cr.maxGen*scale));
+      var m=0.5+scale*0.5;
+      for(var i=0;i<cr.facets.length;i++) cr.facets[i].lenTarget*=m;
+    }
+    crystals.push(cr); capPopulation();
+    return cr;
+  }
+  function centerWeighted(){
+    return { x:W*0.5+(Math.random()-0.5)*W*0.72, y:H*0.5+(Math.random()-0.5)*H*0.72 };
+  }
+  function seed(n){ for(var i=0;i<n;i++){ var p=centerWeighted(); spawn(p.x,p.y,0.7+R(0.6)); } }
+  function cluster(x,y){
+    var n=4+Math.floor(R(3));
+    for(var i=0;i<n;i++){ var a=R(Math.PI*2), r=R(46); spawn(x+Math.cos(a)*r,y+Math.sin(a)*r,0.9+R(0.3)); }
+    spawn(x,y,1.1); // larger central seed
+  }
+  var lastMove={x:0,y:0,t:0};
+  function onMove(x,y){
+    var now=performance.now();
+    var dx=x-lastMove.x, dy=y-lastMove.y;
+    if(dx*dx+dy*dy>324 && now-lastMove.t>65){ lastMove={x:x,y:y,t:now}; spawn(x,y,0.5+R(0.45)); }
+  }
+
+  // ---- resize ----
+  function resize(){
+    DPR=Math.min(window.devicePixelRatio||1,1.6);
+    W=window.innerWidth; H=window.innerHeight;
+    canvas.width=Math.floor(W*DPR); canvas.height=Math.floor(H*DPR);
+    canvas.style.width=W+"px"; canvas.style.height=H+"px";
+    ctx.setTransform(DPR,0,0,DPR,0,0);
+    ctx.fillStyle="#05060a"; ctx.fillRect(0,0,W,H);
+  }
+  var rto;
+  window.addEventListener("resize",function(){
+    resize();
+    clearTimeout(rto);
+    rto=setTimeout(function(){
+      for(var i=0;i<crystals.length;i++){ var cr=crystals[i];
+        if(cr.x<-60||cr.x>W+60||cr.y<-60||cr.y>H+60) cr.dying=true; }
+    },250);
+  });
+
+  // ---- events ----
+  window.addEventListener("mousemove",function(e){ onMove(e.clientX,e.clientY); });
+  window.addEventListener("mousedown",function(e){ cluster(e.clientX,e.clientY); });
+  window.addEventListener("touchstart",function(e){
+    if(e.touches.length) cluster(e.touches[0].clientX,e.touches[0].clientY);
+  },{passive:true});
+  window.addEventListener("touchmove",function(e){
+    if(e.touches.length) onMove(e.touches[0].clientX,e.touches[0].clientY);
+  },{passive:true});
+
+  // ---- main loop ----
+  var cntEl=document.getElementById("cnt"), facEl=document.getElementById("fac"),
+      fpsEl=document.getElementById("fps"), barEl=document.getElementById("bar");
+  var last=performance.now(), fpsAcc=0,fpsN=0,fpsT=0,nucT=0;
+  function frame(now){
+    var dt=now-last; last=now;
+    if(dt>60)dt=60; if(dt<0)dt=0;
+    fpsAcc+=dt; fpsN++; fpsT+=dt;
+    if(fpsT>500){ if(fpsEl) fpsEl.textContent=Math.round(1000/(fpsAcc/fpsN)); fpsAcc=0;fpsN=0;fpsT=0; }
+
+    nucT+=dt;
+    if(nucT>1500){ nucT=0; if(crystals.length<MAX*0.75){ var p=centerWeighted(); spawn(p.x,p.y,0.6+R(0.5)); } }
+
+    // trailing fade
+    ctx.globalCompositeOperation="source-over";
+    ctx.globalAlpha=1;
+    ctx.fillStyle="rgba(5,6,10,0.10)";
+    ctx.fillRect(0,0,W,H);
+
+    // update + cull
+    for(var i=crystals.length-1;i>=0;i--){
+      var cr=crystals[i]; cr.update(dt);
+      if(cr.dying){ cr.life-=dt*0.0011; if(cr.life<=0){ crystals.splice(i,1); continue; } }
+    }
+
+    // additive draw
+    ctx.globalCompositeOperation="lighter";
+    var totalF=0;
+    for(var j=0;j<crystals.length;j++){ crystals[j].draw(ctx); totalF+=crystals[j].facets.length; }
+    ctx.globalCompositeOperation="source-over";
+
+    if(cntEl) cntEl.textContent=crystals.length;
+    if(facEl) facEl.textContent=totalF;
+    if(barEl) barEl.style.width=Math.min(100,crystals.length/MAX*100)+"%";
+    requestAnimationFrame(frame);
+  }
+
+  resize();
+  seed(10);
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

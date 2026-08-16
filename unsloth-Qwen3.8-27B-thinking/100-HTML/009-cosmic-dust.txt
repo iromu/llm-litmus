@@ -1,0 +1,24 @@
+Creative Prompt (verbatim)
+===========================
+Create a nebula particle system visualization with thousands of particles that form colorful dust clouds. Multiple nebula "centers" drift slowly with their own color palettes (blues, purples, pinks, teals), and particles near each center take on its colors. Particles flicker gently and wrap around screen edges for an infinite cosmos feel. Clicking reshuffles the nebula centers and particle positions. The title "Cosmic Dust" is large and faint. The background has a subtle trailing effect. The aesthetic is deep space, interstellar, and ethereal.
+
+Model
+=====
+Model: Qwen3.8-27B (thinking) — thinking effort: high
+
+Techniques Used
+===============
+Canvas particle system with ~4000 particles (area-scaled 1400–4200), multi-center nebula color interpolation (16-step precomputed dark→bright ramps per palette, nearest-center lookup per particle per frame), alpha flickering via sine function with per-particle phase and speed, velocity-based particle drift with sinusoidal wobble, screen wrapping for infinite feel, trailing effect with semi-transparent fillRect overlay, additive "lighter" compositing with pulsing radial-gradient glow at each field center, click-driven regeneration of nebula centers and particle positions (Gaussian-biased clustering around fields), DPR-aware responsive canvas.
+
+Interaction Model
+=================
+Passive animation of drifting particles with color influence from the 4–6 drifting nebula centers (which slowly bounce off screen edges). Click or tap to regenerate nebula centers and redistribute particle positions. HUD shows live particle count and field count; large faint "Cosmic Dust" title overlays the field.
+
+Stats
+=====
+Wall time: ~12 minutes (estimated — spec reading, file authoring in three passes, JS syntax verification)
+Token count: n/a
+
+Output
+======
+File: 009-cosmic-dust.html — single self-contained page, all CSS/JS inline, no external dependencies, works fully offline.

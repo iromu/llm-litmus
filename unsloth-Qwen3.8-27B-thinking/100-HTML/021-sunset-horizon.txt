@@ -1,0 +1,32 @@
+Sunset Horizon — creative prompt artifact
+=========================================
+
+Prompt (verbatim from files.json):
+-----------------------------------
+Create an animated sunset landscape with a glowing sun, gradient sky, drifting clouds, flying birds, and silhouetted ground with trees. The sky transitions through deep purple, magenta, orange, and gold gradients. The sun has multiple glow layers and a bright core. Clouds are composed of soft radial gradient segments that drift horizontally. Birds fly with flapping wings. The ground has a wavy silhouette with stylized evergreen tree shapes. The title "Sunset Horizon" appears at the bottom in large, faint text. The overall aesthetic is painterly, warm, and serene — like a digital oil painting of golden hour.
+
+Model:
+------
+Qwen3.8-27B (thinking) — thinking effort: high
+
+Techniques used:
+----------------
+- Canvas gradient sky with multi-stop linear gradient (deep purple -> magenta -> orange -> gold), with a slow wobble on the mid stops
+- Radial gradient sun with layered glow halos (3 concentric halo layers + bright core, gentle pulse)
+- Cloud rendering with multiple overlapping radial gradient segments per cloud
+- Bezier bird wings with sine flapping (quadraticCurveTo wing strokes, per-bird frequency/phase)
+- Sinusoidal ground silhouette (layered sines) with a faint gold rim-light stroke
+- Triangular evergreen tree silhouettes (3 stacked tiers + trunk, varied heights/colors)
+- Parallax-like cloud movement across 3 depth layers (far/mid/near with different speeds, alphas, scales)
+- Golden-hour dust motes drifting through the light, horizon glow bloom, vignette
+- requestAnimationFrame loop with clamped delta time, DPR-aware canvas, resize reinitializes the scene
+
+Interaction model:
+------------------
+Passive animation — sun remains centered, clouds drift, birds fly, scene renders
+continuously. Resize reinitializes the scene layout.
+
+Stats:
+------
+Wall time: ~6 minutes (spec read, 3-step authoring, verification)
+Token count: n/a

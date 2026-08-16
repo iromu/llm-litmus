@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Holographic Shimmer — Premium Card</title>
+<style>
+  @property --angle { syntax: "<angle>"; initial-value: 0deg; inherits: false; }
+  @property --hue { syntax: "<number>"; initial-value: 0; inherits: false; }
+
+  :root {
+    --ink: #05060e;
+    --card-w: min(420px, 92vw);
+    --card-h: min(600px, 82vh);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    font-family: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+    background:
+      radial-gradient(1200px 800px at 15% -10%, rgba(124, 58, 237, 0.18), transparent 60%),
+      radial-gradient(1000px 700px at 110% 110%, rgba(0, 209, 178, 0.14), transparent 60%),
+      radial-gradient(800px 600px at 85% 15%, rgba(255, 45, 146, 0.10), transparent 60%),
+      var(--ink);
+    color: #e8e9f5;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 24px;
+    overflow: hidden;
+    padding: 24px;
+  }
+  .grid-overlay {
+    position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    background-image:
+      linear-gradient(rgba(130, 140, 255, 0.055) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(130, 140, 255, 0.055) 1px, transparent 1px);
+    background-size: 56px 56px;
+    mask-image: radial-gradient(ellipse 90% 80% at 50% 50%, #000 30%, transparent 75%);
+    -webkit-mask-image: radial-gradient(ellipse 90% 80% at 50% 50%, #000 30%, transparent 75%);
+    animation: gridDrift 24s linear infinite;
+  }
+  @keyframes gridDrift {
+    from { background-position: 0 0, 0 0; }
+    to   { background-position: 56px 56px, 56px 56px; }
+  }
+  .orb {
+    position: fixed; border-radius: 50%; filter: blur(60px);
+    opacity: 0.5; pointer-events: none; z-index: 0;
+  }
+  .orb-1 {
+    width: 320px; height: 320px;
+    background: radial-gradient(circle, rgba(139, 92, 246, 0.55), transparent 70%);
+    top: 8%; left: 6%;
+    animation: orbFloat1 14s ease-in-out infinite alternate;
+  }
+  .orb-2 {
+    width: 280px; height: 280px;
+    background: radial-gradient(circle, rgba(45, 212, 191, 0.45), transparent 70%);
+    bottom: 6%; right: 8%;
+    animation: orbFloat2 17s ease-in-out infinite alternate;
+  }
+  .orb-3 {
+    width: 200px; height: 200px;
+    background: radial-gradient(circle, rgba(244, 114, 182, 0.4), transparent 70%);
+    top: 55%; left: 55%;
+    animation: orbFloat3 11s ease-in-out infinite alternate;
+  }
+  @keyframes orbFloat1 { from { transform: translate(0, 0); } to { transform: translate(60px, 40px); } }
+  @keyframes orbFloat2 { from { transform: translate(0, 0); } to { transform: translate(-50px, -35px); } }
+  @keyframes orbFloat3 { from { transform: translate(0, 0); } to { transform: translate(35px, -55px); } }
+  .page-head { position: relative; z-index: 1; text-align: center; user-select: none; }
+  .page-head .eyebrow {
+    font-size: 11px; letter-spacing: 0.42em; text-transform: uppercase;
+    color: #8b8fb8; margin-bottom: 8px;
+  }
+  .page-head h1 {
+    font-size: clamp(15px, 2.4vw, 20px); font-weight: 600; letter-spacing: 0.18em;
+    background: linear-gradient(90deg, #a78bfa, #22d3ee, #f472b6, #a78bfa);
+    background-size: 300% 100%;
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    animation: titleShift 8s linear infinite;
+  }
+  @keyframes titleShift { from { background-position: 0% 50%; } to { background-position: 300% 50%; } }
+  .hint {
+    position: relative; z-index: 1; font-size: 12px; letter-spacing: 0.14em;
+    color: #6b6f96; text-transform: uppercase;
+    animation: hintPulse 3s ease-in-out infinite; user-select: none;
+  }
+  @keyframes hintPulse { 0%, 100% { opacity: 0.45; } 50% { opacity: 0.9; } }
+  .scene {
+    perspective: 1400px; perspective-origin: 50% 45%;
+    position: relative; z-index: 2;
+  }
+  .float-wrap { animation: cardFloat 6.5s ease-in-out infinite; transform-style: preserve-3d; }
+  @keyframes cardFloat {
+    0%, 100% { transform: translateY(0) rotateZ(0deg); }
+    25%      { transform: translateY(-9px) rotateZ(0.35deg); }
+    50%      { transform: translateY(-4px) rotateZ(0deg); }
+    75%      { transform: translateY(-11px) rotateZ(-0.35deg); }
+  }
+  .float-wrap.hovered { animation-play-state: paused; }
+  .card {
+    width: var(--card-w); height: var(--card-h);
+    position: relative; transform-style: preserve-3d;
+    transform: rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
+    transition: transform 0.18s cubic-bezier(0.22, 0.61, 0.36, 1);
+    will-change: transform;
+  }
+  .scene.settling .card { transition: transform 0.7s cubic-bezier(0.22, 0.61, 0.36, 1); }
+  .card-border {
+    position: absolute; inset: 0; border-radius: 26px; padding: 2.5px;
+    background: conic-gradient(
+      from var(--angle),
+      #ff2d78 0deg, #ffb347 60deg, #f9ff5b 120deg, #2dffb0 180deg,
+      #38bdf8 240deg, #a855f7 300deg, #ff2d78 360deg
+    );
+    animation: spinBorder 4s linear infinite;
+    box-shadow:
+      0 0 40px rgba(139, 92, 246, 0.35),
+      0 0 90px rgba(45, 212, 191, 0.18),
+      0 30px 80px rgba(0, 0, 0, 0.55);
+  }
+  @keyframes spinBorder { from { --angle: 0deg; } to { --angle: 360deg; } }
+  .card-border.cursor-driven { animation: none; }
+  .card-body {
+    position: absolute; inset: 2.5px; border-radius: 23.5px; overflow: hidden;
+    background: linear-gradient(160deg, rgba(17, 18, 38, 0.96), rgba(10, 11, 26, 0.98));
+    backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+  }
+  .shimmer-bg {
+    position: absolute; inset: -60%; pointer-events: none;
+    background: linear-gradient(
+      115deg,
+      transparent 0%, rgba(255, 45, 120, 0.10) 18%, rgba(255, 179, 71, 0.12) 30%,
+      rgba(45, 255, 176, 0.12) 44%, rgba(56, 189, 248, 0.13) 58%,
+      rgba(168, 85, 247, 0.14) 72%, transparent 88%
+    );
+    background-size: 220% 220%;
+    animation: shimmerMove 7s linear infinite;
+  }
+  @keyframes shimmerMove { 0% { background-position: 0% 0%; } 100% { background-position: 200% 200%; } }
+  .holo-film {
+    position: absolute; inset: 0; mix-blend-mode: screen; pointer-events: none;
+    background: linear-gradient(
+      calc(120deg + var(--hue) * 1deg),
+      rgba(255, 45, 146, 0.16), rgba(168, 85, 247, 0.14) 30%,
+      rgba(45, 212, 191, 0.14) 60%, rgba(56, 189, 248, 0.16)
+    );
+    animation: hueCycle 10s linear infinite;
+  }
+  @keyframes hueCycle { from { --hue: 0; } to { --hue: 360; } }
+  .card-grid {
+    position: absolute; inset: 0; pointer-events: none;
+    background-image:
+      linear-gradient(rgba(148, 163, 255, 0.06) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(148, 163, 255, 0.06) 1px, transparent 1px);
+    background-size: 26px 26px;
+    mask-image: radial-gradient(ellipse 120% 100% at 50% 30%, #000 20%, transparent 85%);
+    -webkit-mask-image: radial-gradient(ellipse 120% 100% at 50% 30%, #000 20%, transparent 85%);
+  }
+  .light-sweep {
+    position: absolute; inset: 0; pointer-events: none; mix-blend-mode: overlay;
+    background: linear-gradient(
+      105deg, transparent 38%, rgba(255, 255, 255, 0.04) 45%,
+      rgba(255, 255, 255, 0.14) 50%, rgba(255, 255, 255, 0.04) 55%, transparent 62%
+    );
+    background-size: 250% 250%;
+    animation: sweep 5.5s ease-in-out infinite;
+  }
+  @keyframes sweep {
+    0% { background-position: 220% 0%; }
+    55% { background-position: -80% 0%; }
+    100% { background-position: -80% 0%; }
+  }
+  .glare {
+    position: absolute; inset: 0; pointer-events: none; mix-blend-mode: screen;
+    background: radial-gradient(
+      420px circle at var(--gx, 50%) var(--gy, 40%),
+      rgba(255, 255, 255, 0.20), rgba(255, 255, 255, 0.05) 40%, transparent 65%
+    );
+    opacity: 0; transition: opacity 0.35s ease;
+  }
+  .scene.active .glare { opacity: 1; }
+  .card-body::before {
+    content: ""; position: absolute; inset: 0; border-radius: 23.5px;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), inset 0 -1px 0 rgba(0, 0, 0, 0.4);
+    pointer-events: none; z-index: 5;
+  }
+  .content {
+    position: relative; z-index: 3; height: 100%;
+    display: flex; flex-direction: column;
+    padding: clamp(20px, 4.5vw, 30px);
+    transform-style: preserve-3d;
+  }
+  .content > * { transform: translateZ(30px); }
+  .badge {
+    align-self: flex-start; display: inline-flex; align-items: center; gap: 8px;
+    padding: 7px 14px; border-radius: 999px;
+    font-size: 10.5px; font-weight: 700; letter-spacing: 0.28em; text-transform: uppercase;
+    color: #ffd9ec;
+    background: linear-gradient(90deg, rgba(255, 45, 120, 0.18), rgba(168, 85, 247, 0.18));
+    border: 1px solid rgba(255, 120, 190, 0.35);
+    box-shadow: 0 0 18px rgba(255, 45, 120, 0.25);
+  }
+  .badge .dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: #ff2d78; box-shadow: 0 0 8px #ff2d78;
+    animation: dotPulse 1.6s ease-in-out infinite;
+  }
+  @keyframes dotPulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.5); opacity: 0.6; } }
+  .title {
+    margin-top: 22px; font-size: clamp(26px, 6vw, 34px); font-weight: 800;
+    line-height: 1.15; letter-spacing: -0.01em;
+    background: linear-gradient(95deg, #ffffff 10%, #c4b5fd 35%, #67e8f9 60%, #f9a8d4 85%);
+    background-size: 200% 100%;
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    animation: titleShift 6s linear infinite;
+  }
+  .desc {
+    margin-top: 12px; font-size: clamp(12.5px, 3vw, 14px); line-height: 1.65;
+    color: #a7abc9; max-width: 34ch;
+  }
+  .price { margin-top: 20px; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .price .amount {
+    font-size: clamp(34px, 8vw, 44px); font-weight: 800; letter-spacing: -0.02em;
+    background: linear-gradient(90deg, #67e8f9, #a78bfa, #f472b6);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    position: relative;
+  }
+  .price .amount::after {
+    content: ""; position: absolute; left: 0; right: 0; bottom: -6px; height: 8px;
+    background: linear-gradient(90deg, rgba(103, 232, 249, 0.5), rgba(167, 139, 250, 0.5), rgba(244, 114, 182, 0.5));
+    border-radius: 4px; filter: blur(6px);
+  }
+  .price .period { font-size: 13px; color: #8b8fb8; letter-spacing: 0.06em; }
+  .features { margin-top: 22px; list-style: none; display: flex; flex-direction: column; gap: 11px; flex: 1; }
+  .features li {
+    display: flex; align-items: center; gap: 12px;
+    font-size: clamp(12.5px, 3vw, 13.5px); color: #c9cce6; letter-spacing: 0.02em;
+  }
+  .check {
+    flex: 0 0 auto; width: 21px; height: 21px; border-radius: 7px;
+    display: grid; place-items: center;
+    background: linear-gradient(135deg, rgba(45, 212, 191, 0.25), rgba(56, 189, 248, 0.25));
+    border: 1px solid rgba(45, 212, 191, 0.4);
+    box-shadow: 0 0 12px rgba(45, 212, 191, 0.18);
+  }
+  .check svg { width: 11px; height: 11px; display: block; }
+  .check polyline { fill: none; stroke: #5eead4; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+  .cta {
+    margin-top: 26px; position: relative; display: inline-flex;
+    align-items: center; justify-content: center; gap: 10px; width: 100%;
+    padding: 16px 24px; border: none; border-radius: 14px; font-family: inherit;
+    font-size: 15px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
+    color: #fff; cursor: pointer; overflow: hidden;
+    background: linear-gradient(90deg, #ff2d78, #a855f7 45%, #22d3ee);
+    background-size: 220% 100%; background-position: 0% 50%;
+    box-shadow: 0 8px 28px rgba(168, 85, 247, 0.45), 0 2px 10px rgba(255, 45, 120, 0.3);
+    transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), background-position 0.6s ease, box-shadow 0.3s ease;
+  }
+  .cta::before {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(105deg, transparent 40%, rgba(255, 255, 255, 0.35) 50%, transparent 60%);
+    background-size: 250% 100%; background-position: -150% 0;
+    transition: background-position 0.9s ease;
+  }
+  .cta:hover {
+    transform: scale(1.045) translateY(-1px); background-position: 100% 50%;
+    box-shadow: 0 12px 36px rgba(168, 85, 247, 0.6), 0 4px 14px rgba(34, 211, 238, 0.35);
+  }
+  .cta:hover::before { background-position: 150% 0; }
+  .cta:active { transform: scale(0.99); }
+  .cta .arrow { transition: transform 0.3s ease; font-size: 17px; line-height: 1; }
+  .cta:hover .arrow { transform: translateX(5px); }
+  .serial {
+    margin-top: 18px; display: flex; justify-content: space-between; align-items: center;
+    font-size: 9.5px; letter-spacing: 0.3em; text-transform: uppercase;
+    color: #565b85; font-variant-numeric: tabular-nums;
+  }
+  .serial .chips { display: flex; gap: 5px; }
+  .serial .chip {
+    width: 20px; height: 12px; border-radius: 3px;
+    background: linear-gradient(135deg, #3b3f6e, #23264a);
+    border: 1px solid rgba(148, 163, 255, 0.18);
+  }
+  @media (max-width: 480px) {
+    :root { --card-h: min(620px, 88vh); }
+    .desc { max-width: 100%; }
+  }
+  @media (max-height: 640px) {
+    :root { --card-h: min(540px, 88vh); }
+    .page-head h1 { font-size: 14px; }
+    .features { gap: 8px; }
+    .cta { margin-top: 18px; padding: 13px 20px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; }
+  }
+</style>
+</head>
+<body>
+  <div class="grid-overlay"></div>
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
+
+  <header class="page-head">
+    <div class="eyebrow">Series 022 / 100</div>
+    <h1>Holographic Shimmer</h1>
+  </header>
+
+  <div class="scene" id="scene">
+    <div class="float-wrap" id="floatWrap">
+      <div class="card" id="card">
+        <div class="card-border" id="cardBorder"></div>
+        <div class="card-body">
+          <div class="shimmer-bg"></div>
+          <div class="holo-film"></div>
+          <div class="card-grid"></div>
+          <div class="light-sweep"></div>
+          <div class="glare" id="glare"></div>
+          <div class="content">
+            <span class="badge"><span class="dot"></span>Limited Edition</span>
+            <h2 class="title">Aurora Prism</h2>
+            <p class="desc">
+              A collectible tier of pure light. Numbered, unrepeatable,
+              and tuned to catch the spectrum at every angle you turn it.
+            </p>
+            <div class="price">
+              <span class="amount">$89</span>
+              <span class="period">/ month &middot; no lock-in</span>
+            </div>
+            <ul class="features">
+              <li>
+                <span class="check"><svg viewBox="0 0 16 16" aria-hidden="true"><polyline points="2.5 8.5 6 12 13.5 4"/></svg></span>
+                Iridescent 3D card with live cursor tracking
+              </li>
+              <li>
+                <span class="check"><svg viewBox="0 0 16 16" aria-hidden="true"><polyline points="2.5 8.5 6 12 13.5 4"/></svg></span>
+                Priority rendering &amp; early access drops
+              </li>
+              <li>
+                <span class="check"><svg viewBox="0 0 16 16" aria-hidden="true"><polyline points="2.5 8.5 6 12 13.5 4"/></svg></span>
+                One of 10,000 numbered mint slots
+              </li>
+              <li>
+                <span class="check"><svg viewBox="0 0 16 16" aria-hidden="true"><polyline points="2.5 8.5 6 12 13.5 4"/></svg></span>
+                Cancel anytime, keep the hologram
+              </li>
+            </ul>
+            <button class="cta" type="button" id="cta">Mint Your Card <span class="arrow">&rarr;</span></button>
+            <div class="serial">
+              <span>No. 022 &middot; Holo-Grade S</span>
+              <span class="chips"><span class="chip"></span><span class="chip"></span><span class="chip"></span></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <p class="hint">Move your cursor over the card</p>
+<script>
+(function () {
+  "use strict";
+
+  var scene = document.getElementById("scene");
+  var floatWrap = document.getElementById("floatWrap");
+  var card = document.getElementById("card");
+  var cardBorder = document.getElementById("cardBorder");
+  var glare = document.getElementById("glare");
+  var cta = document.getElementById("cta");
+
+  var MAX_TILT = 16; // degrees
+  var rafId = null;
+  var hovering = false;
+  var targetX = 0, targetY = 0; // cursor, -1..1 relative to card center
+  var curX = 0, curY = 0;       // smoothed
+
+  function applyTilt() {
+    // ease toward target for a silky feel
+    curX += (targetX - curX) * 0.12;
+    curY += (targetY - curY) * 0.12;
+
+    var ry = curX * MAX_TILT;    // rotateY follows horizontal cursor
+    var rx = -curY * MAX_TILT;   // rotateX follows vertical cursor
+    card.style.setProperty("--rx", rx.toFixed(3) + "deg");
+    card.style.setProperty("--ry", ry.toFixed(3) + "deg");
+
+    // conic border angle follows the cursor: rotate the gradient so the
+    // hue at the card edge nearest the pointer faces the cursor.
+    var angleDeg = (Math.atan2(curY, curX) * (180 / Math.PI) + 90) % 360;
+    if (angleDeg < 0) angleDeg += 360;
+    cardBorder.style.setProperty("--angle", angleDeg.toFixed(2) + "deg");
+    cardBorder.classList.add("cursor-driven");
+
+    // cursor-tracking glare in card-local percentages
+    var gx = ((curX + 1) / 2) * 100;
+    var gy = ((-curY + 1) / 2) * 100;
+    glare.style.setProperty("--gx", gx.toFixed(2) + "%");
+    glare.style.setProperty("--gy", gy.toFixed(2) + "%");
+
+    if (Math.abs(targetX - curX) > 0.001 || Math.abs(targetY - curY) > 0.001) {
+      rafId = requestAnimationFrame(applyTilt);
+    } else {
+      rafId = null;
+    }
+  }
+
+  function onPointerMove(e) {
+    var rect = card.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return;
+    var cx = rect.left + rect.width / 2;
+    var cy = rect.top + rect.height / 2;
+    targetX = Math.max(-1, Math.min(1, (e.clientX - cx) / (rect.width / 2)));
+    targetY = Math.max(-1, Math.min(1, (e.clientY - cy) / (rect.height / 2)));
+    if (rafId === null) rafId = requestAnimationFrame(applyTilt);
+  }
+
+  function enter() {
+    hovering = true;
+    scene.classList.add("active");
+    scene.classList.remove("settling");
+    floatWrap.classList.add("hovered");
+  }
+
+  function leave() {
+    if (!hovering) return;
+    hovering = false;
+    scene.classList.remove("active");
+    scene.classList.add("settling");
+    floatWrap.classList.remove("hovered");
+    targetX = 0;
+    targetY = 0;
+    if (rafId === null) rafId = requestAnimationFrame(applyTilt);
+    // hand the conic border back to its keyframe spin once the card settles
+    setTimeout(function () {
+      if (!hovering) {
+        cardBorder.classList.remove("cursor-driven");
+        cardBorder.style.removeProperty("--angle");
+      }
+    }, 750);
+  }
+
+  // pointer events on the scene for a slightly larger hit area than the card
+  scene.addEventListener("pointermove", onPointerMove);
+  scene.addEventListener("pointerenter", enter);
+  scene.addEventListener("pointerleave", leave);
+
+  // CTA micro-interaction: quick burst + tilt pulse when clicked
+  cta.addEventListener("click", function () {
+    if (!cardBorder.classList.contains("cursor-driven")) return;
+    var current = parseFloat(cardBorder.style.getPropertyValue("--angle")) || 0;
+    cardBorder.style.setProperty("--angle", (current + 30) + "deg");
+  });
+
+  // touch fallback: gentle parallax from touch drag
+  scene.addEventListener("touchmove", function (e) {
+    if (e.touches && e.touches.length) onPointerMove(e.touches[0]);
+  }, { passive: true });
+  scene.addEventListener("touchend", function () { targetX = 0; targetY = 0; if (rafId === null) rafId = requestAnimationFrame(applyTilt); });
+})();
+</script>
+</body>
+</html>

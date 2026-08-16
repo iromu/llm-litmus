@@ -1,0 +1,32 @@
+Glass Calculator — Prompt Artifact
+===================================
+
+Creative Prompt (verbatim)
+--------------------------
+Create a fully functional calculator with a premium glassmorphism aesthetic. The calculator floats above a dark purple gradient background with two large blurred orbs that drift slowly. The calculator body is translucent with backdrop blur and subtle border glow. Buttons are categorized: number buttons (semi-transparent white), operator buttons (cyan tint), function buttons (more transparent), and a gradient equals button. The display shows the expression and result with elegantly sized typography. Button press has a scale animation. Each button has a mouse-tracking radial shine overlay. The design feels like a premium iOS/macOS accessory crafted from crystal.
+
+Model
+-----
+Qwen3.8-27B (thinking) — thinking effort: high
+
+Techniques Used
+---------------
+CSS glassmorphism (backdrop-filter blur, semi-transparent backgrounds, border highlights), multi-layered radial gradient background orbs with float animation, grid layout for calculator buttons, JavaScript calculator engine with expression display, button press scale transform, mouse-tracking radial shine via CSS custom properties, responsive sizing for small screens.
+
+Implementation notes
+--------------------
+- Single self-contained HTML file; all CSS and JS inline, no external dependencies (no CDNs, fonts, images, or frameworks). Works fully offline.
+- Background: dark purple radial gradient with two large blurred orbs animated on independent 26s/32s drift loops, plus a subtle SVG feTurbulence grain overlay for depth.
+- Calculator body uses backdrop-filter blur + saturate, an inset top-edge gradient highlight (masked pseudo-element), and layered shadows; float-in entrance animation.
+- Buttons built from a data-driven LAYOUT array: numbers (semi-transparent white), operators (cyan tint with active-state ring), functions (more transparent), and a 2-column gradient equals button. Each has a pointermove-driven --mx/--my radial shine and a scale(0.92) press transform.
+- Calculator engine is a classic state machine supporting add, subtract, multiply, divide, clear (AC), sign (±), percentage (%), and decimal. Edge cases handled: division by zero -> "Error" (recoverable via AC), chained operations, leading-zero suppression, single-decimal-point guard, floating-point noise cleanup (0.1 + 0.2 = 0.3), digit-length cap with exponential fallback for extreme magnitudes, and backspace + full keyboard support (digits, + - * /, Enter/=, Escape/C, %, .).
+- Responsive: stage capped at 380px, media query at 420px shrinks padding/gaps/font sizes for small screens.
+
+Interaction Model
+-----------------
+Full calculator functionality (add, subtract, multiply, divide, clear, sign, percentage, decimal). Buttons respond to hover (shine) and click (scale press). Orbs drift in background continuously.
+
+Stats
+-----
+Wall time: ~3 minutes
+Token count: n/a

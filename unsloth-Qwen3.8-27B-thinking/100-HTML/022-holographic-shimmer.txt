@@ -1,0 +1,32 @@
+Holographic Shimmer — Prompt Artifact
+=====================================
+
+Creative prompt (verbatim from files.json):
+Create a holographic premium card with an iridescent shimmer effect. The card has a conic-gradient animated border that spins continuously, a multi-color shimmer background, and a moving light overlay. The content includes a badge, gradient title, description, pricing, feature list with checks, and a gradient CTA button. The card tilts in 3D on mouse move, responding to cursor position with perspective transforms. The conic gradient border angle also follows the cursor. The aesthetic is futuristic, premium, and iridescent — like a holographic credit card or limited edition collectible.
+
+Model: Qwen3.8-27B (thinking) — thinking effort: high
+
+Techniques used:
+- CSS conic-gradient border with @property custom property animation (registered --angle, keyframed 360deg spin)
+- CSS shimmer animation with linear-gradient background-size shifting (moving diagonal rainbow bands)
+- 3D perspective tilt using JavaScript mouse tracking (perspective 1400px, rotateX/rotateY, rAF-eased)
+- Gradient text clipping (title, price, page heading via background-clip: text)
+- Floating animation (idle card bob/rotateZ on wrapper, paused while hovered)
+- Grid overlay texture (fixed page grid + fine 26px grid inside the card, masked)
+- Glassmorphism content area (backdrop-filter blur, translucent dark panel, inner rim highlight)
+- Hover scale on button (scale 1.045 with spring easing, sweep + arrow shift)
+- Responsive sizing (clamp() type, min() card dimensions, viewport media queries, reduced-motion support)
+- Extras: hue-cycling holo film (@property --hue), cursor-tracking radial glare,
+  drifting ambient orbs, CTA border-angle kick on click, touch-drag parallax fallback
+
+Interaction model:
+Mouse movement over the card creates a 3D tilt effect (rotateX/rotateY) with
+translateZ for depth. The conic border angle follows the cursor. Card floats
+gently when not hovered. (Implementation: pointermove on the scene sets a
+-1..1 target, rAF loop eases the tilt, the conic border's --angle is driven by
+the cursor's edge angle and the keyframe spin resumes ~750ms after pointer
+leave; idle float resumes on exit; touch devices get drag-parallax.)
+
+Stats:
+- Wall time: ~6 minutes (estimate)
+- Token count: n/a

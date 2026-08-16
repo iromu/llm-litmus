@@ -1,0 +1,27 @@
+Creative prompt (verbatim):
+Create an interactive water ripple simulation on a dark blue pond surface. Clicking or touching creates ripples that propagate outward with realistic damping. The ripples cause pixel displacement (refraction-like distortion) and color shifting through blue tones, with brighter highlights at ripple peaks. Moving the mouse creates small ripples. The water surface has a deep radial gradient background. The title "Ripple Pond" is rendered in faint, widely-spaced text at the bottom. The overall aesthetic is tranquil, liquid, and meditative — like watching ripples spread across a still pond at night.
+
+Model: Qwen3.8-27B (thinking) — thinking effort: high
+
+Techniques used:
+- Canvas pixel buffer ripple simulation using two-buffer (cur/prev) Float32Array wave equation with per-step damping (0.9906) so ripples fade realistically
+- Grid-based low-res simulation (cell size adapts so the longest sim side stays <= ~520 px) for performance; rendered via putImageData to an offscreen canvas then upscaled with high-quality smoothing
+- Pixel-level displacement for the refraction effect: background sample offset by surface slope (dx/dy * 0.17) against a precomputed base texture
+- Color mapping based on wave height: height-driven blue glow at ripple peaks plus slope-based specular (upper-left light) for bright highlights on crests
+- Radial gradient water background (deep blue, moonlit center) precomputed into a pixel buffer with grainy micro-noise for shimmer detail under refraction
+- requestAnimationFrame render loop; fixed-step physics so motion is framerate-independent
+- CSS layers on top: vignette for depth, screen-blended breathing moonlight bloom, faint widely-spaced title with slow glow pulse
+- DPR-aware canvas (capped at 2x); full-viewport responsive canvas with resize rebuild of buffers and background
+- Pointer events with touch-action:none; ambient random droplets + opening drops keep the pond alive without input
+
+Interaction model:
+- Click/tap creates a strong ripple burst (gaussian blob, amplitude 300) at that point.
+- Mouse/touch drag creates continuous small ripples along the path (interpolated mid-points for smooth trails).
+- Passive mouse hover (no button) leaves gentle micro-ripples (distance-throttled).
+- Ripples propagate, reflect off the fixed zero-value borders, and gradually fade via damping.
+- Simulation runs continuously even without input: occasional ambient droplets (every 1.4-5.2s at random points) plus opening drops on load.
+- Faint "touch the water" hint fades away after the first interaction.
+
+Stats:
+- Wall time: ~6 minutes (estimate)
+- Token count: n/a

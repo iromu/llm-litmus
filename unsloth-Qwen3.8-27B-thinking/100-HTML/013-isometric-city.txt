@@ -1,0 +1,23 @@
+Creative prompt (verbatim):
+Create a 3D isometric cityscape with procedurally generated buildings. Each building has front, side, and top faces with distinct colors and lit windows generated via JavaScript. The buildings are arranged in a loose grid with random variation in size, height, and color palette (blues, purples, teals, warm browns, magentas). A subtle grid ground plane anchors the scene. The entire city slowly rotates in 3D via CSS transforms. The title "Isometric City" is displayed at the bottom with minimal, elegant typography. The aesthetic is architectural, geometric, and slightly futuristic.
+
+Model: Qwen3.8-27B (thinking) - thinking effort: high
+
+Techniques used:
+- CSS 3D transforms with preserve-3d; isometric projection via rotateX(60deg) + rotating Z (rotateZ 33deg->57deg) with perspective for parallax depth
+- JavaScript DOM-based building generation: each building is a container with top/front/side face divs built via translate3d/rotateX/rotateY and positioned by a 3D transform
+- Randomized window placement per face (grid of window bays) with lit/dark lighting variation and twinkle animation
+- Loose grid layout (7x7 cells, 32px pitch) with random position jitter, footprint size, and distance-falloff height (downtown towers, low outskirts)
+- 10-color HSL palette (blues, purples, teals, warm browns, magentas); per-face brightness offsets give top/front/side distinct shading; gradient-based face fills
+- Grid ground plane (repeating-linear-gradient) with neon rim + glow anchoring the scene
+- CSS animation on the city container: slow seesaw rotation + gentle vertical bob + perspective-origin drift
+- Extras for polish: parallax pointer tilt, starfield, nebula/fog blobs, vignette, prefers-reduced-motion support
+- Responsive: city scale computed from min(innerWidth,innerHeight) and clamped; fluid typography via clamp()
+
+Interaction model:
+- The city rotates continuously in a gentle seesaw motion (passive observation).
+- No direct user interaction required; a subtle pointer-follow tilt adds life but is optional.
+
+Stats:
+- Wall time: ~4-5 minutes
+- Token count: n/a

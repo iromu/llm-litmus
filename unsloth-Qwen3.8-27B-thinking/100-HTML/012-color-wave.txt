@@ -1,0 +1,41 @@
+012 — Color Wave ("Chromatic Flow")
+====================================
+
+CREATIVE PROMPT (verbatim from files.json):
+-------------------------------------------
+Create a generative wave visualization with multiple layered sinusoidal waves in vibrant colors. Each wave has its own amplitude, frequency, speed, phase, and vertical offset, creating a complex, flowing composition. The waves are rendered both as filled semi-transparent areas and as thin stroke lines, producing a rich, layered look. Five color palettes cycle on click, shifting between pink/blue/purple, green/magenta, cyan/hot pink, orange/violet, and pastel combinations. The title "Chromatic Flow" appears in white with overlay blend mode. The overall aesthetic is fluid, vibrant, and hypnotic.
+
+MODEL:
+------
+Qwen3.8-27B (thinking) — thinking effort: high
+
+TECHNIQUES USED:
+----------------
+Canvas sinusoidal wave rendering with dual sine terms for complexity, filled wave shapes with alpha transparency, layered wave strokes, multiple independent wave parameters, palette cycling on click, requestAnimationFrame loop, responsive canvas, overlay blend title text.
+
+Implementation notes:
+- 12 layered waves, each with independent amplitude, frequency, speed, phase, and
+  vertical offset; per-wave dual-sine (base + secondary term) for organic motion.
+- Each wave drawn as a filled semi-transparent area (Path2D closed to screen bottom)
+  plus a thin glowing crest stroke (shadowBlur glow) — fills first, then strokes.
+- Five palettes (pink/blue/purple, green/magenta, cyan/hot pink, orange/violet,
+  pastels); click smoothly cross-fades colors AND morphs wave parameters over a
+  1.1s ease-in-out transition; palette dots at the bottom allow direct selection.
+- Title "CHROMATIC FLOW" in white with CSS mix-blend-mode: overlay, wide
+  letter-spacing, subtle text-shadow for legibility.
+- Subtle gaussian swell toward the cursor position (eased in/out), vignette
+  overlay, palette-tinted background gradient, devicePixelRatio-aware responsive
+  canvas, UI pulse animation on palette change.
+- Single self-contained HTML file: no CDNs, no external fonts/images/frameworks;
+  works fully offline.
+
+INTERACTION MODEL:
+------------------
+Click or tap to cycle through color palettes and regenerate wave configurations. Waves animate continuously with independent speeds and phases.
+
+STATS:
+------
+- Wall time: ~4 min (approximate)
+- Token count: n/a
+- File: 012-color-wave.html (self-contained, ~430 lines)
+- Verified: `node --check` on extracted <script> passes; no external references.

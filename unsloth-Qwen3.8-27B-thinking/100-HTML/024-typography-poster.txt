@@ -1,0 +1,23 @@
+Creative prompt (verbatim from files.json):
+Create a typographic poster in a dark theme with floating words in various styles (filled, outline, tiny, small) with different colors (pink, cyan, yellow, purple) and staggered floating animations. A giant gradient letter "A" dominates the center with hue rotation and a subtle offset shadow. The layout includes top/bottom bars with metadata, a horizontal rule, a tagline, and a row of tag badges. A subtle film grain effect overlays everything. The overall aesthetic is experimental, bold, and typography-centric — like a design school poster.
+
+Model: Qwen3.8-27B (thinking) — thinking effort: high
+
+Techniques used:
+- CSS floating keyframe animation with per-element delay via custom property (--dl / --t / --r per word)
+- Gradient text with hue-rotation animation (background-clip: text + hue-rotate keyframes + background-position pan) on the giant "A"
+- Offset pink ghost "A" layer behind the gradient letter for the offset shadow
+- -webkit-text-stroke for outline words
+- feTurbulence film grain via self-contained data-URI SVG filter on a fixed overlay layer (jittered with steps() keyframes)
+- Flexbox layout for word rows, top/bottom metadata bars, horizontal rule, tagline, tag badge row
+- Responsive clamp() sizing, flex-wrap rows, 100svh poster, mobile breakpoint
+- Color-coded word categories: pink #ff3d81, cyan #33e0ff, yellow #ffd23f, purple #9d6bff
+- System font stacks only: Impact / Arial Black (display), Georgia italic (tagline), Courier New (metadata)
+
+Interaction model:
+Purely passive — all elements animate continuously with floating, color cycling, and grain effects. No direct user interaction needed. (No JavaScript at all; prefers-reduced-motion disables all animation.)
+
+Stats:
+- Wall time: ~4 min (estimated)
+- Token count: n/a
+- Verification: no <script> tags (purely static page, node --check not applicable); grep confirms no @import, no <link>, no external http(s) fetches (the single data: URI embeds its own SVG with a W3C namespace literal, self-contained); HTML tag balance verified with Python html.parser.

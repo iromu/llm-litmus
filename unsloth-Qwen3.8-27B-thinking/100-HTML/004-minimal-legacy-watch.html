@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Minimal Legacy — Maison Légacy, Genève</title>
+<style>
+:root{
+  --paper:#f3ead9;
+  --paper-deep:#ecdfc8;
+  --cream:#f8f1e2;
+  --ink:#2c2118;
+  --ink-soft:#5d4a37;
+  --brown:#4a3423;
+  --rose:#c9986a;
+  --rose-light:#f0cdb0;
+  --rose-deep:#9c6b42;
+  --leather:#5b3a24;
+  --leather-dark:#3a2415;
+  --watch:clamp(220px, 40vmin, 380px);
+  --serif:Georgia,'Times New Roman','Palatino Linotype',serif;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  font-family:var(--serif);
+  background:var(--paper);
+  color:var(--ink);
+  min-height:100vh;
+  overflow-x:hidden;
+}
+/* ---- vintage paper grain ---- */
+body::before{
+  content:'';
+  position:fixed;inset:0;z-index:99;pointer-events:none;opacity:.05;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/><feColorMatrix type='saturate' values='0'/></filter><rect width='140' height='140' filter='url(%23n)'/></svg>");
+}
+.page-rule{
+  position:fixed;top:0;left:0;right:0;height:5px;z-index:5;
+  background:linear-gradient(90deg,var(--leather-dark) 0%,var(--rose) 45%,var(--rose-deep) 70%,var(--leather-dark) 100%);
+}
+.grid{
+  display:grid;
+  grid-template-columns:1.05fr 1fr;
+  min-height:100vh;
+}
+/* ============ WATCH PANEL ============ */
+.watch-panel{
+  position:relative;
+  display:flex;align-items:center;justify-content:center;
+  background:
+    radial-gradient(ellipse at 50% 42%, rgba(255,250,235,.9), transparent 62%),
+    radial-gradient(ellipse at 50% 110%, rgba(74,52,35,.16), transparent 55%),
+    var(--paper-deep);
+  overflow:hidden;
+}
+.watch-panel::before{
+  content:'';
+  position:absolute;left:50%;top:50%;
+  width:calc(var(--watch)*1.9);height:calc(var(--watch)*1.9);
+  transform:translate(-50%,-50%);
+  border-radius:50%;
+  border:1px solid rgba(74,52,35,.18);
+  box-shadow:inset 0 0 90px rgba(74,52,35,.06);
+}
+.watch-panel::after{
+  content:'';
+  position:absolute;left:50%;top:50%;
+  width:calc(var(--watch)*2.35);height:calc(var(--watch)*2.35);
+  transform:translate(-50%,-50%);
+  border-radius:50%;
+  border:1px dashed rgba(74,52,35,.14);
+}
+.panel-mark{
+  position:absolute;bottom:4.5vh;left:5vw;
+  font-size:11px;letter-spacing:.42em;text-transform:uppercase;
+  color:rgba(74,52,35,.55);
+}
+.panel-edition{
+  position:absolute;top:4.5vh;right:5vw;
+  font-size:11px;letter-spacing:.42em;text-transform:uppercase;
+  color:rgba(74,52,35,.55);text-align:right;
+}
+.panel-edition b{display:block;font-size:15px;letter-spacing:.3em;color:var(--brown);margin-bottom:4px}
+
+.watch-scene{
+  position:relative;
+  width:var(--watch);
+  height:calc(var(--watch)*1.95);
+  display:flex;align-items:center;justify-content:center;
+  perspective:1300px;
+  z-index:1;
+}
+.watch-float{animation:float 7s ease-in-out infinite;transform-style:preserve-3d}
+@keyframes float{
+  0%,100%{transform:translateY(0)}
+  50%{transform:translateY(-16px)}
+}
+.watch-shadow{
+  position:absolute;left:50%;bottom:9%;
+  width:calc(var(--watch)*.62);height:calc(var(--watch)*.07);
+  transform:translateX(-50%);
+  background:radial-gradient(ellipse at center, rgba(40,22,10,.42), transparent 70%);
+  animation:shadowPulse 7s ease-in-out infinite;
+}
+@keyframes shadowPulse{
+  0%,100%{transform:translateX(-50%) scale(1);opacity:.9}
+  50%{transform:translateX(-50%) scale(.82);opacity:.55}
+}
+.watch{
+  position:relative;
+  width:100%;height:100%;
+  aspect-ratio:1/1;
+  transform-style:preserve-3d;
+  transform:rotateY(18deg) rotateX(8deg);
+  transition:transform 1.1s cubic-bezier(.22,1,.36,1);
+}
+.watch-scene:hover .watch{transform:rotateY(6deg) rotateX(3deg)}
+
+/* ---- leather strap ---- */
+.strap{
+  position:absolute;left:50%;
+  transform:translateX(-50%) translateZ(-2px);
+  width:56%;
+  background:
+    repeating-linear-gradient(180deg, rgba(0,0,0,0) 0 14px, rgba(0,0,0,.16) 14px 16px),
+    linear-gradient(90deg,var(--leather-dark),#6b452c 28%,#83573a 50%,#6b452c 72%,var(--leather-dark));
+  box-shadow:inset 0 0 14px rgba(0,0,0,.45), 0 6px 14px rgba(40,22,10,.25);
+  z-index:0;
+}
+.strap-top{top:-30%;height:44%;border-radius:16px 16px 8px 8px}
+.strap-bottom{bottom:-30%;height:44%;border-radius:8px 8px 16px 16px}
+.strap::before{
+  content:'';position:absolute;inset:9% 7%;
+  border:1.5px dashed rgba(246,239,227,.3);
+  border-radius:10px;
+}
+.strap::after{
+  content:'';position:absolute;left:50%;transform:translateX(-50%);
+  width:74%;height:9%;
+  background:linear-gradient(180deg, rgba(0,0,0,.35), rgba(0,0,0,.05));
+  border-radius:4px;
+}
+.strap-top::after{top:0}
+.strap-bottom::after{bottom:0}
+
+/* ---- rose gold case & bezel ---- */
+.case{
+  position:absolute;inset:0;border-radius:50%;
+  transform:translateZ(2px);
+  background:conic-gradient(from 130deg,
+    #7c4e2c 0deg,#e9c49c 55deg,#b07c4e 110deg,#f3d4ad 165deg,
+    #8a5a36 220deg,#e9c49c 285deg,#a9754a 330deg,#7c4e2c 360deg);
+  box-shadow:
+    0 34px 60px -14px rgba(58,36,20,.5),
+    0 14px 26px rgba(58,36,20,.32),
+    inset 0 2px 3px rgba(255,244,226,.65),
+    inset 0 -4px 8px rgba(90,50,20,.4);
+}
+.bezel{
+  position:absolute;inset:3.8%;border-radius:50%;
+  transform:translateZ(5px);
+  background:conic-gradient(from 320deg,
+    #9c6b42 0deg,#f0cdb0 80deg,#c9986a 160deg,#f7e0c4 250deg,#9c6b42 360deg);
+  box-shadow:
+    0 0 0 2px rgba(122,74,40,.55),
+    inset 0 1px 2px rgba(255,244,226,.8),
+    inset 0 -2px 4px rgba(90,50,20,.5);
+}
+.crown{
+  position:absolute;right:-4%;top:50%;
+  transform:translateY(-50%) translateZ(6px);
+  width:8.5%;height:13%;border-radius:3px;
+  background:linear-gradient(180deg,#7a4c2b,#f0cda8 30%,#c9986a 55%,#7a4c2b);
+  box-shadow:0 4px 8px rgba(58,36,20,.45), inset 0 1px 2px rgba(255,244,226,.7);
+}
+.crown::after{
+  content:'';position:absolute;inset:0;border-radius:inherit;
+  background:repeating-linear-gradient(90deg, rgba(58,36,20,.55) 0 2px, transparent 2px 5px);
+  opacity:.6;
+}
+
+/* ---- dial ---- */
+.dial{
+  position:absolute;inset:8%;border-radius:50%;
+  transform:translateZ(8px);
+  background:radial-gradient(circle at 36% 30%, #fdf7e9 0%, #f3e8d1 55%, #e4d3b2 100%);
+  box-shadow:
+    inset 0 4px 14px rgba(90,50,20,.3),
+    inset 0 -3px 10px rgba(90,50,20,.14),
+    0 0 0 1px rgba(255,244,226,.5);
+  overflow:hidden;
+}
+.track,.spoke{position:absolute;inset:0}
+.numeral{
+  position:absolute;top:9%;left:50%;
+  transform:translateX(-50%);
+  font-size:clamp(19px, 2.9vmin, 30px);
+  font-weight:700;
+  letter-spacing:.04em;
+  color:var(--brown);
+  text-shadow:0 1px 0 rgba(255,248,232,.7);
+}
+.tick{
+  position:absolute;top:3.2%;left:50%;
+  width:.8%;height:3.4%;
+  transform:translateX(-50%);
+  background:var(--brown);opacity:.55;border-radius:1px;
+}
+.tick-major{
+  position:absolute;top:4.6%;left:50%;
+  width:1.6%;height:1.9%;
+  transform:translateX(-50%);
+  background:var(--brown);opacity:.85;border-radius:1px;
+}
+.brand{
+  position:absolute;top:30%;left:0;right:0;
+  text-align:center;
+  font-size:clamp(11px, 1.7vmin, 16px);
+  letter-spacing:.5em;text-indent:.5em;
+  color:var(--brown);
+}
+.brand-sub{
+  position:absolute;top:39%;left:0;right:0;
+  text-align:center;
+  font-size:clamp(7px, 1vmin, 10px);
+  letter-spacing:.42em;text-indent:.42em;
+  color:var(--ink-soft);
+  font-style:italic;
+}
+.swiss{
+  position:absolute;bottom:9%;left:0;right:0;
+  text-align:center;
+  font-size:clamp(6px, .85vmin, 9px);
+  letter-spacing:.34em;text-indent:.34em;
+  color:rgba(93,74,55,.75);
+}
+.date-window{
+  position:absolute;right:8.5%;top:50%;
+  transform:translateY(-50%);
+  min-width:11%;aspect-ratio:1/.78;
+  display:flex;align-items:center;justify-content:center;
+  background:linear-gradient(180deg,#fffdf4,#f4ead4);
+  border:1px solid rgba(90,50,20,.4);
+  border-radius:2px;
+  box-shadow:inset 0 1px 3px rgba(90,50,20,.3), 0 1px 0 rgba(255,248,232,.6);
+  font-size:clamp(11px, 1.75vmin, 17px);
+  font-weight:700;color:var(--ink);
+}
+
+/* ---- hands ---- */
+.hand{
+  position:absolute;left:50%;bottom:50%;
+  transform-origin:50% 100%;
+  transform:translateX(-50%);
+  border-radius:40% 40% 12% 12% / 70% 70% 10% 10%;
+}
+.hand-hour{
+  width:5.5%;height:27%;
+  background:linear-gradient(180deg,#4a3423,#241a10);
+  box-shadow:0 2px 5px rgba(40,22,10,.35);
+  transition:transform .6s cubic-bezier(.4,0,.2,1);
+}
+.hand-minute{
+  width:4%;height:40%;
+  background:linear-gradient(180deg,#5d4a37,#2c2118);
+  box-shadow:0 2px 5px rgba(40,22,10,.3);
+  transition:transform .5s cubic-bezier(.4,0,.2,1);
+}
+.hand-second{
+  width:1.4%;height:52%;
+  border-radius:1px;
+  background:linear-gradient(180deg,#c9986a 0%, #9c6b42 100%);
+  box-shadow:0 1px 3px rgba(90,50,20,.4);
+  transition:transform .28s cubic-bezier(.36,.07,.19,1.35);
+}
+.hand-second::after{
+  content:'';position:absolute;top:100%;left:0;
+  width:100%;height:34%;
+  background:linear-gradient(180deg,#9c6b42,#7a4c2b);
+  border-radius:1px;
+}
+.no-anim .hand{transition:none!important}
+.cap{
+  position:absolute;left:50%;top:50%;
+  width:7.5%;aspect-ratio:1/1;
+  transform:translate(-50%,-50%) translateZ(10px);
+  border-radius:50%;
+  background:radial-gradient(circle at 35% 30%, #f0cdb0, #9c6b42 75%);
+  box-shadow:0 1px 3px rgba(40,22,10,.5), inset 0 1px 1px rgba(255,244,226,.8);
+  z-index:5;
+}
+.cap::after{
+  content:'';position:absolute;inset:28%;
+  border-radius:50%;
+  background:radial-gradient(circle at 35% 30%, #4a3423, #241a10);
+}
+.glass{
+  position:absolute;inset:7.4%;border-radius:50%;
+  transform:translateZ(14px);
+  pointer-events:none;
+  background:
+    radial-gradient(ellipse 42% 30% at 32% 24%, rgba(255,255,255,.4), transparent 70%),
+    radial-gradient(ellipse 30% 20% at 68% 78%, rgba(255,255,255,.12), transparent 70%);
+  box-shadow:inset 0 0 24px rgba(90,50,20,.1), inset 0 2px 4px rgba(255,255,255,.35);
+}
+/* ============ EDITORIAL PANEL ============ */
+.copy-panel{
+  display:flex;flex-direction:column;justify-content:center;
+  padding:11vh 6.5vw 10vh;
+  position:relative;
+}
+.copy-inner{max-width:560px;width:100%;margin:0 auto}
+.rule-double{
+  height:7px;border-top:2px solid var(--brown);border-bottom:1px solid var(--brown);
+  margin-bottom:4.5vh;opacity:.8;
+}
+.tag{
+  display:flex;align-items:center;gap:14px;
+  font-size:11px;letter-spacing:.44em;text-transform:uppercase;
+  color:var(--rose-deep);
+  margin-bottom:3.2vh;
+}
+.tag::before,.tag::after{
+  content:'';flex:0 0 34px;height:1px;background:var(--rose-deep);opacity:.6;
+}
+.headline{
+  font-size:clamp(44px, 5.6vw, 82px);
+  font-weight:400;line-height:1.04;
+  color:var(--ink);
+  margin-bottom:3.4vh;
+  letter-spacing:-.01em;
+}
+.headline em{
+  font-style:italic;font-weight:700;color:var(--brown);
+}
+.lede{
+  font-style:italic;
+  font-size:clamp(16px, 1.5vw, 19px);
+  line-height:1.75;
+  color:var(--ink-soft);
+  max-width:46ch;
+  margin-bottom:5vh;
+}
+.specs{
+  display:grid;grid-template-columns:1fr 1fr;
+  border-top:1px solid rgba(74,52,35,.35);
+  margin-bottom:5.5vh;
+}
+.spec{
+  padding:16px 18px 15px 0;
+  border-bottom:1px solid rgba(74,52,35,.35);
+  margin-left:18px;
+}
+.spec dt{
+  font-size:10px;letter-spacing:.38em;text-transform:uppercase;
+  color:var(--rose-deep);
+  margin-bottom:8px;
+}
+.spec dd{
+  font-size:15px;color:var(--ink);line-height:1.5;
+}
+.spec dd small{
+  display:block;font-size:12px;font-style:italic;color:var(--ink-soft);margin-top:2px;
+}
+.cta{
+  display:inline-flex;align-items:center;gap:14px;
+  font-family:var(--serif);
+  font-size:14px;letter-spacing:.3em;text-transform:uppercase;
+  color:var(--cream);
+  background:var(--brown);
+  border:1px solid var(--brown);
+  padding:19px 34px;
+  cursor:pointer;
+  transition:background .35s ease,color .35s ease,transform .35s ease,box-shadow .35s ease;
+}
+.cta span{transition:transform .35s ease}
+.cta:hover{
+  background:var(--cream);color:var(--brown);
+  transform:translateY(-3px);
+  box-shadow:0 14px 28px -12px rgba(58,36,20,.45);
+}
+.cta:hover span{transform:translateX(6px)}
+.cta:active{transform:translateY(-1px)}
+.footnote{
+  margin-top:22px;
+  font-size:11px;font-style:italic;letter-spacing:.14em;
+  color:rgba(93,74,55,.75);
+}
+/* ============ RESPONSIVE ============ */
+@media (max-width:920px){
+  .grid{grid-template-columns:1fr}
+  .watch-panel{min-height:80vh;padding:9vh 0 6vh}
+  .copy-panel{padding:7vh 8vw 9vh}
+  .tag{letter-spacing:.3em}
+  .tag::before,.tag::after{flex-basis:20px}
+}
+@media (max-width:480px){
+  .specs{grid-template-columns:1fr}
+  .cta{width:100%;justify-content:center}
+  .panel-edition,.panel-mark{font-size:9px}
+}
+@media (prefers-reduced-motion:reduce){
+  .watch-float,.watch-shadow{animation:none}
+  .watch{transition:none}
+  .hand{transition:none}
+}
+</style>
+</head>
+<body>
+<div class="page-rule"></div>
+<main class="grid">
+  <!-- ===== watch ===== -->
+  <section class="watch-panel">
+    <div class="panel-edition"><b>N° 004</b>Collection 1962</div>
+    <div class="panel-mark">Maison Légacy · Genève</div>
+    <div class="watch-scene">
+      <div class="watch-float">
+        <div class="watch" id="watch">
+          <div class="strap strap-top"></div>
+          <div class="strap strap-bottom"></div>
+          <div class="case"></div>
+          <div class="crown"></div>
+          <div class="bezel"></div>
+          <div class="dial">
+            <div class="track" id="track"></div>
+            <div class="brand">LÉGACY</div>
+            <div class="brand-sub">Genève</div>
+            <div class="date-window"><span id="dateNum">--</span></div>
+            <div class="hand hand-hour" id="handHour"></div>
+            <div class="hand hand-minute" id="handMinute"></div>
+            <div class="hand hand-second" id="handSecond"></div>
+            <div class="swiss">SWISS MADE</div>
+          </div>
+          <div class="cap"></div>
+          <div class="glass"></div>
+        </div>
+      </div>
+      <div class="watch-shadow"></div>
+    </div>
+  </section>
+  <!-- ===== editorial ===== -->
+  <section class="copy-panel">
+    <div class="copy-inner">
+      <div class="rule-double"></div>
+      <div class="tag">Haute Horlogerie · Est. 1962</div>
+      <h1 class="headline">The Minimal<br><em>Legacy</em></h1>
+      <p class="lede">For sixty years our ateliers have pursued a single obsession — the removal of everything that is not time. A dial reduced to light, number, and motion. Nothing else.</p>
+      <dl class="specs">
+        <div class="spec">
+          <dt>Movement</dt>
+          <dd>Calibre L-1962<small>Manual wind · 21 jewels</small></dd>
+        </div>
+        <div class="spec">
+          <dt>Case</dt>
+          <dd>39 mm Rose Gold<small>5N alloy · hand-brushed</small></dd>
+        </div>
+        <div class="spec">
+          <dt>Crystal</dt>
+          <dd>Domed Sapphire<small>Double anti-reflective</small></dd>
+        </div>
+        <div class="spec">
+          <dt>Reserve</dt>
+          <dd>72 Hours<small>Beats at 18,000 vph</small></dd>
+        </div>
+      </dl>
+      <button class="cta" type="button">Reserve Your Time <span>→</span></button>
+      <p class="footnote">Hand-finished in Genève — numbered edition of two hundred.</p>
+    </div>
+  </section>
+</main>
+<script>
+(function () {
+  'use strict';
+
+  /* ---------- generate dial markers (Roman numerals + minute track) ---------- */
+  var ROMAN = ['XII', 'I', 'II', 'IIII', 'IV', 'V',
+               'VI', 'VII', 'VIII', 'IX', 'X', 'XI'];
+  var track = document.getElementById('track');
+
+  for (var i = 0; i < 60; i++) {
+    var spoke = document.createElement('div');
+    spoke.className = 'spoke';
+    spoke.style.transform = 'rotate(' + (i * 6) + 'deg)';
+
+    if (i % 5 === 0) {
+      var numeral = document.createElement('span');
+      numeral.className = 'numeral';
+      numeral.textContent = ROMAN[i / 5];
+      spoke.appendChild(numeral);
+
+      var sq = document.createElement('span');
+      sq.className = 'tick-major';
+      spoke.appendChild(sq);
+    } else {
+      var tick = document.createElement('span');
+      tick.className = 'tick';
+      spoke.appendChild(tick);
+    }
+    track.appendChild(spoke);
+  }
+
+  /* ---------- live clock ---------- */
+  var handHour = document.getElementById('handHour');
+  var handMinute = document.getElementById('handMinute');
+  var handSecond = document.getElementById('handSecond');
+  var dateNum = document.getElementById('dateNum');
+  var watch = document.getElementById('watch');
+
+  var angles = { h: null, m: null, s: null };
+
+  /* advance the stored angle toward target without ever rotating backwards */
+  function stepAngle(oldAngle, target) {
+    if (oldAngle === null) return target;
+    var t = target;
+    while (t - oldAngle < -180) t += 360;
+    while (t - oldAngle > 180) t -= 360;
+    return t;
+  }
+
+  function tick() {
+    var now = new Date();
+    var s = now.getSeconds();
+    var m = now.getMinutes();
+    var h = now.getHours() % 12;
+
+    angles.s = stepAngle(angles.s, s * 6);
+    angles.m = stepAngle(angles.m, (m + s / 60) * 6);
+    angles.h = stepAngle(angles.h, (h + m / 60 + s / 3600) * 30);
+
+    handSecond.style.transform = 'translateX(-50%) rotate(' + angles.s + 'deg)';
+    handMinute.style.transform = 'translateX(-50%) rotate(' + angles.m + 'deg)';
+    handHour.style.transform = 'translateX(-50%) rotate(' + angles.h + 'deg)';
+
+    dateNum.textContent = now.getDate();
+  }
+
+  /* first paint without a sweep-in transition */
+  watch.classList.add('no-anim');
+  tick();
+  /* force reflow so the no-anim styles commit before transitions re-enable */
+  void watch.offsetHeight;
+  watch.classList.remove('no-anim');
+
+  setInterval(tick, 1000);
+})();
+</script>
+</body>
+</html>
