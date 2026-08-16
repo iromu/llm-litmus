@@ -1,0 +1,1502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CityPulse — An Elder Scrolls–style City Exploration</title>
+<style>
+  :root {
+    --parchment: #e8d5a3;
+    --gold: #d4af37;
+    --gold-bright: #ffd76a;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #000; font-family: Georgia, 'Times New Roman', serif; }
+  canvas { display: block; }
+  .fantasy-title { font-family: 'Cinzel', Georgia, serif; letter-spacing: 0.12em; text-transform: uppercase; }
+
+  /* Title screen */
+  #titleScreen {
+    position: fixed; inset: 0; z-index: 100;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background: radial-gradient(ellipse at center, rgba(30,20,10,0.35) 0%, rgba(10,6,3,0.92) 100%),
+      linear-gradient(180deg, #1a1208 0%, #2c1f10 45%, #14100a 100%);
+    transition: opacity 0.8s ease;
+  }
+  #titleScreen.hidden { opacity: 0; pointer-events: none; }
+  .title-frame {
+    position: relative; text-align: center; padding: 60px 90px;
+    border: 3px double var(--gold);
+    background: linear-gradient(180deg, rgba(60,42,20,0.55), rgba(30,20,10,0.7));
+    box-shadow: 0 0 60px rgba(212,175,55,0.25), inset 0 0 40px rgba(0,0,0,0.6);
+  }
+  .title-frame::before, .title-frame::after { content: "❖"; position: absolute; color: var(--gold); font-size: 28px; }
+  .title-frame::before { top: 8px; left: 12px; }
+  .title-frame::after { bottom: 8px; right: 12px; }
+  #gameTitle { font-size: clamp(48px, 9vw, 110px); color: var(--gold-bright);
+    text-shadow: 0 0 24px rgba(255,215,106,0.5), 0 4px 0 rgba(0,0,0,0.6); line-height: 1; margin-bottom: 10px; }
+  #gameSubtitle { font-size: clamp(14px, 2vw, 20px); color: var(--parchment);
+    letter-spacing: 0.3em; text-transform: uppercase; margin-bottom: 40px; font-style: italic; }
+  .btn-fantasy {
+    font-family: inherit; cursor: pointer; font-size: 22px; letter-spacing: 0.15em; text-transform: uppercase;
+    color: var(--gold-bright); background: linear-gradient(180deg, #3a2a14, #241808);
+    border: 2px solid var(--gold); padding: 16px 48px;
+    box-shadow: 0 0 18px rgba(212,175,55,0.3), inset 0 0 12px rgba(0,0,0,0.5);
+    transition: all 0.2s ease; position: relative;
+  }
+  .btn-fantasy:hover { background: linear-gradient(180deg, #4a3618, #2e200c);
+    box-shadow: 0 0 30px rgba(255,215,106,0.55), inset 0 0 12px rgba(0,0,0,0.5); transform: translateY(-2px); }
+  .btn-fantasy:active { transform: translateY(0); }
+  .title-hint { margin-top: 28px; color: rgba(232,213,163,0.6); font-size: 14px; letter-spacing: 0.1em; }
+
+  /* Pause menu */
+  #pauseMenu { position: fixed; inset: 0; z-index: 90; display: none; align-items: center; justify-content: center;
+    background: rgba(8,5,2,0.78); backdrop-filter: blur(3px); }
+  #pauseMenu.visible { display: flex; }
+  .pause-panel { text-align: center; padding: 50px 70px; min-width: 340px; border: 3px double var(--gold);
+    background: linear-gradient(180deg, rgba(50,36,18,0.92), rgba(28,18,8,0.95)); box-shadow: 0 0 50px rgba(212,175,55,0.2); }
+  .pause-panel h2 { color: var(--gold-bright); font-size: 40px; margin-bottom: 36px; letter-spacing: 0.2em; }
+  .pause-panel .btn-fantasy { display: block; width: 100%; margin: 14px 0; font-size: 18px; padding: 14px 30px; }
+  .settings-row { display: flex; align-items: center; justify-content: space-between; margin: 10px 0; color: var(--parchment); font-size: 15px; }
+  .settings-row input[type=range] { width: 140px; accent-color: var(--gold); }
+
+  /* HUD */
+  #hud { position: fixed; inset: 0; z-index: 50; pointer-events: none; display: none; }
+  #hud.visible { display: block; }
+  #compass { position: absolute; top: 18px; left: 50%; transform: translateX(-50%);
+    display: flex; align-items: center; gap: 14px; padding: 8px 28px; border-radius: 30px;
+    background: linear-gradient(180deg, rgba(20,14,6,0.7), rgba(10,7,3,0.85));
+    border: 1px solid rgba(212,175,55,0.5); box-shadow: 0 2px 12px rgba(0,0,0,0.5); }
+  #compassName { color: var(--gold-bright); font-size: 20px; letter-spacing: 0.15em; text-transform: uppercase; }
+  #compassDir { color: var(--parchment); font-size: 14px; letter-spacing: 0.2em; }
+  #interactPrompt { position: absolute; bottom: 130px; left: 50%; transform: translateX(-50%);
+    padding: 10px 26px; border-radius: 6px; background: rgba(15,10,4,0.8); border: 1px solid var(--gold);
+    color: var(--gold-bright); font-size: 17px; letter-spacing: 0.08em; box-shadow: 0 0 16px rgba(212,175,55,0.3);
+    display: none; animation: pulse 1.6s ease-in-out infinite; }
+  @keyframes pulse { 0%,100%{opacity:0.85} 50%{opacity:1} }
+  #questTracker { position: absolute; top: 70px; left: 20px; max-width: 300px; padding: 12px 16px; border-radius: 4px;
+    background: rgba(15,10,4,0.72); border-left: 3px solid var(--gold); color: var(--parchment); font-size: 14px; line-height: 1.5; display: none; }
+  #questTracker .q-title { color: var(--gold-bright); font-size: 15px; letter-spacing: 0.1em; margin-bottom: 4px; }
+  #toast { position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%) translateY(20px);
+    padding: 12px 30px; border-radius: 4px; background: rgba(20,14,6,0.9); border: 1px solid var(--gold);
+    color: var(--gold-bright); font-size: 16px; letter-spacing: 0.06em; opacity: 0; transition: all 0.4s ease; pointer-events: none; }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* Dialogue (Elder Scrolls style) */
+  #dialogue { position: fixed; bottom: 0; left: 0; right: 0; z-index: 80; display: none; padding: 0 0 26px;
+    background: linear-gradient(180deg, transparent, rgba(8,5,2,0.55) 30%); }
+  #dialogue.visible { display: block; }
+  .dialogue-inner { max-width: 860px; margin: 0 auto; display: flex; gap: 22px; padding: 0 30px; }
+  .portrait-wrap { flex-shrink: 0; width: 150px; }
+  .portrait { width: 150px; height: 150px; border-radius: 50%; border: 3px solid var(--gold); overflow: hidden;
+    box-shadow: 0 0 24px rgba(212,175,55,0.4); background: radial-gradient(circle at 35% 30%, #5a4a30, #241a0e);
+    display: flex; align-items: center; justify-content: center; }
+  .portrait svg { width: 100%; height: 100%; }
+  .npc-name-tag { margin-top: 10px; text-align: center; color: var(--gold-bright); font-size: 16px;
+    letter-spacing: 0.12em; text-transform: uppercase; text-shadow: 0 1px 3px #000; }
+  .dialogue-text-col { flex: 1; }
+  .speaker-line { color: var(--gold-bright); font-size: 18px; letter-spacing: 0.1em; margin-bottom: 8px; text-transform: uppercase; }
+  .dialogue-text { color: var(--parchment); font-size: 19px; line-height: 1.6; min-height: 72px; padding: 14px 18px;
+    background: rgba(20,14,6,0.6); border: 1px solid rgba(212,175,55,0.35); border-radius: 4px; font-style: italic; }
+  .choices { margin-top: 14px; display: flex; flex-direction: column; gap: 8px; }
+  .choice-btn { font-family: inherit; cursor: pointer; text-align: left; font-size: 16px; color: var(--parchment);
+    background: rgba(30,20,10,0.7); border: 1px solid rgba(212,175,55,0.4); border-left: 3px solid var(--gold);
+    padding: 10px 16px; border-radius: 3px; transition: all 0.15s ease; }
+  .choice-btn:hover { background: rgba(50,36,18,0.9); color: var(--gold-bright); border-left-width: 6px; padding-left: 13px; }
+  .choice-btn .num { color: var(--gold); margin-right: 8px; font-weight: bold; }
+
+  /* Loading overlay */
+  #loading { position: fixed; inset: 0; z-index: 200; background: #0a0704; display: flex; align-items: center; justify-content: center;
+    color: var(--gold-bright); font-size: 22px; letter-spacing: 0.3em; text-transform: uppercase; transition: opacity 0.6s ease; }
+  #loading.hidden { opacity: 0; pointer-events: none; }
+  .spinner { width: 46px; height: 46px; border: 3px solid rgba(212,175,55,0.3); border-top-color: var(--gold-bright);
+    border-radius: 50%; animation: spin 0.9s linear infinite; margin-right: 20px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+  <div id="loading"><div class="spinner"></div><span>Raising the Banners…</span></div>
+
+  <div id="titleScreen">
+    <div class="title-frame">
+      <h1 id="gameTitle" class="fantasy-title">CityPulse</h1>
+      <div id="gameSubtitle">A Tale of the Wandering Vale</div>
+      <button id="beginBtn" class="btn-fantasy">Begin Adventure</button>
+      <div class="title-hint">WASD to move · SPACE to jump · Drag to look · Scroll to zoom · E to talk</div>
+    </div>
+  </div>
+
+  <div id="pauseMenu">
+    <div class="pause-panel">
+      <h2 class="fantasy-title">Paused</h2>
+      <button id="resumeBtn" class="btn-fantasy">Resume</button>
+      <button id="settingsBtn" class="btn-fantasy">Settings</button>
+      <button id="quitBtn" class="btn-fantasy">Quit to Title</button>
+      <div id="settingsPanel" style="display:none; margin-top:24px;">
+        <div class="settings-row"><label>Sensitivity</label><input type="range" id="sensSlider" min="0.2" max="2" step="0.1" value="1"></div>
+        <div class="settings-row"><label>Camera Distance</label><input type="range" id="camDistSlider" min="3" max="14" step="0.5" value="7"></div>
+        <div class="settings-row"><label>Shadows</label><input type="checkbox" id="shadowToggle" checked></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="hud">
+    <div id="compass">
+      <span id="compassName">The Wandering Vale</span>
+      <span id="compassDir">N</span>
+    </div>
+    <div id="questTracker">
+      <div class="q-title">Quest</div>
+      <div class="q-body">— No active quest —</div>
+    </div>
+    <div id="interactPrompt">Press <b>E</b> to talk</div>
+    <div id="toast"></div>
+  </div>
+
+  <div id="dialogue">
+    <div class="dialogue-inner">
+      <div class="portrait-wrap">
+        <div class="portrait" id="portrait"></div>
+        <div class="npc-name-tag" id="npcNameTag"></div>
+      </div>
+      <div class="dialogue-text-col">
+        <div class="speaker-line" id="speakerLine"></div>
+        <div class="dialogue-text" id="dialogueText"></div>
+        <div class="choices" id="choices"></div>
+      </div>
+    </div>
+  </div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+
+/* ============================================================
+   GLOBAL STATE
+============================================================ */
+const state = {
+  started: false,
+  paused: false,
+  dialogueOpen: false,
+  sensitivity: 1.0,
+  camBaseDistance: 7,
+  shadowsOn: true,
+};
+
+// Input
+const keys = {};
+let mouseDown = false;
+let camTheta = Math.PI * 0.75;   // horizontal orbit angle
+let camPhi = Math.PI * 0.32;     // vertical orbit angle (from +Y)
+let camDistance = state.camBaseDistance;
+const MIN_PHI = 0.15, MAX_PHI = Math.PI * 0.49;
+const MIN_DIST = 3, MAX_DIST = 14;
+
+// Player physics
+const GRAVITY = -22;
+const JUMP_VEL = 8.5;
+const WALK_SPEED = 4.2;
+const RUN_MULT = 1.7;
+const GROUND_Y = 0;
+
+// Interaction
+const INTERACT_RANGE = 2.6;
+let nearestNPC = null;
+
+// Collision
+const colliders = [];            // Box3 list
+const colliderMeshes = [];       // actual meshes (for raycast)
+
+/* ============================================================
+   RENDERER / SCENE / CAMERA
+============================================================ */
+const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0xbfd4e6, 0.011);
+
+const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 500);
+
+/* ============================================================
+   SKY (gradient dome via shader) + LIGHTING
+============================================================ */
+(function buildSky() {
+  const skyGeo = new THREE.SphereGeometry(240, 32, 16);
+  const skyMat = new THREE.ShaderMaterial({
+    side: THREE.BackSide,
+    depthWrite: false,
+    uniforms: {
+      topColor: { value: new THREE.Color(0x6fa8dc) },
+      midColor: { value: new THREE.Color(0xaecbe8) },
+      botColor: { value: new THREE.Color(0xdfe9f2) },
+      offset:   { value: 20 },
+    },
+    vertexShader: `
+      varying vec3 vWorldPos;
+      void main(){
+        vec4 wp = modelMatrix * vec4(position,1.0);
+        vWorldPos = wp.xyz;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);
+      }`,
+    fragmentShader: `
+      uniform vec3 topColor, midColor, botColor;
+      uniform float offset;
+      varying vec3 vWorldPos;
+      void main(){
+        float h = normalize(vWorldPos + vec3(0.0, offset, 0.0)).y;
+        vec3 col = mix(botColor, midColor, smoothstep(0.0, 0.25, h));
+        col = mix(col, topColor, smoothstep(0.25, 0.7, h));
+        gl_FragColor = vec4(col, 1.0);
+      }`
+  });
+  const sky = new THREE.Mesh(skyGeo, skyMat);
+  sky.name = 'sky';
+  scene.add(sky);
+})();
+
+// Sun (directional) with shadows
+const sun = new THREE.DirectionalLight(0xfff2d8, 1.6);
+sun.position.set(60, 90, 40);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.camera.near = 1;
+sun.shadow.camera.far = 260;
+const S = 70;
+sun.shadow.camera.left = -S; sun.shadow.camera.right = S;
+sun.shadow.camera.top = S; sun.shadow.camera.bottom = -S;
+sun.shadow.bias = -0.0004;
+sun.shadow.normalBias = 0.02;
+scene.add(sun);
+scene.add(sun.target);
+
+// Hemisphere ambient (sky/ground)
+const hemi = new THREE.HemisphereLight(0xbcd4ee, 0x5a4a32, 0.55);
+scene.add(hemi);
+
+// Soft fill
+const fillLight = new THREE.DirectionalLight(0xcfe0ff, 0.25);
+fillLight.position.set(-40, 50, -30);
+scene.add(fillLight);
+
+/* ============================================================
+   MATERIAL PALETTE (shared for batching)
+============================================================ */
+const M = {
+  stone:    new THREE.MeshStandardMaterial({ color: 0x8a8578, roughness: 0.95 }),
+  stoneDark:new THREE.MeshStandardMaterial({ color: 0x5f5b52, roughness: 0.95 }),
+  stoneWall:new THREE.MeshStandardMaterial({ color: 0x7d786c, roughness: 0.98 }),
+  wood:     new THREE.MeshStandardMaterial({ color: 0x6b4a2b, roughness: 0.85 }),
+  woodDark: new THREE.MeshStandardMaterial({ color: 0x4a331d, roughness: 0.9 }),
+  roofRed:  new THREE.MeshStandardMaterial({ color: 0x8a3b2b, roughness: 0.8 }),
+  roofBlue: new THREE.MeshStandardMaterial({ color: 0x3b5a7a, roughness: 0.8 }),
+  roofGreen:new THREE.MeshStandardMaterial({ color: 0x4a6b3a, roughness: 0.8 }),
+  thatch:   new THREE.MeshStandardMaterial({ color: 0xb89a5a, roughness: 0.95 }),
+  cobble:   new THREE.MeshStandardMaterial({ color: 0x6e6a62, roughness: 0.9 }),
+  dirt:     new THREE.MeshStandardMaterial({ color: 0x5a4a30, roughness: 1.0 }),
+  grass:    new THREE.MeshStandardMaterial({ color: 0x5a7a3a, roughness: 1.0 }),
+  bannerRed:new THREE.MeshStandardMaterial({ color: 0x9a2b2b, roughness: 0.7, side: THREE.DoubleSide }),
+  bannerBlue:new THREE.MeshStandardMaterial({ color: 0x2b4a9a, roughness: 0.7, side: THREE.DoubleSide }),
+  gold:     new THREE.MeshStandardMaterial({ color: 0xd4af37, roughness: 0.3, metalness: 0.7 }),
+  iron:     new THREE.MeshStandardMaterial({ color: 0x3a3a3a, roughness: 0.5, metalness: 0.8 }),
+  flame:    new THREE.MeshBasicMaterial({ color: 0xffa030 }),
+  leaf:     new THREE.MeshStandardMaterial({ color: 0x4a7a2a, roughness: 0.9 }),
+  trunk:    new THREE.MeshStandardMaterial({ color: 0x5a4028, roughness: 0.95 }),
+  water:    new THREE.MeshStandardMaterial({ color: 0x3a6a8a, roughness: 0.2, metalness: 0.1 }),
+  skin:     new THREE.MeshStandardMaterial({ color: 0xd9a878, roughness: 0.8 }),
+  cloth:    new THREE.MeshStandardMaterial({ color: 0x6a5a4a, roughness: 0.9 }),
+  armor:    new THREE.MeshStandardMaterial({ color: 0x7a7a82, roughness: 0.4, metalness: 0.7 }),
+  cloak:    new THREE.MeshStandardMaterial({ color: 0x3a2a4a, roughness: 0.9 }),
+};
+
+/* ============================================================
+   HELPERS
+============================================================ */
+function box(w, h, d, mat, x=0, y=0, z=0, castShadow=true, receiveShadow=true) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+  m.position.set(x, y, z);
+  m.castShadow = castShadow; m.receiveShadow = receiveShadow;
+  return m;
+}
+function cyl(rt, rb, h, seg, mat, x=0, y=0, z=0, castShadow=true) {
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, seg), mat);
+  m.position.set(x, y, z);
+  m.castShadow = castShadow; m.receiveShadow = true;
+  return m;
+}
+function addCollider(mesh, pad = 0.1) {
+  mesh.updateWorldMatrix(true, false);
+  const b = new THREE.Box3().setFromObject(mesh);
+  b.expandByScalar(pad);
+  colliders.push(b);
+  colliderMeshes.push(mesh);
+  return b;
+}
+/* ============================================================
+   CITY LAYOUT
+   Town sits on a ~116x116 platform. Walls enclose it.
+   Main square at origin. Keep (landmark) to the north.
+============================================================ */
+const CITY = { half: 58 };
+
+// --- Ground ---
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(CITY.half*2+40, CITY.half*2+40), M.grass);
+ground.rotation.x = -Math.PI/2;
+ground.position.y = -0.02;
+ground.receiveShadow = true;
+scene.add(ground);
+
+// Cobblestone main paths
+function pathStrip(w, d, x, z) {
+  const p = box(w, 0.06, d, M.cobble, x, 0.03, z, false, true);
+  scene.add(p);
+  return p;
+}
+pathStrip(6, CITY.half*2, 0, 0);          // N-S main road
+pathStrip(CITY.half*2, 6, 0, 0);          // E-W main road
+pathStrip(5, 30, 0, -34);                 // road up to keep
+pathStrip(30, 5, 26, 0);                  // east market lane
+pathStrip(5, 26, -26, 0);                 // west lane
+
+// Town square plaza (raised cobble disc)
+const plaza = new THREE.Mesh(new THREE.CylinderGeometry(11, 11, 0.1, 48), M.cobble);
+plaza.position.y = 0.05; plaza.receiveShadow = true;
+scene.add(plaza);
+
+/* ============================================================
+   BUILDINGS
+============================================================ */
+function makeBuilding({ w=8, d=8, h=6, roof='red', x=0, z=0, rotY=0, door=true, windows=2 }) {
+  const g = new THREE.Group();
+  const body = box(w, h, d, M.stone, 0, h/2, 0);
+  g.add(body);
+  const roofMat = roof==='red'?M.roofRed : roof==='blue'?M.roofBlue : roof==='green'?M.roofGreen : M.thatch;
+  const roofH = h*0.55;
+  const roof = new THREE.Mesh(new THREE.ConeGeometry(Math.max(w,d)*0.78, roofH, 4), roofMat);
+  roof.position.y = h + roofH/2;
+  roof.rotation.y = Math.PI/4;
+  roof.castShadow = true;
+  g.add(roof);
+  if (door) {
+    g.add(box(1.4, 2.4, 0.2, M.woodDark, 0, 1.2, d/2 + 0.05));
+  }
+  for (let i=0;i<windows;i++){
+    const wx = (i-(windows-1)/2) * (w/(windows+1));
+    const winMat = new THREE.MeshStandardMaterial({color:0xffe0a0, emissive:0xffb050, emissiveIntensity:0.5});
+    g.add(box(0.9, 1.1, 0.15, winMat, wx, h*0.6, d/2+0.05, false));
+  }
+  g.position.set(x, 0, z);
+  g.rotation.y = rotY;
+  scene.add(g);
+  // Collider footprint (invisible box matching building)
+  const cBody = box(w, h, d, M.stone, x, h/2, z);
+  cBody.rotation.y = rotY;
+  scene.add(cBody);
+  addCollider(cBody, 0.15);
+  return g;
+}
+
+// Ring of buildings around the square (gaps left for roads)
+makeBuilding({ w:9, d:8, h:6.5, roof:'red',    x:-16, z:-14, rotY:0,           windows:3 });
+makeBuilding({ w:9, d:8, h:7,   roof:'blue',   x: 16, z:-14, rotY:0,           windows:3 });
+makeBuilding({ w:8, d:9, h:6,   roof:'green',  x:-16, z: 14, rotY:0,           windows:3 });
+makeBuilding({ w:8, d:9, h:6.5, roof:'red',    x: 16, z: 14, rotY:0,           windows:3 });
+makeBuilding({ w:10,d:8, h:7,   roof:'thatch', x:-30, z: 0,  rotY:Math.PI/2,   windows:3 });
+makeBuilding({ w:10,d:8, h:6,   roof:'blue',   x: 30, z: 0,  rotY:Math.PI/2,   windows:3 });
+makeBuilding({ w:8, d:8, h:5.5, roof:'green',  x:-14, z:-30, rotY:0,           windows:2 });
+makeBuilding({ w:8, d:8, h:5.5, roof:'red',    x: 14, z:-30, rotY:0,           windows:2 });
+makeBuilding({ w:9, d:8, h:6,   roof:'thatch', x:-14, z: 30, rotY:0,           windows:2 });
+makeBuilding({ w:9, d:8, h:6.5, roof:'blue',   x: 14, z: 30, rotY:0,           windows:2 });
+
+/* ============================================================
+   MARKET STALLS (east side)
+============================================================ */
+function makeStall(x, z, rotY, canopyMat) {
+  const g = new THREE.Group();
+  // Counter
+  g.add(box(3, 1, 1.6, M.wood, 0, 0.5, 0));
+  // Posts
+  g.add(cyl(0.08, 0.08, 2.4, 6, M.woodDark, -1.3, 1.2, -0.7));
+  g.add(cyl(0.08, 0.08, 2.4, 6, M.woodDark,  1.3, 1.2, -0.7));
+  g.add(cyl(0.08, 0.08, 2.4, 6, M.woodDark, -1.3, 1.2,  0.7));
+  g.add(cyl(0.08, 0.08, 2.4, 6, M.woodDark,  1.3, 1.2,  0.7));
+  // Canopy (slanted)
+  const canopy = box(3.4, 0.12, 2.2, canopyMat, 0, 2.5, 0);
+  canopy.rotation.x = -0.12;
+  g.add(canopy);
+  // Goods on counter (small colored boxes)
+  const goods = [0xc94f3a, 0x4fa0c9, 0xc9b23a, 0x7ac94f];
+  for (let i=0;i<4;i++){
+    const gm = new THREE.MeshStandardMaterial({ color: goods[i], roughness: 0.8 });
+    g.add(box(0.4, 0.4, 0.4, gm, -1 + i*0.6, 1.2, 0));
+  }
+  g.position.set(x, 0, z);
+  g.rotation.y = rotY;
+  scene.add(g);
+  // Collider
+  const cc = box(3, 2.5, 2, M.wood, x, 1.25, z);
+  cc.rotation.y = rotY;
+  scene.add(cc);
+  addCollider(cc, 0.1);
+  return g;
+}
+makeStall( 24, -6,  Math.PI/2, M.bannerRed);
+makeStall( 24,  6,  Math.PI/2, M.bannerBlue);
+makeStall( 34, -6,  Math.PI/2, M.thatch);
+makeStall( 34,  6,  Math.PI/2, M.bannerRed);
+
+/* ============================================================
+   TOWN WALLS + GATES
+============================================================ */
+function wallSegment(len, x, z, rotY) {
+  const w = box(len, 7, 1.6, M.stoneWall, x, 3.5, z);
+  w.rotation.y = rotY;
+  scene.add(w);
+  addCollider(w, 0.1);
+  // Battlements (small merlons on top)
+  const n = Math.floor(len / 3);
+  for (let i=0;i<n;i++){
+    const off = -len/2 + 1.5 + i*(len/(n||1));
+    const m = box(1.2, 1, 1.4, M.stoneWall, x + Math.cos(rotY)*off, 7.5, z - Math.sin(rotY)*off);
+    m.rotation.y = rotY;
+    scene.add(m);
+  }
+}
+const H = CITY.half;
+wallSegment(H*2 - 12, 0, -H, 0);            // north (gap for gate)
+wallSegment(H*2 - 12, 0,  H, 0);            // south (gap for gate)
+wallSegment(H*2 - 12, -H, 0, Math.PI/2);    // west
+wallSegment(H*2 - 12,  H, 0, Math.PI/2);    // east
+
+// Corner towers
+function cornerTower(x, z) {
+  const t = cyl(2.4, 2.8, 10, 12, M.stoneWall, x, 5, z);
+  scene.add(t);
+  addCollider(t, 0.1);
+  const cap = new THREE.Mesh(new THREE.ConeGeometry(2.6, 3, 12), M.roofBlue);
+  cap.position.set(x, 11.5, z); cap.castShadow = true;
+  scene.add(cap);
+}
+cornerTower(-H, -H); cornerTower(H, -H); cornerTower(-H, H); cornerTower(H, H);
+
+// South gate (main entrance) with two posts + arch
+function makeGate(z) {
+  const postL = box(2, 9, 2, M.stoneWall, -4, 4.5, z);
+  const postR = box(2, 9, 2, M.stoneWall,  4, 4.5, z);
+  scene.add(postL); scene.add(postR);
+  addCollider(postL, 0.1); addCollider(postR, 0.1);
+  const lintel = box(10, 1.6, 2.2, M.stoneWall, 0, 9, z);
+  scene.add(lintel);
+  // Banner over gate
+  const ban = box(6, 3, 0.1, M.bannerRed, 0, 11, z);
+  scene.add(ban);
+}
+makeGate(H);
+// North gate (toward keep)
+makeGate(-H);
+
+/* ============================================================
+   LANDMARK: THE KEEP (north)
+============================================================ */
+(function buildKeep() {
+  const kx = 0, kz = -44;
+  // Base platform
+  const base = box(20, 1.2, 20, M.stoneDark, kx, 0.6, kz);
+  scene.add(base);
+  // Main keep tower
+  const tower = cyl(5, 5.5, 16, 16, M.stone, kx, 8.6, kz);
+  scene.add(tower);
+  addCollider(tower, 0.2);
+  // Crenellated top ring
+  const ring = cyl(6, 6, 1.4, 16, M.stoneDark, kx, 16.8, kz);
+  scene.add(ring);
+  for (let i=0;i<8;i++){
+    const a = (i/8)*Math.PI*2;
+    const merlon = box(1.6, 1.4, 1.6, M.stoneDark, kx + Math.cos(a)*5.4, 18, kz + Math.sin(a)*5.4);
+    scene.add(merlon);
+  }
+  // Conical roof + gold finial
+  const cone = new THREE.Mesh(new THREE.ConeGeometry(4.5, 6, 16), M.roofBlue);
+  cone.position.set(kx, 20.5, kz); cone.castShadow = true;
+  scene.add(cone);
+  const finial = cyl(0.15, 0.15, 2, 8, M.gold, kx, 24, kz, false);
+  scene.add(finial);
+  // Windows (glowing)
+  const winMat = new THREE.MeshStandardMaterial({color:0xffe0a0, emissive:0xffb050, emissiveIntensity:0.6});
+  for (let i=0;i<4;i++){
+    const a = (i/4)*Math.PI*2 + Math.PI/4;
+    scene.add(box(0.9, 1.4, 0.2, winMat, kx + Math.cos(a)*5.1, 9, kz + Math.sin(a)*5.1, false));
+  }
+  // Entrance stair
+  for (let i=0;i<5;i++){
+    scene.add(box(6, 0.4, 1.4, M.stone, kx, 0.2 + i*0.4, kz + 10 - i*1.4));
+  }
+  // Flag on keep
+  const pole = cyl(0.08, 0.08, 4, 6, M.iron, kx, 25.5, kz, false);
+  scene.add(pole);
+  const flag = box(1.6, 1, 0.06, M.bannerRed, kx + 0.8, 26.5, kz);
+  scene.add(flag);
+})();
+
+/* ============================================================
+   ENVIRONMENTAL DETAILS
+============================================================ */
+const torchLights = []; // { light, baseIntensity, phase }
+
+function makeTorch(x, y, z) {
+  const g = new THREE.Group();
+  // Pole
+  g.add(cyl(0.06, 0.08, 1.4, 6, M.woodDark, 0, 0.7, 0));
+  // Bowl
+  g.add(cyl(0.18, 0.12, 0.25, 8, M.iron, 0, 1.45, 0));
+  // Flame (emissive cone)
+  const flame = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.5, 8), M.flame);
+  flame.position.y = 1.7;
+  g.add(flame);
+  // Point light (flickering)
+  const pl = new THREE.PointLight(0xff9a3c, 1.4, 12, 2);
+  pl.position.y = 1.7;
+  g.add(pl);
+  g.position.set(x, y, z);
+  scene.add(g);
+  torchLights.push({ light: pl, baseIntensity: 1.4, phase: Math.random() * Math.PI * 2 });
+  return g;
+}
+// Torches along main roads and near gate / keep
+makeTorch(-3.5, 0, -8);  makeTorch(3.5, 0, -8);
+makeTorch(-3.5, 0, 8);   makeTorch(3.5, 0, 8);
+makeTorch(-3.5, 0, -20); makeTorch(3.5, 0, -20);
+makeTorch(-3.5, 0, 20);  makeTorch(3.5, 0, 20);
+makeTorch(-6, 0, 55);    makeTorch(6, 0, 55);     // south gate
+makeTorch(-6, 0, -55);   makeTorch(6, 0, -55);    // north gate
+makeTorch(-8, 0, -36);   makeTorch(8, 0, -36);    // keep approach
+
+// Banners hanging on buildings (vertical strips)
+function makeBanner(x, y, z, rotY, mat) {
+  const b = box(0.9, 2.6, 0.08, mat, x, y, z);
+  b.rotation.y = rotY;
+  scene.add(b);
+  // Top bar
+  const bar = cyl(0.04, 0.04, 1.1, 6, M.iron, x, y + 1.35, z, false);
+  bar.rotation.z = Math.PI/2;
+  bar.rotation.y = rotY;
+  scene.add(bar);
+}
+makeBanner(-16, 5, -9.6, 0, M.bannerRed);
+makeBanner(16, 5, -9.6, 0, M.bannerBlue);
+makeBanner(-16, 5, 19.6, 0, M.bannerBlue);
+makeBanner(16, 5, 19.6, 0, M.bannerRed);
+makeBanner(-29.6, 5, 0, Math.PI/2, M.bannerRed);
+makeBanner(29.6, 5, 0, Math.PI/2, M.bannerBlue);
+
+// Crates & barrels scattered around
+function scatterProp(kind, x, z) {
+  if (kind === 'crate') {
+    const c = box(0.9, 0.9, 0.9, M.wood, x, 0.45, z);
+    c.rotation.y = Math.random() * Math.PI;
+    scene.add(c);
+    addCollider(c, 0.05);
+  } else {
+    const b = cyl(0.45, 0.45, 1.0, 10, M.woodDark, x, 0.5, z);
+    scene.add(b);
+    addCollider(b, 0.05);
+  }
+}
+scatterProp('crate', -8, -6);  scatterProp('barrel', -9, -5);
+scatterProp('crate', 9, 6);    scatterProp('barrel', 10, 7);
+scatterProp('crate', -22, 4);  scatterProp('barrel', 22, -4);
+scatterProp('crate', 6, 24);   scatterProp('barrel', -6, -24);
+scatterProp('crate', -30, 8);  scatterProp('barrel', 30, -8);
+
+// Fences (short wooden rails) lining parts of the square
+function makeFence(x, z, rotY, len) {
+  const g = new THREE.Group();
+  const n = Math.floor(len / 1.2);
+  for (let i=0;i<=n;i++){
+    g.add(cyl(0.06, 0.06, 1.1, 6, M.woodDark, -len/2 + i*(len/n), 0.55, 0));
+  }
+  g.add(box(len, 0.1, 0.1, M.wood, 0, 0.9, 0));
+  g.add(box(len, 0.1, 0.1, M.wood, 0, 0.5, 0));
+  g.position.set(x, 0, z);
+  g.rotation.y = rotY;
+  scene.add(g);
+  const cc = box(len, 1.1, 0.4, M.wood, x, 0.55, z);
+  cc.rotation.y = rotY;
+  scene.add(cc);
+  addCollider(cc, 0.05);
+}
+makeFence(-12, 10, 0, 8);
+makeFence(12, 10, 0, 8);
+makeFence(-12, -10, 0, 8);
+makeFence(12, -10, 0, 8);
+
+// Foliage: trees + bushes
+function makeTree(x, z, scale=1) {
+  const g = new THREE.Group();
+  g.add(cyl(0.25*scale, 0.35*scale, 2.2*scale, 7, M.trunk, 0, 1.1*scale, 0));
+  const c1 = new THREE.Mesh(new THREE.SphereGeometry(1.4*scale, 8, 6), M.leaf);
+  c1.position.y = 2.8*scale; c1.castShadow = true;
+  g.add(c1);
+  const c2 = new THREE.Mesh(new THREE.SphereGeometry(1.0*scale, 8, 6), M.leaf);
+  c2.position.set(0.6*scale, 3.4*scale, 0.3*scale); c2.castShadow = true;
+  g.add(c2);
+  g.position.set(x, 0, z);
+  scene.add(g);
+  // Trunk collider
+  const tc = cyl(0.4*scale, 0.4*scale, 2.2*scale, 7, M.trunk, x, 1.1*scale, z);
+  scene.add(tc);
+  addCollider(tc, 0.05);
+}
+function makeBush(x, z, scale=1) {
+  const b = new THREE.Mesh(new THREE.SphereGeometry(0.7*scale, 7, 5), M.leaf);
+  b.position.set(x, 0.5*scale, z);
+  b.scale.y = 0.7;
+  b.castShadow = true;
+  scene.add(b);
+}
+// Trees around the perimeter + a few inside
+makeTree(-45, -45, 1.3); makeTree(45, -45, 1.2);
+makeTree(-45, 45, 1.2);  makeTree(45, 45, 1.3);
+makeTree(-40, 20, 1.1);  makeTree(40, -20, 1.1);
+makeTree(-20, 40, 1.0);  makeTree(20, -40, 1.0);
+makeTree(-48, 0, 1.2);   makeTree(48, 0, 1.2);
+makeTree(0, 48, 1.1);
+// Bushes
+makeBush(-10, 12, 1); makeBush(10, 12, 1.1);
+makeBush(-10, -12, 0.9); makeBush(10, -12, 1);
+makeBush(-24, -10, 1.2); makeBush(24, 10, 1.1);
+makeBush(-34, 14, 1); makeBush(34, -14, 1);
+
+// Central plaza fountain (landmark detail in the square)
+(function buildFountain() {
+  const g = new THREE.Group();
+  const basin = cyl(3, 3.2, 0.8, 24, M.stone, 0, 0.4, 0);
+  g.add(basin);
+  const water = cyl(2.7, 2.7, 0.1, 24, M.water, 0, 0.75, 0, false);
+  g.add(water);
+  const pillar = cyl(0.4, 0.5, 1.6, 12, M.stone, 0, 1.6, 0);
+  g.add(pillar);
+  const topBasin = cyl(1.1, 0.8, 0.4, 16, M.stone, 0, 2.5, 0);
+  g.add(topBasin);
+  g.position.set(0, 0, 0);
+  scene.add(g);
+  const cc = cyl(3.2, 3.2, 2.8, 24, M.stone, 0, 1.4, 0);
+  scene.add(cc);
+  addCollider(cc, 0.1);
+})();
+
+/* ============================================================
+   HUMANOID BUILDER (shared by player + NPCs)
+   Returns { group, parts } where parts has named limbs for animation.
+============================================================ */
+function buildHumanoid({ clothMat=M.cloth, skinMat=M.skin, hairMat=M.woodDark, cloakMat=null, armorMat=null } = {}) {
+  const g = new THREE.Group();
+  const parts = {};
+
+  // Torso
+  const torso = box(0.55, 0.7, 0.34, clothMat, 0, 1.05, 0);
+  g.add(torso);
+  parts.torso = torso;
+  // If armored, overlay chest plate
+  if (armorMat) {
+    g.add(box(0.6, 0.5, 0.4, armorMat, 0, 1.1, 0));
+  }
+  // Head
+  const head = box(0.34, 0.34, 0.34, skinMat, 0, 1.62, 0);
+  g.add(head);
+  parts.head = head;
+  // Hair / hood
+  const hair = box(0.38, 0.18, 0.38, hairMat, 0, 1.78, -0.02);
+  g.add(hair);
+  // Eyes (tiny dark boxes on face)
+  const eyeMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a });
+  g.add(box(0.05, 0.05, 0.02, eyeMat, -0.08, 1.64, 0.17, false));
+  g.add(box(0.05, 0.05, 0.02, eyeMat, 0.08, 1.64, 0.17, false));
+
+  // Arms (pivot at shoulder)
+  function makeArm(side) { // side: -1 left, +1 right
+    const pivot = new THREE.Group();
+    pivot.position.set(0.36*side, 1.35, 0);
+    const upper = box(0.16, 0.5, 0.16, clothMat, 0, -0.25, 0);
+    pivot.add(upper);
+    const hand = box(0.14, 0.14, 0.14, skinMat, 0, -0.52, 0);
+    pivot.add(hand);
+    g.add(pivot);
+    return pivot;
+  }
+  parts.armL = makeArm(-1);
+  parts.armR = makeArm(1);
+
+  // Legs (pivot at hip)
+  function makeLeg(side) {
+    const pivot = new THREE.Group();
+    pivot.position.set(0.16*side, 0.7, 0);
+    const leg = box(0.2, 0.68, 0.2, clothMat, 0, -0.34, 0);
+    pivot.add(leg);
+    const foot = box(0.2, 0.1, 0.3, M.woodDark, 0, -0.68, 0.06);
+    pivot.add(foot);
+    g.add(pivot);
+    return pivot;
+  }
+  parts.legL = makeLeg(-1);
+  parts.legR = makeLeg(1);
+
+  // Optional cloak (back panel)
+  if (cloakMat) {
+    const cloak = box(0.6, 0.9, 0.08, cloakMat, 0, 1.0, -0.22);
+    g.add(cloak);
+    parts.cloak = cloak;
+  }
+  return { group: g, parts };
+}
+
+/* ============================================================
+   PLAYER
+============================================================ */
+const player = new THREE.Group();
+scene.add(player);
+const pHum = buildHumanoid({ clothMat: M.cloak, skinMat: M.skin, hairMat: M.iron, cloakMat: M.cloak });
+player.add(pHum.group);
+
+const playerState = {
+  pos: new THREE.Vector3(0, GROUND_Y, 30),   // start near south gate
+  velY: 0,
+  onGround: true,
+  facing: Math.PI,      // yaw (radians)
+  moving: false,
+  running: false,
+  animTime: 0,
+};
+
+// Player collision footprint (cylinder approximated by box)
+const PLAYER_RADIUS = 0.5;
+
+function updatePlayer(dt) {
+  // --- Input direction (relative to camera yaw) ---
+  let ix = 0, iz = 0;
+  if (keys['KeyW']) iz -= 1;
+  if (keys['KeyS']) iz += 1;
+  if (keys['KeyA']) ix -= 1;
+  if (keys['KeyD']) ix += 1;
+
+  const camYaw = camTheta; // orbit angle around player
+  // Forward is away from camera: camera sits behind at theta, so forward dir = (sin(theta), cos(theta)) mapped...
+  // We define world-forward as the direction the camera looks toward the player.
+  const fwdX = Math.sin(camYaw), fwdZ = Math.cos(camYaw);
+  const rightX = Math.cos(camYaw), rightZ = -Math.sin(camYaw);
+
+  let dx = fwdX * (-iz) + rightX * ix;
+  let dz = fwdZ * (-iz) + rightZ * ix;
+  const len = Math.hypot(dx, dz);
+  playerState.moving = len > 0.001;
+  playerState.running = playerState.moving && (keys['ShiftLeft'] || keys['ShiftRight']);
+
+  if (len > 0.001) {
+    dx /= len; dz /= len;
+    const speed = WALK_SPEED * (playerState.running ? RUN_MULT : 1);
+    const nx = playerState.pos.x + dx * speed * dt;
+    const nz = playerState.pos.z + dz * speed * dt;
+    // Collision resolve (axis-separated)
+    if (!collidesAt(nx, playerState.pos.y, playerState.pos.z)) playerState.pos.x = nx;
+    if (!collidesAt(playerState.pos.x, playerState.pos.y, nz)) playerState.pos.z = nz;
+    // Face movement direction (smooth turn)
+    const targetYaw = Math.atan2(dx, dz);
+    playerState.facing = lerpAngle(playerState.facing, targetYaw, 0.2);
+  }
+
+  // --- Gravity & jump ---
+  if (keys['Space'] && playerState.onGround) {
+    playerState.velY = JUMP_VEL;
+    playerState.onGround = false;
+  }
+  playerState.velY += GRAVITY * dt;
+  let ny = playerState.pos.y + playerState.velY * dt;
+  if (ny <= GROUND_Y) {
+    ny = GROUND_Y; playerState.velY = 0; playerState.onGround = true;
+  }
+  playerState.pos.y = ny;
+
+  // Apply to group
+  player.position.copy(playerState.pos);
+  player.rotation.y = playerState.facing;
+
+  // --- Procedural walk/run animation ---
+  if (playerState.moving && playerState.onGround) {
+    playerState.animTime += dt * (playerState.running ? 13 : 8);
+  } else {
+    // ease limbs back to rest
+    playerState.animTime += dt * 4;
+    const amp = playerState.moving ? 0 : 0.5;
+    swingLimbs(amp);
+  }
+  if (playerState.moving && playerState.onGround) {
+    const t = playerState.animTime;
+    const amp = playerState.running ? 0.9 : 0.6;
+    swingLimbs(amp, t);
+  }
+}
+
+function swingLimbs(amp, t=0) {
+  const s = Math.sin(t) * amp;
+  pHum.parts.legL.rotation.x = s;
+  pHum.parts.legR.rotation.x = -s;
+  pHum.parts.armL.rotation.x = -s * 0.8;
+  pHum.parts.armR.rotation.x = s * 0.8;
+  // Idle bob when not moving
+  if (amp < 0.1) {
+    pHum.parts.armL.rotation.x = Math.sin(performance.now()*0.001)*0.05;
+    pHum.parts.armR.rotation.x = -Math.sin(performance.now()*0.001)*0.05;
+  }
+}
+
+// Collision test: does a circle of radius PLAYER_RADIUS at (x,y,z) overlap any collider?
+function collidesAt(x, y, z) {
+  const r = PLAYER_RADIUS;
+  for (let i=0;i<colliders.length;i++){
+    const b = colliders[i];
+    // Only consider colliders whose vertical range overlaps the player's feet..head
+    if (b.max.y < y + 0.1 || b.min.y > y + 1.6) continue;
+    // 2D circle vs AABB
+    const cx = Math.max(b.min.x, Math.min(x, b.max.x));
+    const cz = Math.max(b.min.z, Math.min(z, b.max.z));
+    const ddx = x - cx, ddz = z - cz;
+    if (ddx*ddx + ddz*ddz < r*r) return true;
+  }
+  return false;
+}
+
+function lerpAngle(a, b, t) {
+  let diff = ((b - a + Math.PI*3) % (Math.PI*2)) - Math.PI;
+  return a + diff * t;
+}
+
+/* ============================================================
+   ORBIT CAMERA (mouse drag + scroll zoom + collision)
+============================================================ */
+const camTarget = new THREE.Vector3();
+const _camDir = new THREE.Vector3();
+const _rayOrigin = new THREE.Vector3();
+const _rayDir = new THREE.Vector3();
+const raycaster = new THREE.Raycaster();
+
+function updateCamera(dt) {
+  // Orbit around the player's chest height
+  const focusY = playerState.pos.y + 1.4;
+  camTarget.set(playerState.pos.x, focusY, playerState.pos.z);
+
+  // Spherical position from theta/phi/distance
+  const sp = Math.sin(camPhi), cp = Math.cos(camPhi);
+  _camDir.set(
+    sp * Math.sin(camTheta),
+    cp,
+    sp * Math.cos(camTheta)
+  );
+
+  // Collision: raycast from target toward desired camera pos; pull in if blocked
+  const desiredDist = camDistance;
+  _rayOrigin.copy(camTarget);
+  _rayDir.copy(_camDir).normalize();
+  raycaster.set(_rayOrigin, _rayDir);
+  raycaster.far = desiredDist;
+  const hits = raycaster.intersectObjects(colliderMeshes, false);
+  let dist = desiredDist;
+  if (hits.length > 0) {
+    dist = Math.max(MIN_DIST * 0.6, hits[0].distance - 0.3);
+  }
+  // Keep above ground
+  const camPos = camTarget.clone().addScaledVector(_rayDir, dist);
+  if (camPos.y < 0.5) camPos.y = 0.5;
+
+  // Smoothly move camera to avoid jitter
+  camera.position.lerp(camPos, 0.35);
+  camera.lookAt(camTarget);
+}
+
+// --- Mouse controls ---
+let lastMX = 0, lastMY = 0;
+renderer.domElement.addEventListener('mousedown', (e) => {
+  if (!state.started || state.paused || state.dialogueOpen) return;
+  mouseDown = true;
+  lastMX = e.clientX; lastMY = e.clientY;
+});
+window.addEventListener('mouseup', () => { mouseDown = false; });
+window.addEventListener('mousemove', (e) => {
+  if (!mouseDown || !state.started || state.paused || state.dialogueOpen) return;
+  const dx = e.clientX - lastMX;
+  const dy = e.clientY - lastMY;
+  lastMX = e.clientX; lastMY = e.clientY;
+  camTheta -= dx * 0.005 * state.sensitivity;
+  camPhi   -= dy * 0.005 * state.sensitivity;
+  camPhi = Math.max(MIN_PHI, Math.min(MAX_PHI, camPhi));
+});
+renderer.domElement.addEventListener('wheel', (e) => {
+  if (!state.started || state.paused || state.dialogueOpen) return;
+  e.preventDefault();
+  camDistance += e.deltaY * 0.01;
+  camDistance = Math.max(MIN_DIST, Math.min(MAX_DIST, camDistance));
+}, { passive: false });
+
+/* ============================================================
+   NPCS (townsfolk, merchant, guard) with idle / patrol / wander
+============================================================ */
+const npcs = [];
+
+function makeNPC({ name, role, x, z, clothMat, hairMat, cloakMat=null, armorMat=null,
+                   behavior='idle', waypoints=null, speed=1.4, dialogue }) {
+  const hum = buildHumanoid({ clothMat, skinMat: M.skin, hairMat, cloakMat, armorMat });
+  const g = hum.group;
+  scene.add(g);
+  const npc = {
+    name, role, group: g, parts: hum.parts,
+    pos: new THREE.Vector3(x, GROUND_Y, z),
+    facing: Math.random() * Math.PI * 2,
+    behavior, waypoints: waypoints || [], wpIndex: 0,
+    speed, dialogue,
+    animTime: Math.random() * 10,
+    idlePhase: Math.random() * Math.PI * 2,
+    wanderTimer: 0,
+    targetPos: new THREE.Vector3(x, GROUND_Y, z),
+    moving: false,
+  };
+  // Interactable marker ring on ground
+  const ring = new THREE.Mesh(
+    new THREE.RingGeometry(0.6, 0.85, 24),
+    new THREE.MeshBasicMaterial({ color: 0xffd76a, transparent: true, opacity: 0.0, side: THREE.DoubleSide })
+  );
+  ring.rotation.x = -Math.PI/2;
+  ring.position.y = 0.06;
+  g.add(ring);
+  npc.ring = ring;
+  npcs.push(npc);
+  return npc;
+}
+
+// --- The Merchant (fetch quest giver) at east market ---
+makeNPC({
+  name: 'Bramblewick', role: 'Merchant', x: 24, z: 0,
+  clothMat: M.cloth, hairMat: M.woodDark, cloakMat: M.roofRed,
+  behavior: 'idle',
+  dialogue: 'merchant',
+});
+
+// --- Guard patrolling the main road ---
+makeNPC({
+  name: 'Ser Aldric', role: 'City Guard', x: 0, z: -10,
+  clothMat: M.armor, hairMat: M.iron, armorMat: M.armor,
+  behavior: 'patrol',
+  waypoints: [ new THREE.Vector3(0,-10), new THREE.Vector3(0,10), new THREE.Vector3(0,30), new THREE.Vector3(0,-10) ],
+  speed: 1.6,
+  dialogue: 'guard',
+});
+
+// --- Townsfolk wandering the square ---
+makeNPC({
+  name: 'Mira', role: 'Weaver', x: -6, z: 4,
+  clothMat: M.roofBlue, hairMat: M.wood,
+  behavior: 'wander', speed: 1.2,
+  dialogue: 'mira',
+});
+makeNPC({
+  name: 'Old Fenwick', role: 'Fishmonger', x: 8, z: -4,
+  clothMat: M.stoneDark, hairMat: M.iron,
+  behavior: 'wander', speed: 1.0,
+  dialogue: 'fenwick',
+});
+makeNPC({
+  name: 'Petra', role: 'Apothecary', x: -10, z: -8,
+  clothMat: M.roofGreen, hairMat: M.woodDark,
+  behavior: 'wander', speed: 1.3,
+  dialogue: 'petra',
+});
+// A second guard near the keep
+makeNPC({
+  name: 'Corin', role: 'Keep Warden', x: -4, z: -34,
+  clothMat: M.armor, hairMat: M.iron, armorMat: M.armor,
+  behavior: 'patrol',
+  waypoints: [ new THREE.Vector3(-4,-34), new THREE.Vector3(4,-34), new THREE.Vector3(4,-40), new THREE.Vector3(-4,-40) ],
+  speed: 1.4,
+  dialogue: 'corin',
+});
+
+function updateNPC(npc, dt) {
+  npc.animTime += dt;
+  let moveDir = null;
+
+  if (npc.behavior === 'patrol') {
+    const wp = npc.waypoints[npc.wpIndex];
+    const d = wp.clone().sub(npc.pos); d.y = 0;
+    if (d.length() < 0.5) {
+      npc.wpIndex = (npc.wpIndex + 1) % npc.waypoints.length;
+    } else {
+      moveDir = d.normalize();
+      npc.facing = lerpAngle(npc.facing, Math.atan2(moveDir.x, moveDir.z), 0.1);
+    }
+  } else if (npc.behavior === 'wander') {
+    npc.wanderTimer -= dt;
+    const d = npc.targetPos.clone().sub(npc.pos); d.y = 0;
+    if (npc.wanderTimer <= 0 || d.length() < 0.6) {
+      // Pick a new nearby point within a radius of original home
+      const home = npc.waypoints[0] || npc.pos.clone();
+      const ang = Math.random() * Math.PI * 2;
+      const r = Math.random() * 6;
+      npc.targetPos.set(home.x + Math.cos(ang)*r, GROUND_Y, home.z + Math.sin(ang)*r);
+      npc.wanderTimer = 3 + Math.random() * 4;
+    }
+    if (d.length() > 0.4) {
+      moveDir = d.normalize();
+      npc.facing = lerpAngle(npc.facing, Math.atan2(moveDir.x, moveDir.z), 0.08);
+    }
+  }
+
+  npc.moving = !!moveDir;
+  if (moveDir) {
+    const nx = npc.pos.x + moveDir.x * npc.speed * dt;
+    const nz = npc.pos.z + moveDir.z * npc.speed * dt;
+    if (!collidesAt(nx, npc.pos.y, npc.pos.z)) npc.pos.x = nx;
+    if (!collidesAt(npc.pos.x, npc.pos.y, nz)) npc.pos.z = nz;
+  }
+  npc.group.position.copy(npc.pos);
+  npc.group.rotation.y = npc.facing;
+
+  // Animate limbs
+  if (npc.moving) {
+    const s = Math.sin(npc.animTime * 7) * 0.5;
+    npc.parts.legL.rotation.x = s;
+    npc.parts.legR.rotation.x = -s;
+    npc.parts.armL.rotation.x = -s * 0.7;
+    npc.parts.armR.rotation.x = s * 0.7;
+  } else {
+    // Idle breathing bob
+    const b = Math.sin(npc.animTime * 1.5 + npc.idlePhase) * 0.04;
+    npc.parts.armL.rotation.x = b;
+    npc.parts.armR.rotation.x = -b;
+    npc.parts.legL.rotation.x = 0;
+    npc.parts.legR.rotation.x = 0;
+  }
+}
+
+/* ============================================================
+   DIALOGUE SYSTEM (Elder Scrolls style: portrait + text + choices)
+============================================================ */
+const questState = {
+  active: false,
+  accepted: false,
+  itemDelivered: false,
+};
+
+// Portrait SVG generator (stylized bust per role)
+function portraitSVG(role, accent) {
+  const hair = role === 'guard' ? '#5a5a62' : role === 'merchant' ? '#4a331d' : '#6b4a2b';
+  const skin = '#d9a878';
+  return `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+    <defs><radialGradient id="bg" cx="50%" cy="35%"><stop offset="0%" stop-color="${accent}"/><stop offset="100%" stop-color="#1a1208"/></radialGradient></defs>
+    <rect width="100" height="100" fill="url(#bg)"/>
+    <ellipse cx="50" cy="78" rx="30" ry="26" fill="${role==='guard'?'#7a7a82':'#3a2a4a'}"/>
+    <circle cx="50" cy="48" r="22" fill="${skin}"/>
+    <path d="M28 44 Q50 18 72 44 L72 34 Q50 12 28 34 Z" fill="${hair}"/>
+    <circle cx="42" cy="48" r="2.4" fill="#1a1a1a"/>
+    <circle cx="58" cy="48" r="2.4" fill="#1a1a1a"/>
+    <path d="M44 58 Q50 62 56 58" stroke="#8a5a3a" stroke-width="1.6" fill="none"/>
+    ${role==='guard' ? '<rect x="30" y="30" width="40" height="8" fill="#3a3a3a"/>' : ''}
+  </svg>`;
+}
+
+// Dialogue trees keyed by npc.dialogue
+const DIALOGUES = {
+  merchant: {
+    start: {
+      text: "Ah, a traveler! Bramblewick at your service. I trade in fine goods from across the Vale. Care to browse my wares?",
+      choices: [
+        { label: "What do you need? (Quest)", next: "quest" },
+        { label: "Tell me about this town.", next: "lore" },
+        { label: "Goodbye.", action: "close" },
+      ]
+    },
+    lore: {
+      text: "The Wandering Vale has stood for three centuries. The Keep to the north was raised by the old kings to watch the mountain passes. We're a peaceful folk — mostly.",
+      choices: [
+        { label: "What do you need? (Quest)", next: "quest" },
+        { label: "Goodbye.", action: "close" },
+      ]
+    },
+    quest: {
+      text: questState.active && !questState.itemDelivered
+        ? "Still no sign of that vial? My apothecary's stock ran dry. Without it, I can't prepare the tinctures."
+        : questState.itemDelivered
+          ? "You brought it back! You're a lifesaver. Here — take these coins. The Vale owes you a debt."
+          : "I have a favor to ask. My supply of Moonpetal Vials has run out. Fetch one from the fountain in the town square and bring it to me. It'll only take a moment.",
+      choices: () => {
+        if (!questState.accepted) return [
+          { label: "I'll fetch the vial.", action: "acceptQuest" },
+          { label: "Perhaps later.", action: "close" },
+        ];
+        if (!questState.itemDelivered) return [
+          { label: "Where is the vial?", next: "vialHint" },
+          { label: "Goodbye.", action: "close" },
+        ];
+        return [ { label: "Farewell.", action: "close" } ];
+      }
+    },
+    vialHint: {
+      text: "The fountain right in the middle of the square — the keep-wardens keep a spare vial resting on its rim. Grab it and return to me here.",
+      choices: [ { label: "Understood.", action: "close" } ],
+    },
+  },
+  guard: {
+    start: {
+      text: "Halt. Ser Aldric of the City Watch. State your business in the Vale, traveler.",
+      choices: [
+        { label: "Just passing through.", next: "pass" },
+        { label: "Ask about the town.", next: "info" },
+        { label: "Leave.", action: "close" },
+      ]
+    },
+    pass: {
+      text: "Then mind the roads. Bandits have been spotted beyond the eastern wall. Keep to the lit paths after dusk.",
+      choices: [ { label: "Thank you.", action: "close" } ],
+    },
+    info: {
+      text: "We keep the peace here. The Keep houses the lord's garrison. If trouble rises, ring the bell in the square and we'll answer.",
+      choices: [ { label: "Understood.", action: "close" } ],
+    },
+  },
+  mira: {
+    start: {
+      text: "A new face! I'm Mira, the weaver. These banners over the market — every thread dyed by hand.",
+      choices: [
+        { label: "Your work is beautiful.", next: "praise" },
+        { label: "Goodbye.", action: "close" },
+      ]
+    },
+    praise: {
+      text: "Why thank you! The indigo comes from the northern hills. Most visitors don't notice the craft, but I'm glad you did.",
+      choices: [ { label: "Farewell.", action: "close" } ],
+    },
+  },
+  fenwick: {
+    start: {
+      text: "Fresh catch today, if you want it. Old Fenwick doesn't deal in small talk, so make it quick.",
+      choices: [
+        { label: "How's the fishing?", next: "fish" },
+        { label: "Goodbye.", action: "close" },
+      ]
+    },
+    fish: {
+      text: "River runs high after the rains. Best I've had in years. Take that as a good omen for the whole Vale.",
+      choices: [ { label: "Cheers, old man.", action: "close" } ],
+    },
+  },
+  petra: {
+    start: {
+      text: "Petra, apothecary. I brew remedies from the valley herbs. Need something for an ailment?",
+      choices: [
+        { label: "Any rare ingredients?", next: "herbs" },
+        { label: "No, just visiting.", action: "close" },
+      ]
+    },
+    herbs: {
+      text: "Moonpetal, silverroot, and nightshade — though I'd steer clear of the last. Bramblewick buys most of my Moonpetal stock, oddly enough.",
+      choices: [ { label: "Interesting.", action: "close" } ],
+    },
+  },
+  corin: {
+    start: {
+      text: "Corin, warden of the Keep. The tower above holds the lord's banner. Few outsiders climb those stairs.",
+      choices: [
+        { label: "What happens up there?", next: "keep" },
+        { label: "Respectfully, goodbye.", action: "close" },
+      ]
+    },
+    keep: {
+      text: "The garrison watches the passes for bandits and worse. On clear days you can see the whole Vale from the top. A fine view, once you earn it.",
+      choices: [ { label: "Perhaps another time.", action: "close" } ],
+    },
+  },
+};
+
+// --- DOM refs ---
+const elDialogue = document.getElementById('dialogue');
+const elPortrait = document.getElementById('portrait');
+const elNameTag = document.getElementById('npcNameTag');
+const elSpeaker = document.getElementById('speakerLine');
+const elText = document.getElementById('dialogueText');
+const elChoices = document.getElementById('choices');
+
+let currentNpc = null;
+let currentNode = 'start';
+
+function openDialogue(npc) {
+  currentNpc = npc;
+  state.dialogueOpen = true;
+  currentNode = 'start';
+  renderNode();
+  elDialogue.classList.add('visible');
+}
+function closeDialogue() {
+  state.dialogueOpen = false;
+  currentNpc = null;
+  elDialogue.classList.remove('visible');
+}
+function renderNode() {
+  const tree = DIALOGUES[currentNpc.dialogue];
+  const node = tree[currentNode] || tree.start;
+  const accent = currentNpc.role === 'guard' ? '#3a4a6a' : currentNpc.role === 'Merchant' ? '#6a4a2a' : '#4a5a3a';
+  elPortrait.innerHTML = portraitSVG(currentNpc.role.toLowerCase(), accent);
+  elNameTag.textContent = currentNpc.name;
+  elSpeaker.textContent = currentNpc.role;
+  elText.textContent = typeof node.text === 'function' ? node.text() : node.text;
+  elChoices.innerHTML = '';
+  let choices = node.choices;
+  if (typeof choices === 'function') choices = choices();
+  choices.forEach((c, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'choice-btn';
+    btn.innerHTML = `<span class="num">${i+1}.</span>${c.label}`;
+    btn.onclick = () => chooseOption(c);
+    elChoices.appendChild(btn);
+  });
+}
+function chooseOption(c) {
+  if (c.action === 'close') { closeDialogue(); return; }
+  if (c.action === 'acceptQuest') {
+    questState.active = true;
+    questState.accepted = true;
+    setQuestTracker(true, "Fetch the Moonpetal Vial from the fountain in the town square and bring it to Bramblewick.");
+    showToast("Quest Accepted: The Missing Vial");
+    // Spawn the vial item at the fountain
+    spawnVial();
+    currentNode = 'quest';
+    renderNode();
+    return;
+  }
+  if (c.next) { currentNode = c.next; renderNode(); }
+}
+
+// --- Quest item (vial) at the fountain ---
+let vialItem = null;
+function spawnVial() {
+  if (vialItem) return;
+  vialItem = new THREE.Group();
+  const glass = cyl(0.12, 0.12, 0.4, 10, new THREE.MeshPhysicalMaterial({ color: 0x8ad0ff, roughness: 0.1, transmission: 0.9, transparent: true }), 0, 0.3, 0, false);
+  const cork = cyl(0.08, 0.08, 0.1, 8, M.woodDark, 0, 0.55, 0, false);
+  const glow = new THREE.PointLight(0x8ad0ff, 0.8, 4, 2);
+  glow.position.y = 0.4;
+  vialItem.add(glass); vialItem.add(cork); vialItem.add(glow);
+  // Rest on fountain top basin (fountain at origin, top ~2.7)
+  vialItem.position.set(0.6, 2.7, 0.6);
+  scene.add(vialItem);
+}
+function updateVial(dt) {
+  if (!vialItem || questState.itemDelivered) return;
+  vialItem.rotation.y += dt * 1.5;
+  vialItem.position.y = 2.7 + Math.sin(performance.now()*0.003)*0.08;
+  // Pickup check: player within range of vial
+  const d = vialItem.position.distanceTo(new THREE.Vector3(playerState.pos.x, 2.7, playerState.pos.z));
+  if (d < 1.6) {
+    questState.itemDelivered = true;
+    scene.remove(vialItem);
+    vialItem = null;
+    setQuestTracker(false, "— Quest Complete: The Missing Vial —");
+    showToast("You retrieved the Moonpetal Vial. Return it to Bramblewick!");
+  }
+}
+
+/* ============================================================
+   INTERACTION (E key proximity) + HUD
+============================================================ */
+const elHud = document.getElementById('hud');
+const elCompassName = document.getElementById('compassName');
+const elCompassDir = document.getElementById('compassDir');
+const elInteract = document.getElementById('interactPrompt');
+const elQuest = document.getElementById('questTracker');
+const elToast = document.getElementById('toast');
+
+let toastTimer = null;
+function showToast(msg) {
+  elToast.textContent = msg;
+  elToast.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => elToast.classList.remove('show'), 4000);
+}
+function setQuestTracker(show, body) {
+  if (!show) { elQuest.style.display = 'none'; return; }
+  elQuest.style.display = 'block';
+  const b = elQuest.querySelector('.q-body');
+  if (b) b.textContent = body;
+}
+
+// Find nearest NPC in range
+function findNearestNPC() {
+  let best = null, bestD = INTERACT_RANGE;
+  for (const npc of npcs) {
+    const d = Math.hypot(npc.pos.x - playerState.pos.x, npc.pos.z - playerState.pos.z);
+    if (d < bestD) { bestD = d; best = npc; }
+  }
+  return best;
+}
+
+function updateInteraction() {
+  nearestNPC = findNearestNPC();
+  // Interact prompt
+  if (nearestNPC && !state.dialogueOpen) {
+    elInteract.innerHTML = `Press <b>E</b> to talk to ${nearestNPC.name}`;
+    elInteract.style.display = 'block';
+    nearestNPC.ring.material.opacity = 0.5 + Math.sin(performance.now()*0.005)*0.2;
+  } else {
+    elInteract.style.display = 'none';
+  }
+  // Dim non-nearest rings
+  for (const npc of npcs) {
+    if (npc !== nearestNPC) npc.ring.material.opacity = 0.15;
+  }
+}
+
+// Compass direction from camera yaw
+function updateCompass() {
+  // camTheta: 0 => camera at +Z looking -Z (north). Map to cardinal.
+  const deg = ((-camTheta * 180 / Math.PI) % 360 + 360) % 360;
+  const dirs = ['N','NE','E','SE','S','SW','W','NW'];
+  const idx = Math.round(deg / 45) % 8;
+  elCompassDir.textContent = dirs[idx];
+  // Location name based on player position
+  let loc = 'The Wandering Vale';
+  if (playerState.pos.z < -30) loc = 'The Keep';
+  else if (playerState.pos.x > 18) loc = 'Market Quarter';
+  else if (Math.abs(playerState.pos.x) < 14 && Math.abs(playerState.pos.z) < 14) loc = 'Town Square';
+  else if (playerState.pos.z > 40) loc = 'South Gate';
+  elCompassName.textContent = loc;
+}
+
+// E key handling
+function tryInteract() {
+  if (!state.started || state.paused || state.dialogueOpen) return;
+  if (nearestNPC) openDialogue(nearestNPC);
+}
+
+/* ============================================================
+   GAME FLOW: title / pause / quit
+============================================================ */
+const elTitle = document.getElementById('titleScreen');
+const elPause = document.getElementById('pauseMenu');
+const elLoading = document.getElementById('loading');
+const elSettings = document.getElementById('settingsPanel');
+
+document.getElementById('beginBtn').addEventListener('click', () => {
+  elTitle.classList.add('hidden');
+  elHud.classList.add('visible');
+  state.started = true;
+  clock.getDelta(); // reset delta
+});
+document.getElementById('resumeBtn').addEventListener('click', () => togglePause(false));
+document.getElementById('settingsBtn').addEventListener('click', () => {
+  elSettings.style.display = elSettings.style.display === 'none' ? 'block' : 'none';
+});
+document.getElementById('quitBtn').addEventListener('click', () => {
+  togglePause(false);
+  closeDialogue();
+  state.started = false;
+  elHud.classList.remove('visible');
+  elTitle.classList.remove('hidden');
+  // Reset player
+  playerState.pos.set(0, GROUND_Y, 30);
+  playerState.velY = 0;
+});
+
+// Settings controls
+document.getElementById('sensSlider').addEventListener('input', e => state.sensitivity = parseFloat(e.target.value));
+document.getElementById('camDistSlider').addEventListener('input', e => {
+  state.camBaseDistance = parseFloat(e.target.value);
+  camDistance = state.camBaseDistance;
+});
+document.getElementById('shadowToggle').addEventListener('change', e => {
+  state.shadowsOn = e.target.checked;
+  sun.castShadow = state.shadowsOn;
+});
+
+function togglePause(p) {
+  state.paused = p;
+  elPause.classList.toggle('visible', p);
+  if (p) closeDialogue();
+}
+
+/* ============================================================
+   INPUT (keyboard)
+============================================================ */
+window.addEventListener('keydown', (e) => {
+  keys[e.code] = true;
+  if (e.code === 'Space') e.preventDefault();
+  if (!state.started) return;
+  if (e.code === 'Escape') {
+    if (state.dialogueOpen) closeDialogue();
+    else togglePause(!state.paused);
+  }
+  if (e.code === 'KeyE') tryInteract();
+  // Number keys select dialogue choices
+  if (state.dialogueOpen && ['Digit1','Digit2','Digit3'].includes(e.code)) {
+    const i = parseInt(e.code.slice(-1)) - 1;
+    const btns = elChoices.querySelectorAll('.choice-btn');
+    if (btns[i]) btns[i].click();
+  }
+});
+window.addEventListener('keyup', (e) => { keys[e.code] = false; });
+
+/* ============================================================
+   MAIN LOOP
+============================================================ */
+const clock = new THREE.Clock();
+
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.05); // clamp big deltas
+  const t = clock.getElapsedTime();
+
+  if (state.started && !state.paused) {
+    updatePlayer(dt);
+    for (const npc of npcs) updateNPC(npc, dt);
+    updateVial(dt);
+    updateInteraction();
+    updateCompass();
+    // Torch flicker
+    for (const tl of torchLights) {
+      tl.light.intensity = tl.baseIntensity * (0.8 + 0.25*Math.sin(t*12 + tl.phase) + 0.1*Math.sin(t*23 + tl.phase));
+    }
+  }
+  updateCamera(dt);
+  renderer.render(scene, camera);
+}
+
+// Resize
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+});
+
+// Initial camera placement
+camera.position.set(playerState.pos.x + 6, 5, playerState.pos.z + 6);
+camera.lookAt(playerState.pos.x, 1.4, playerState.pos.z);
+
+// Hide loading, start loop
+elLoading.classList.add('hidden');
+animate();
+
+// Expose a debug handle for testing
+window.__citypulse = { state, playerState, questState, collidersCount: () => colliders.length };
+</script>
+</body>
+</html>
