@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Circuit Board — Living PCB</title>
+<style>
+  *{ margin:0; padding:0; box-sizing:border-box; }
+  html,body{ height:100%; overflow:hidden; }
+  body{
+    background:
+      radial-gradient(120% 100% at 50% 45%, #04130b 0%, #020a06 55%, #010503 100%);
+  }
+  #board{ position:fixed; inset:0; display:block; }
+  .vignette{
+    position:fixed; inset:0; pointer-events:none;
+    background:
+      radial-gradient(120% 100% at 50% 45%, rgba(0,0,0,0) 55%, rgba(0,0,0,.5) 100%),
+      linear-gradient(180deg, rgba(0,0,0,.35), rgba(0,0,0,0) 12%, rgba(0,0,0,0) 88%, rgba(0,0,0,.4));
+  }
+  .title{
+    position:fixed; left:0; right:0; bottom:26px;
+    text-align:center; pointer-events:none;
+    font-family: "Courier New", Courier, monospace;
+    font-size:clamp(18px, 3vw, 30px);
+    letter-spacing:.65em; text-indent:.65em;
+    text-transform:uppercase;
+    color:rgba(57,255,141,.28);
+    text-shadow:0 0 18px rgba(57,255,141,.25);
+    animation:titlePulse 4.5s ease-in-out infinite;
+  }
+  @keyframes titlePulse{
+    0%,100%{ opacity:.55; }
+    50%{ opacity:1; }
+  }
+</style>
+</head>
+<body>
+<canvas id="board"></canvas>
+<div class="vignette"></div>
+<div class="title">Circuit Board</div>
+<script>
+(function(){
+  "use strict";
+
+  var canvas = document.getElementById('board');
+  var ctx = canvas.getContext('2d');
+  var W = 0, H = 0, DPR = 1;
+
+  var nodes = [];     // {x, y, phase, speed, r}
+  var traces = [];    // {a, b, len, phase, speed, pulses:[{p, spd, dir}]}
+
+  var GREEN_CORE  = 'rgba(190,255,214,';
+  var GREEN_MID   = 'rgba(57,255,141,';
+  var GREEN_DEEP  = 'rgba(20,160,80,';
+
+  function rand(a, b){ return a + Math.random() * (b - a); }
+
+  function build(){
+    nodes = [];
+    traces = [];
+
+    var gap = Math.max(72, Math.min(110, W / 14));
+    var margin = gap * 0.5;
+    var maxDist = gap * 1.35;
+
+    var cols = Math.ceil((W - margin * 2) / gap) + 1;
+    var rows = Math.ceil((H - margin * 2) / gap) + 1;
+
+    for (var gy = 0; gy < rows; gy++){
+      for (var gx = 0; gx < cols; gx++){
+        // ~12% of grid cells are left empty — board look with voids
+        if (Math.random() < 0.12) continue;
+        var x = margin + gx * gap + rand(-gap * 0.2, gap * 0.2);
+        var y = margin + gy * gap + rand(-gap * 0.2, gap * 0.2);
+        nodes.push({
+          x: x, y: y,
+          r: rand(1.6, 3.4),
+          phase: rand(0, Math.PI * 2),
+          speed: rand(0.6, 1.5)
+        });
+      }
+    }
+
+    // connect nearby nodes (distance threshold), limit degree per node
+    var degree = new Array(nodes.length).fill(0);
+    var i, j;
+    for (i = 0; i < nodes.length; i++){
+      for (j = i + 1; j < nodes.length; j++){
+        var a = nodes[i], b = nodes[j];
+        var dx = a.x - b.x, dy = a.y - b.y;
+        var d = Math.sqrt(dx * dx + dy * dy);
+        if (d < maxDist && degree[i] < 3 && degree[j] < 3 &&
+            Math.random() < 0.75){
+          degree[i]++; degree[j]++;
+          var pulses = [];
+          var nP = Math.random() < 0.4 ? 2 : 1;
+          for (var k = 0; k < nP; k++){
+            pulses.push({
+              p: Math.random(),
+              spd: rand(0.12, 0.4),
+              dir: Math.random() < 0.5 ? 1 : -1
+            });
+          }
+          traces.push({
+            a: a, b: b, len: d,
+            phase: rand(0, Math.PI * 2),
+            speed: rand(0.5, 1.3),
+            pulses: pulses
+          });
+        }
+      }
+    }
+  }
+
+  function resize(){
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = Math.round(W * DPR);
+    canvas.height = Math.round(H * DPR);
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    // opaque base fill so trails fade into the board color
+    ctx.fillStyle = '#020a06';
+    ctx.fillRect(0, 0, W, H);
+    build();
+  }
+
+  function drawFaintGrid(t){
+    // barely-there copper pad grid so the board texture survives the trail fade
+    var gap = Math.max(72, Math.min(110, W / 14));
+    ctx.fillStyle = 'rgba(46,125,76,0.05)';
+    for (var y = gap * 0.5; y < H; y += gap){
+      for (var x = gap * 0.5; x < W; x += gap){
+        ctx.fillRect(x - 1, y - 1, 2, 2);
+      }
+    }
+  }
+
+  function frame(t){
+    var time = t / 1000;
+
+    // exponential trail fade toward the board base color
+    ctx.fillStyle = 'rgba(2,10,6,0.30)';
+    ctx.fillRect(0, 0, W, H);
+
+    drawFaintGrid(time);
+
+    var i, j, tr;
+
+    // traces
+    for (i = 0; i < traces.length; i++){
+      tr = traces[i];
+      var wave = 0.5 + 0.5 * Math.sin(time * tr.speed + tr.phase);
+      var alpha = 0.06 + 0.30 * wave;
+
+      ctx.strokeStyle = GREEN_MID + alpha.toFixed(3) + ')';
+      ctx.lineWidth = 1 + 0.8 * wave;
+      ctx.shadowColor = 'rgba(57,255,141,0.8)';
+      ctx.shadowBlur = 6 + 8 * wave;
+
+      ctx.beginPath();
+      ctx.moveTo(tr.a.x, tr.a.y);
+      ctx.lineTo(tr.b.x, tr.b.y);
+      ctx.stroke();
+
+      // traveling signal pulses (bright dot + comet tail)
+      for (j = 0; j < tr.pulses.length; j++){
+        var pl = tr.pulses[j];
+        pl.p += pl.spd * (16 / Math.max(tr.len, 40));
+        if (pl.p > 1.06) pl.p -= 1.06;
+        if (pl.p < -0.06) pl.p += 1.06;
+        var pos = pl.dir > 0 ? pl.p : 1 - pl.p;
+        var px = tr.a.x + (tr.b.x - tr.a.x) * pos;
+        var py = tr.a.y + (tr.b.y - tr.a.y) * pos;
+
+        // comet tail
+        var tail = Math.min(0.16, tr.len * 0.1);
+        var tx = tr.a.x + (tr.b.x - tr.a.x) * (pos - tail * pl.dir);
+        var ty = tr.a.y + (tr.b.y - tr.a.y) * (pos - tail * pl.dir);
+        ctx.strokeStyle = GREEN_CORE + (0.5 * (0.4 + 0.6 * wave)).toFixed(3) + ')';
+        ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        ctx.moveTo(tx, ty);
+        ctx.lineTo(px, py);
+        ctx.stroke();
+
+        // bright core dot
+        ctx.shadowBlur = 14;
+        ctx.fillStyle = GREEN_CORE + '0.95)';
+        ctx.beginPath();
+        ctx.arc(px, py, 2.1, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // nodes (breathing glow)
+    ctx.shadowBlur = 0;
+    for (i = 0; i < nodes.length; i++){
+      var n = nodes[i];
+      var breathe = 0.5 + 0.5 * Math.sin(time * n.speed + n.phase);
+      var glowR = n.r * (3.2 + 2.6 * breathe);
+
+      var g = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, glowR);
+      g.addColorStop(0, GREEN_MID + (0.5 + 0.4 * breathe).toFixed(3) + ')');
+      g.addColorStop(0.35, GREEN_DEEP + (0.28 * breathe + 0.06).toFixed(3) + ')');
+      g.addColorStop(1, GREEN_DEEP + '0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, glowR, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = GREEN_CORE + (0.65 + 0.35 * breathe).toFixed(3) + ')';
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    requestAnimationFrame(frame);
+  }
+
+  window.addEventListener('resize', resize);
+  resize();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

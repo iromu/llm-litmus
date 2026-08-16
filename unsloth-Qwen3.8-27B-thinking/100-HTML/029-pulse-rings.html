@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pulse Rings — Sonar Field</title>
+<style>
+  *{ margin:0; padding:0; box-sizing:border-box; }
+  html,body{ height:100%; overflow:hidden; }
+  body{
+    background:radial-gradient(110% 90% at 50% 45%, #120d22 0%, #0a0714 55%, #050308 100%);
+    cursor:crosshair;
+  }
+  #sonar{ position:fixed; inset:0; display:block; }
+  .vignette{
+    position:fixed; inset:0; pointer-events:none;
+    background:radial-gradient(110% 90% at 50% 45%, rgba(0,0,0,0) 52%, rgba(0,0,0,.55) 100%);
+  }
+  .title{
+    position:fixed; left:0; right:0; bottom:26px;
+    text-align:center; pointer-events:none;
+    font-family:"SF Mono", Consolas, "Courier New", monospace;
+    font-size:clamp(16px, 2.6vw, 26px);
+    letter-spacing:.6em; text-indent:.6em;
+    text-transform:uppercase;
+    color:rgba(210,190,255,.30);
+    text-shadow:0 0 20px rgba(180,140,255,.30);
+    animation:tp 5s ease-in-out infinite;
+  }
+  @keyframes tp{ 0%,100%{ opacity:.5; } 50%{ opacity:1; } }
+  .hint{
+    position:fixed; top:22px; left:0; right:0;
+    text-align:center; pointer-events:none;
+    font-family:"SF Mono", Consolas, monospace;
+    font-size:10.5px; letter-spacing:.3em; text-transform:uppercase;
+    color:rgba(210,190,255,.32);
+  }
+</style>
+</head>
+<body>
+<canvas id="sonar"></canvas>
+<div class="vignette"></div>
+<div class="hint">move to ping · click to burst</div>
+<div class="title">Pulse Rings</div>
+<script>
+(function(){
+  "use strict";
+
+  var canvas = document.getElementById('sonar');
+  var ctx = canvas.getContext('2d');
+  var W = 0, H = 0, DPR = 1;
+
+  var rings = [];
+  var MAX_RINGS = 240;
+  var mouse = { x: -1, y: -1 };
+  var lastSpawn = { x: -9999, y: -9999 };
+
+  function rand(a, b){ return a + Math.random() * (b - a); }
+
+  function hueNow(extra){
+    // slow global drift + per-ring spread keeps the field colorful
+    return ((performance.now() / 40) + (extra || 0)) % 360;
+  }
+
+  function spawn(x, y, opts){
+    if (rings.length >= MAX_RINGS) rings.shift();
+    opts = opts || {};
+    rings.push({
+      x: x, y: y,
+      r: opts.r0 || 2,
+      maxR: opts.maxR || rand(120, 260),
+      speed: opts.speed || rand(0.9, 2.2),
+      hue: hueNow(rand(-70, 70)),
+      hueShift: rand(4, 14),
+      width: opts.width || rand(1.2, 2.4)
+    });
+  }
+
+  function spawnBurst(x, y, count){
+    for (var i = 0; i < count; i++){
+      spawn(x, y, {
+        r0: 2 + i * 5,
+        maxR: rand(150, 320),
+        speed: rand(1.2, 2.6)
+      });
+    }
+  }
+
+  function resize(){
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = Math.round(W * DPR);
+    canvas.height = Math.round(H * DPR);
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    ctx.fillStyle = '#0a0714';
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  function frame(){
+    // slow exponential fade — long sonar trails
+    ctx.fillStyle = 'rgba(10,7,20,0.085)';
+    ctx.fillRect(0, 0, W, H);
+
+    ctx.globalCompositeOperation = 'lighter';
+
+    for (var i = rings.length - 1; i >= 0; i--){
+      var g = rings[i];
+      g.r += g.speed;
+      g.hue = (g.hue + g.hueShift * 0.06) % 360;
+
+      var life = g.r / g.maxR;
+      if (life >= 1){
+        rings.splice(i, 1);
+        continue;
+      }
+      var alpha = Math.pow(1 - life, 1.4); // ease-out fade
+      var h = g.hue.toFixed(0);
+
+      // young-ring inner fill glow
+      if (life < 0.18){
+        var fa = (1 - life / 0.18) * 0.35;
+        var fg = ctx.createRadialGradient(g.x, g.y, 0, g.x, g.y, g.r * 1.6);
+        fg.addColorStop(0, 'hsla(' + h + ',100%,70%,' + fa.toFixed(3) + ')');
+        fg.addColorStop(1, 'hsla(' + h + ',100%,60%,0)');
+        ctx.fillStyle = fg;
+        ctx.beginPath();
+      ctx.arc(g.x, g.y, g.r * 1.6, 0, Math.PI * 2);
+      ctx.fill();
+      }
+
+      // glow stroke (wide, soft)
+      ctx.strokeStyle = 'hsla(' + h + ',100%,60%,' + (alpha * 0.16).toFixed(3) + ')';
+      ctx.lineWidth = g.width * 5.5;
+      ctx.beginPath();
+      ctx.arc(g.x, g.y, g.r, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // main stroke (thin, bright)
+      ctx.strokeStyle = 'hsla(' + h + ',100%,' + (65 + 20 * alpha) + '%,' + (0.25 + 0.75 * alpha).toFixed(3) + ')';
+      ctx.lineWidth = g.width;
+      ctx.beginPath();
+      ctx.arc(g.x, g.y, g.r, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    ctx.globalCompositeOperation = 'source-over';
+
+    // auto-spawn keeps the field alive even without input
+    if (Math.random() < 0.14){
+      spawn(rand(W * 0.08, W * 0.92), rand(H * 0.08, H * 0.92));
+    }
+
+    requestAnimationFrame(frame);
+  }
+
+  window.addEventListener('mousemove', function(ev){
+    mouse.x = ev.clientX;
+    mouse.y = ev.clientY;
+    var dx = mouse.x - lastSpawn.x;
+    var dy = mouse.y - lastSpawn.y;
+    if (dx * dx + dy * dy > 26 * 26){
+      spawn(mouse.x, mouse.y);
+      lastSpawn.x = mouse.x;
+      lastSpawn.y = mouse.y;
+    }
+  });
+
+  window.addEventListener('click', function(ev){
+    spawnBurst(ev.clientX, ev.clientY, 5);
+  });
+
+  window.addEventListener('touchmove', function(ev){
+    var t = ev.touches[0];
+    if (!t) return;
+    var dx = t.clientX - lastSpawn.x;
+    var dy = t.clientY - lastSpawn.y;
+    if (dx * dx + dy * dy > 26 * 26){
+      spawn(t.clientX, t.clientY);
+      lastSpawn.x = t.clientX;
+      lastSpawn.y = t.clientY;
+    }
+  }, { passive: true });
+
+  window.addEventListener('touchstart', function(ev){
+    var t = ev.touches[0];
+    if (t) spawnBurst(t.clientX, t.clientY, 5);
+  }, { passive: true });
+
+  window.addEventListener('resize', resize);
+
+  resize();
+  // seed the field
+  for (var s = 0; s < 26; s++){
+    var sx = rand(0, window.innerWidth);
+    var sy = rand(0, window.innerHeight);
+    spawn(sx, sy);
+  }
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

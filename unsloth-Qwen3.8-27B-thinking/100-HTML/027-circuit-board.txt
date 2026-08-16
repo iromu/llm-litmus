@@ -1,0 +1,24 @@
+Creative Prompt (verbatim)
+===========================
+Create a glowing green circuit board visualization on a dark green background. Nodes are arranged in a semi-random grid connected by traces (lines) with pulsing signal dots traveling along them. Traces glow with a green neon color and fade in and out with pulse animation. Nodes have a similar glow and pulse. The scene has a trailing fade for smooth animation. The title "Circuit Board" appears faintly at the bottom in green. The overall aesthetic is cybernetic, technological, and neon-green — like a living PCB.
+
+Model
+=====
+Model: Qwen3.8-27B (thinking) — thinking effort: high
+
+Techniques Used
+===============
+Canvas 2D particle/trace engine, DPR-aware (capped at 2x). Node field: grid with spacing clamped 72–110px (W/14 heuristic), ±20% random perturbation per node, ~12% of cells dropped to create organic voids. Connection logic: distance threshold of 1.35× the grid gap, per-node degree capped at 3, 75% accept probability so the topology reads as routed copper, not a mesh. Each trace pulses via a sinusoidal alpha function (0.06–0.36 base alpha, width 1–1.8px, shadowBlur 6–14px in neon green rgba(57,255,141)) with independent phase and 0.5–1.3 rad/s speed for organic, non-uniform signal feel. Traveling signal dots: 1–2 pulses per trace, each with its own progress (0–1), speed (0.12–0.4 normalized to trace length), and random direction; rendered as a bright core dot (2.1px, shadowBlur 14) with a short "comet tail" segment (≤16% of trace length) that fades with the trace pulse. Nodes breathe: radial-gradient glow halo (3.2–5.8× core radius) whose color stops scale with a per-node sine phase, plus a bright core dot. Trailing fade: each frame the canvas is overdrawn with rgba(2,10,6,0.30), an exponential fade that leaves soft phosphor ghosts behind moving pulses. A barely-visible 2px copper-pad dot grid (rgba(46,125,76,0.05)) is re-drawn each frame so board texture survives the trail fade. Vignette + top/bottom shading from a CSS radial/linear gradient overlay. Faint monospace "CIRCUIT BOARD" title at the bottom (letter-spacing .65em, 28% alpha green with 18px glow) on a 4.5s opacity pulse. Fully regenerated on resize.
+
+Interaction Model
+=================
+Purely passive — traces pulse continuously with traveling signal dots (some bidirectional, with comet tails), nodes breathe with independent glow intensity, and the trail fade gives moving signals a phosphor afterglow. The pattern regenerates fresh on window resize, per the spec.
+
+Stats
+=====
+Wall time: ~9 minutes (estimated — spec reading, single-pass file authoring, JS syntax verification via node --check, self-containment grep)
+Token count: n/a
+
+Output
+======
+File: 027-circuit-board.html — single self-contained page, all CSS/JS inline, no external dependencies, works fully offline.

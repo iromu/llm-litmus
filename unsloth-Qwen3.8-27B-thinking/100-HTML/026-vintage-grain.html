@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Analog Days — A Vintage Editorial</title>
+<style>
+  :root{
+    --paper:      #f2e7d3;
+    --paper-deep: #e9dcc4;
+    --ink:        #3a2b1d;
+    --ink-soft:   #5d4a36;
+    --ink-faint:  #8a7358;
+    --sepia:      #a9764a;
+    --rust:       #8c4a2f;
+    --shadow:     #241a10;
+    --grain-opacity: .07;
+  }
+  *{ margin:0; padding:0; box-sizing:border-box; }
+  html{ scroll-behavior:smooth; }
+  body{
+    min-height:100vh;
+    background:#241b12;
+    background-image:
+      radial-gradient(120% 90% at 50% 8%, #38291a 0%, #241b12 60%, #17100a 100%);
+    font-family: Georgia, 'Times New Roman', Times, serif;
+    color:var(--ink);
+    display:flex;
+    justify-content:center;
+    padding:48px 20px;
+  }
+
+  /* ---------- the journal page ---------- */
+  .page{
+    position:relative;
+    width:100%;
+    max-width:860px;
+    background:
+      linear-gradient(160deg, var(--paper) 0%, var(--paper-deep) 55%, #e0d0b4 100%);
+    border:1px solid #c9b391;
+    box-shadow:
+      0 2px 4px rgba(0,0,0,.35),
+      0 18px 48px rgba(0,0,0,.55),
+      0 60px 120px rgba(0,0,0,.45);
+    padding:64px 68px 48px;
+    animation:flicker 9s steps(1) infinite;
+    overflow:hidden;
+  }
+
+  /* ---------- film grain (SVG feTurbulence) ---------- */
+  .page::before{
+    content:"";
+    position:absolute; inset:-100%;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='300' height='300'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='300' height='300' filter='url(%23n)' opacity='0.55'/></svg>");
+    opacity:var(--grain-opacity);
+    mix-blend-mode:multiply;
+    pointer-events:none;
+    animation:grain 1.2s steps(6) infinite;
+    z-index:5;
+  }
+  @keyframes grain{
+    0%  { transform:translate(0,0); }
+    16% { transform:translate(-4%,3%); }
+    33% { transform:translate(3%,-5%); }
+    50% { transform:translate(-5%,-2%); }
+    66% { transform:translate(4%,4%); }
+    83% { transform:translate(-2%,5%); }
+    100%{ transform:translate(0,0); }
+  }
+
+  /* ---------- vignette ---------- */
+  .page::after{
+    content:"";
+    position:absolute; inset:0;
+    background:radial-gradient(120% 95% at 50% 42%,
+      rgba(0,0,0,0) 52%,
+      rgba(58,36,14,.14) 74%,
+      rgba(36,20,6,.38) 100%);
+    pointer-events:none;
+    z-index:4;
+  }
+  @keyframes flicker{
+    0%,100%{ filter:brightness(1); }
+    7%  { filter:brightness(.985); }
+    8%  { filter:brightness(1.012); }
+    9%  { filter:brightness(.99); }
+    36% { filter:brightness(1); }
+    37% { filter:brightness(.982); }
+    38% { filter:brightness(1.008); }
+    71% { filter:brightness(1); }
+    72% { filter:brightness(.992); }
+    73% { filter:brightness(1); }
+  }
+
+  /* ---------- reveal (sequential fade-up) ---------- */
+  .reveal{
+    opacity:0;
+    transform:translateY(18px);
+    animation:rise .9s cubic-bezier(.22,.61,.36,1) forwards;
+  }
+  @keyframes rise{ to{ opacity:1; transform:translateY(0); } }
+  .d1{ animation-delay:.15s } .d2{ animation-delay:.45s }
+  .d3{ animation-delay:.75s } .d4{ animation-delay:1.05s }
+  .d5{ animation-delay:1.35s } .d6{ animation-delay:1.65s }
+  .d7{ animation-delay:1.95s } .d8{ animation-delay:2.25s }
+
+  /* ---------- masthead ---------- */
+  .masthead{
+    text-align:center;
+    border-bottom:3px double var(--ink);
+    padding-bottom:22px;
+    margin-bottom:30px;
+  }
+  .masthead .line{
+    display:flex; justify-content:space-between; align-items:baseline;
+    font-size:12px; letter-spacing:.22em; text-transform:uppercase;
+    color:var(--ink-soft);
+    margin-bottom:18px;
+  }
+  .masthead .line .num{ color:var(--rust); font-weight:bold; }
+  .masthead h1{
+    font-size:clamp(40px, 7.5vw, 72px);
+    font-weight:normal;
+    letter-spacing:.04em;
+    line-height:1.02;
+    color:var(--ink);
+    text-shadow:0 1px 0 rgba(255,250,235,.6);
+  }
+  .masthead h1 em{ font-style:italic; color:var(--rust); }
+  .masthead .sub{
+    margin-top:14px;
+    font-style:italic;
+    font-size:17px;
+    color:var(--ink-soft);
+    letter-spacing:.02em;
+  }
+
+  /* ---------- photo placeholder ---------- */
+  .photo{
+    position:relative;
+    margin:8px 0 34px;
+    border:1px solid #b39a74;
+    box-shadow:0 4px 14px rgba(36,20,6,.35), inset 0 0 0 6px var(--paper);
+    background:var(--paper-deep);
+    padding:14px;
+  }
+  .photo .frame{
+    position:relative;
+    overflow:hidden;
+    height:320px;
+    background:linear-gradient(#e8c98f 0%, #d99e5e 34%, #a5633a 58%, #5c3a26 78%, #33210f 100%);
+    box-shadow:inset 0 0 40px rgba(51,28,8,.55), inset 0 0 4px rgba(0,0,0,.5);
+  }
+  /* duotone scene: sun + hills + birds, pure CSS */
+  .photo .sun{
+    position:absolute; left:50%; top:56px;
+    width:96px; height:96px; margin-left:-48px;
+    border-radius:50%;
+    background:radial-gradient(circle at 50% 42%, #fdf3d8 0%, #f6dd9a 55%, rgba(246,221,154,0) 72%);
+    box-shadow:0 0 60px 24px rgba(250,225,160,.5);
+  }
+  .photo .hill{
+    position:absolute; left:-8%; width:116%; bottom:-26%;
+    height:70%; border-radius:48% 52% 0 0 / 100% 100% 0 0;
+  }
+  .photo .hill.back{ background:#6e4526; height:58%; bottom:-14%; }
+  .photo .hill.front{ background:#3c2716; }
+  .photo .bird{
+    position:absolute; top:64px; width:26px; height:8px;
+    background:
+      radial-gradient(circle at 3px 8px, transparent 6px, #2b1a0c 6.5px, #2b1a0c 8px, transparent 9px) 0 0 / 13px 10px no-repeat,
+      radial-gradient(circle at 23px 8px, transparent 6px, #2b1a0c 6.5px, #2b1a0c 8px, transparent 9px) 0 0 / 13px 10px no-repeat;
+    opacity:.85;
+  }
+  .photo .bird.b2{ transform:scale(.62); top:88px; left:58%; opacity:.6; }
+  .photo .bird.b1{ left:38%; }
+  .photo .frame::after{
+    content:""; position:absolute; inset:0;
+    background:repeating-linear-gradient(0deg, rgba(0,0,0,.05) 0 1px, transparent 1px 3px);
+    mix-blend-mode:multiply;
+  }
+  .photo figcaption{
+    margin-top:12px;
+    text-align:center;
+    font-size:13px; font-style:italic;
+    letter-spacing:.08em;
+    color:var(--ink-faint);
+  }
+  .photo figcaption b{ font-style:normal; letter-spacing:.2em; text-transform:uppercase; font-size:10.5px; color:var(--ink-soft); }
+
+  /* ---------- body copy ---------- */
+  .body-text{
+    column-count:2;
+    column-gap:38px;
+    column-rule:1px solid rgba(93,74,54,.35);
+    font-size:15.5px;
+    line-height:1.72;
+    color:var(--ink-soft);
+    text-align:justify;
+    hyphens:auto;
+  }
+  .body-text p{ margin-bottom:1em; }
+  .body-text p:first-child::first-letter{
+    font-size:3.35em;
+    float:left;
+    line-height:.82;
+    padding:4px 10px 0 0;
+    color:var(--rust);
+    font-weight:bold;
+  }
+  .body-text h2{
+    break-after:avoid;
+    font-size:19px; font-weight:normal; font-style:italic;
+    letter-spacing:.03em;
+    color:var(--ink);
+    margin:1.1em 0 .55em;
+  }
+  .pull{
+    break-inside:avoid;
+    margin:1.4em 0;
+    padding:14px 16px;
+    border-top:2px solid var(--ink);
+    border-bottom:2px solid var(--ink);
+    font-style:italic;
+    font-size:18px;
+    line-height:1.5;
+    color:var(--ink);
+    text-align:center;
+  }
+
+  /* ---------- badge ---------- */
+  .badge{
+    display:flex; justify-content:center; margin:36px 0 8px;
+  }
+  .badge span{
+    position:relative;
+    display:inline-block;
+    padding:10px 26px 12px;
+    border:2px solid var(--rust);
+    color:var(--rust);
+    font-size:12px;
+    letter-spacing:.34em;
+    text-transform:uppercase;
+    transform:rotate(-1.4deg);
+    box-shadow:0 0 0 3px var(--paper), 0 0 0 4px rgba(140,74,47,.4);
+  }
+  .badge span::before, .badge span::after{
+    content:"★";
+    position:absolute; top:50%;
+    transform:translateY(-52%);
+    font-size:10px;
+    color:var(--rust);
+  }
+  .badge span::before{ left:9px; }
+  .badge span::after{ right:9px; }
+
+  /* ---------- footer ---------- */
+  .foot{
+    margin-top:34px;
+    border-top:3px double var(--ink);
+    padding-top:18px;
+    display:flex; justify-content:space-between; gap:14px; flex-wrap:wrap;
+    font-size:11.5px;
+    letter-spacing:.16em;
+    text-transform:uppercase;
+    color:var(--ink-faint);
+  }
+  .foot .mid{ text-align:center; flex:1; }
+
+  @media (max-width:680px){
+    body{ padding:18px 8px; }
+    .page{ padding:40px 26px 32px; }
+    .body-text{ column-count:1; }
+    .masthead .line{ flex-direction:column; gap:4px; text-align:center; }
+    .photo .frame{ height:230px; }
+  }
+  @media (prefers-reduced-motion:reduce){
+    .page::before{ animation:none; }
+    .page{ animation:none; }
+    .reveal{ animation:none; opacity:1; transform:none; }
+  }
+</style>
+</head>
+<body>
+  <main class="page">
+    <!-- masthead -->
+    <header class="masthead reveal d1">
+      <div class="line">
+        <span class="num">No. 47</span>
+        <span>Autumn, 1962</span>
+        <span>Price — 25¢</span>
+      </div>
+      <h1>Analog <em>Days</em></h1>
+      <p class="sub">A quarterly journal for slow readers, patient eyes, and the quiet machinery of everyday life.</p>
+    </header>
+
+    <!-- photo placeholder -->
+    <figure class="photo reveal d2">
+      <div class="frame" role="img" aria-label="Placeholder photograph: a large low sun over layered dark hills, two small birds in the sky.">
+        <div class="sun"></div>
+        <div class="hill back"></div>
+        <div class="hill front"></div>
+        <span class="bird b1"></span>
+        <span class="bird b2"></span>
+      </div>
+      <figcaption><b>Plate I</b> — Low sun over the western ridge, half-tone print.</figcaption>
+    </figure>
+
+    <!-- body copy -->
+    <section class="body-text reveal d3">
+      <p>There is a particular quality of light that belongs only to the middle of the afternoon, when the world seems to hold its breath between the morning and the evening. Everything it touches is rendered in warm browns and soft golds, and the shadows arrive gently, the way old friends arrive — without announcement, and for a while longer than expected.</p>
+      <p>We have spent this quarter thinking about slowness, and about the objects that reward it. The watch that keeps its own counsel. The letter written by hand and carried for three days. The photograph that develops grain by grain in a tray of warm water, revealing itself the way a story reveals itself: partially, then all at once.</p>
+      <h2>On the Persistence of Film</h2>
+      <p>Grain, that unwanted companion of the exposure, has always been the honest part of a photograph. It admits that light passed through matter, that time passed through the shutter, that somewhere between the scene and the print a great many small accidents occurred. Digital images are smoother, and so they lie a little more easily.</p>
+      <div class="pull">“The grain is not a defect. It is the texture of the moment itself.”</div>
+      <p>To read a printed page is to accept that same grain. Ink sits on the surface; the paper keeps its own weather; the margins carry the pencil marks of everyone who read it before. This journal is set in type that has been in use for two hundred years, and we think that is a kindness, not an ornament.</p>
+      <h2>A Note on Light</h2>
+      <p>Our photographers were asked to wait for the hour when the sun stands low and argues with the hills. The result is a series of warm, sepia studies — landscapes that would be anonymous at noon, but which at dusk confess their entire history. We recommend reading this issue in the same light, with the lamp turned low, and without an alarm.</p>
+    </section>
+
+    <!-- badge -->
+    <div class="badge reveal d4">
+      <span>Printed on Paper</span>
+    </div>
+
+    <!-- footer -->
+    <footer class="foot reveal d5">
+      <span>Analog Days · Est. 1948</span>
+      <span class="mid">Bound &amp; printed by the Meridian Press</span>
+      <span>Vol. XIV · No. 47</span>
+    </footer>
+  </main>
+</body>
+</html>

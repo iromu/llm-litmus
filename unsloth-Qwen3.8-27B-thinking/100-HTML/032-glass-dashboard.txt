@@ -1,0 +1,24 @@
+Creative Prompt (verbatim)
+===========================
+Create a premium analytics dashboard with a glassmorphism aesthetic. The page features blurred background orbs, glass cards with KPI metrics (revenue, users, conversion, bounce rate), a weekly bar chart, a donut chart for traffic sources with SVG circles, and a recent activity feed. The glass cards have backdrop-filter blur, subtle borders, and hover lift. The color palette uses dark purple gradient background with cyan, green, blue, yellow, and pink accents. The overall aesthetic is premium, data-driven, and crystalline — like a high-end financial dashboard.
+
+Model
+=====
+Model: Qwen3.8-27B (thinking) — thinking effort: high
+
+Techniques Used
+===============
+DOM/CSS glassmorphism dashboard with a small vanilla-JS layer. Background: fixed dark-purple radial gradient plus four blurred "orb" divs (300–520px, filter blur(90px), radial gradients in violet/teal/magenta/indigo, opacity .55) drifting on 26–44s ease-in-out alternate keyframes. Glass cards: background rgba(255,255,255,.055), 1px rgba(255,255,255,.13) border, 18px radius, backdrop-filter blur(18px) saturate(140%), inset top highlight; hover lifts -5px on a bouncy cubic-bezier and brightens the border/shadow. Header: gradient logo tile with an inline-SVG triangle glyph, "Prism Analytics" brand, a pulsing green "LIVE" pill, and a date chip populated by JS from the system clock. KPI row: CSS grid of 4 glass cards (Revenue $128.4K ▲8.2%, Active Users 48,920 ▲3.1%, Conversion 4.72% ▼0.4%, Bounce Rate 32.1% ▲1.2%), each with a per-card --ac accent custom property driving a top accent bar, an inline-SVG stroke icon tinted via color-mix, and delta text. Weekly bar chart: pure-CSS flexbox bars, 7 columns with per-bar --h custom property heights (46–91%), cyan→violet vertical gradient fill with soft glow, staggered 1s scaleY grow-in animation, and a hover-only value tooltip via ::after content from a data-v attribute. Donut chart: SVG circle segments (r=58, stroke-width 22) on a -90° rotated viewBox, dasharray/dashoffset computed in JS from percentages (Organic 42 cyan, Direct 26 violet, Social 19 green, Referral 13 pink) with a cubic-ease-out 1.1s draw-in animation; strokes set via el.style.stroke because var() does not resolve in SVG presentation attributes; center overlay shows "24.8K Sessions". Activity feed: 5-item <ul> with colored glowing indicators, bold lead + dim span, right-aligned relative timestamps; rows highlight on hover. Responsive: 4→2→1 KPI columns, charts stack below 900px; honors prefers-reduced-motion (orbs and donut animation disabled, final dash state applied). Accent palette on dark purple: cyan #38e1ff, green #3ddc97, blue #5b8cff, yellow #ffcf5b, pink #ff6bd6, violet #9d7bff.
+
+Interaction Model
+=================
+Hover any glass card (KPI, chart, feed row) for the lift/glow effect; hover bars to reveal their session values; background orbs drift continuously; the donut draws itself in once on load and the date chip and live indicator update on page open.
+
+Stats
+=====
+Wall time: ~12 minutes (estimated — spec reading, single-pass page authoring, SVG var() stroke fix, JS syntax verification via node --check, self-containment grep)
+Token count: n/a
+
+Output
+======
+File: 032-glass-dashboard.html — single self-contained page, all CSS/JS inline, no external dependencies, works fully offline.

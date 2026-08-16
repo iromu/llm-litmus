@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kaleidoscope — Eightfold</title>
+<style>
+  *{ margin:0; padding:0; box-sizing:border-box; }
+  html,body{ height:100%; overflow:hidden; }
+  body{ background:#0b0614; }
+  #kalo{ position:fixed; inset:0; display:block; }
+  .vignette{
+    position:fixed; inset:0; pointer-events:none;
+    background:radial-gradient(75% 75% at 50% 50%, rgba(0,0,0,0) 58%, rgba(0,0,0,.5) 100%);
+  }
+  .title{
+    position:fixed; left:0; right:0; bottom:24px;
+    text-align:center; pointer-events:none;
+    font-family:"SF Mono", Consolas, "Courier New", monospace;
+    font-size:clamp(15px, 2.4vw, 24px);
+    letter-spacing:.62em; text-indent:.62em;
+    text-transform:uppercase;
+    color:rgba(235,200,255,.28);
+    text-shadow:0 0 18px rgba(200,120,255,.3);
+    animation:tp 6s ease-in-out infinite;
+  }
+  @keyframes tp{ 0%,100%{ opacity:.45; } 50%{ opacity:1; } }
+  .hint{
+    position:fixed; top:20px; left:0; right:0;
+    text-align:center; pointer-events:none;
+    font-family:"SF Mono", Consolas, monospace;
+    font-size:10px; letter-spacing:.32em; text-transform:uppercase;
+    color:rgba(235,200,255,.3);
+  }
+</style>
+</head>
+<body>
+<canvas id="kalo"></canvas>
+<div class="vignette"></div>
+<div class="hint">click to refract</div>
+<div class="title">Kaleidoscope</div>
+<script>
+(function(){
+  "use strict";
+
+  var canvas = document.getElementById('kalo');
+  var ctx = canvas.getContext('2d');
+  var W = 0, H = 0, DPR = 1, CX = 0, CY = 0;
+
+  var SEGMENTS = 8;
+  var WEDGE = Math.PI * 2 / SEGMENTS;
+
+  var points = [];
+  var N_POINTS = 30;
+  var hueBase = 210;   // shifted on click
+  var drift = 0;       // hue drift accumulator
+
+  function rand(a, b){ return a + Math.random() * (b - a); }
+
+  function regenerate(){
+    points = [];
+    for (var i = 0; i < N_POINTS; i++){
+      points.push({
+        baseR: rand(0.06, 0.95),           // fraction of max radius
+        baseAng: rand(0.04, WEDGE - 0.04), // stay inside the wedge
+        rAmp: rand(0.04, 0.16),
+        rSpd: rand(0.25, 0.8),
+        aAmp: rand(0.02, 0.09),
+        aSpd: rand(0.2, 0.7),
+        ph: rand(0, Math.PI * 2),
+        hueOff: rand(0, 120),
+        size: rand(1.6, 4.2)
+      });
+    }
+  }
+
+  function maxRadius(){
+    return Math.min(W, H) * 0.44;
+  }
+
+  function resize(){
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth;
+    H = window.innerHeight;
+    CX = W / 2;
+    CY = H / 2;
+    canvas.width = Math.round(W * DPR);
+    canvas.height = Math.round(H * DPR);
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    ctx.fillStyle = '#0b0614';
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  // positions of the wedge points at time t (in wedge-local space, r in px)
+  function pointPos(p, t, R){
+    var r = (p.baseR + p.rAmp * Math.sin(t * p.rSpd + p.ph)) * R;
+    var a = p.baseAng + p.aAmp * Math.sin(t * p.aSpd + p.ph * 1.7);
+    return { x: Math.cos(a) * r, y: Math.sin(a) * r, r: r, a: a };
+  }
+
+  function drawWedge(t, R){
+    var i, q;
+
+    // connection lines between consecutive mirrored points
+    ctx.lineWidth = 0.7;
+    for (i = 0; i < points.length; i++){
+      var pa = pointPos(points[i], t, R);
+      var pb = pointPos(points[(i + 1) % points.length], t, R);
+      var hueA = (hueBase + drift + points[i].hueOff) % 360;
+      var hueB = (hueBase + drift + points[(i + 1) % points.length].hueOff) % 360;
+      var grad = ctx.createLinearGradient(pa.x, pa.y, pb.x, pb.y);
+      grad.addColorStop(0, 'hsla(' + hueA.toFixed(0) + ',95%,62%,0.30)');
+      grad.addColorStop(1, 'hsla(' + hueB.toFixed(0) + ',95%,62%,0.30)');
+      ctx.strokeStyle = grad;
+      ctx.beginPath();
+      ctx.moveTo(pa.x, pa.y);
+      ctx.lineTo(pb.x, pb.y);
+      ctx.stroke();
+    }
+
+    // dots with glow
+    for (i = 0; i < points.length; i++){
+      q = pointPos(points[i], t, R);
+      var hue = (hueBase + drift + points[i].hueOff) % 360;
+      var pulse = 0.75 + 0.25 * Math.sin(t * 1.4 + points[i].ph);
+      var s = points[i].size * pulse;
+
+      var g = ctx.createRadialGradient(q.x, q.y, 0, q.x, q.y, s * 4.2);
+      g.addColorStop(0, 'hsla(' + hue.toFixed(0) + ',100%,88%,0.95)');
+      g.addColorStop(0.3, 'hsla(' + hue.toFixed(0) + ',100%,60%,0.55)');
+      g.addColorStop(1, 'hsla(' + hue.toFixed(0) + ',100%,55%,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(q.x, q.y, s * 4.2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  function frame(t){
+    var time = t / 1000;
+    drift += 0.35; // slow global spectrum drift
+
+    // trailing fade
+    ctx.fillStyle = 'rgba(11,6,20,0.12)';
+    ctx.fillRect(0, 0, W, H);
+
+    var R = maxRadius();
+
+    // radial guide lines + faint concentric rings
+    ctx.strokeStyle = 'rgba(200,160,255,0.055)';
+    ctx.lineWidth = 1;
+    for (var k = 0; k < SEGMENTS; k++){
+      var ang = k * WEDGE;
+      ctx.beginPath();
+      ctx.moveTo(CX + Math.cos(ang) * R * 0.08, CY + Math.sin(ang) * R * 0.08);
+      ctx.lineTo(CX + Math.cos(ang) * R, CY + Math.sin(ang) * R);
+      ctx.stroke();
+    }
+    ctx.strokeStyle = 'rgba(200,160,255,0.04)';
+    for (var ring = 1; ring <= 4; ring++){
+      ctx.beginPath();
+      ctx.arc(CX, CY, R * ring / 4.4, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    // mirrored 8-fold rendering
+    ctx.globalCompositeOperation = 'lighter';
+    for (k = 0; k < SEGMENTS; k++){
+      ctx.save();
+      ctx.translate(CX, CY);
+      ctx.rotate(k * WEDGE);
+      if (k % 2 === 1) ctx.scale(1, -1); // mirror alternate wedges
+      drawWedge(time, R);
+      ctx.restore();
+    }
+    ctx.globalCompositeOperation = 'source-over';
+
+    // center glow anchor
+    var cg = ctx.createRadialGradient(CX, CY, 0, CX, CY, R * 0.16);
+    cg.addColorStop(0, 'rgba(255,245,255,0.55)');
+    cg.addColorStop(0.4, 'hsla(' + ((hueBase + drift) % 360).toFixed(0) + ',90%,70%,0.22)');
+    cg.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = cg;
+    ctx.beginPath();
+    ctx.arc(CX, CY, R * 0.16, 0, Math.PI * 2);
+    ctx.fill();
+
+    requestAnimationFrame(frame);
+  }
+
+  window.addEventListener('click', function(){
+    hueBase = (hueBase + rand(90, 180)) % 360; // refract the spectrum
+    regenerate();
+  });
+  window.addEventListener('touchstart', function(){
+    hueBase = (hueBase + rand(90, 180)) % 360;
+    regenerate();
+  }, { passive: true });
+  window.addEventListener('resize', resize);
+
+  resize();
+  regenerate();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

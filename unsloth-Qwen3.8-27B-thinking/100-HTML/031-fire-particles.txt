@@ -1,0 +1,24 @@
+Creative Prompt (verbatim)
+===========================
+Create a fire particle simulation with glowing embers that rise, flicker, and fade. Particles spawn at the mouse cursor, creating a controlled flame effect. Each particle has warm hues (orange, red, yellow), upward velocity with wobble, a radial glow, and a bright core. Particles decay in life, size, and alpha. Clicking creates a burst of fire. The background has a dark red-black trailing fade. The overall aesthetic is warm, dynamic, and fiery — like a living flame.
+
+Model
+=====
+Model: Qwen3.8-27B (thinking) — thinking effort: high
+
+Techniques Used
+===============
+Canvas 2D particle system, DPR-aware (capped 2x), additive blending ('lighter') so flames accumulate luminosity. Particle pool capped at 900 with FIFO eviction. Physics: per-particle upward buoyancy (vy −= 0.045/frame), initial upward velocity (−1.4…−3.4), horizontal wobble via sine (amplitude 0.2–0.9, frequency 2–6 rad/s, random phase, sampled at 0.35× amplitude for smoothness), vx damped at 0.985/frame. Fire coloring in HSL: hue sweeps 50° (yellow) → 10° (deep red) as life decays (50 − 40·(1−life)) plus a ±3° flicker oscillation at 9 rad/s; lightness 55–70% scaled by life. Dual-layer rendering per particle: a radial-gradient glow (9× size, three stops stepping hue −10/−20° and dropping lightness) plus a small bright core at 0.55× size (lightness up to 92%). Embers: ~16% of spawns (always possible in bursts) — smaller (0.8–1.8px), slower decay (0.004–0.009 vs 0.012–0.03), alpha flickering at 11 rad/s with min-clamp, hue-locked at 62% lightness, so they persist as sparks. Life-cycle: size scales with (0.5 + 0.8·life), alpha = life^0.85; particles cull at life ≤ 0 or above the top edge. Spawning: mouse-move spawns 2–3 particles per 9px of cursor travel; click/tap bursts 45–70 particles radially (speed 1–5.5 px/frame with an upward −1.5…−3 bias); ambient hearth line along the bottom spawns 2–3 particles/frame (75% probability) at y = H − 0…26px so the canvas always has a base fire (reduced to 2 on mobile). Warm dark-red-black trail: rgba(18,4,2,0.26) overdraw each frame. Vignette overlay, crosshair cursor, faint monospace "FIRE PARTICLES" title with 4s pulse, "trace the cursor · click to burst" hint. Touch supported.
+
+Interaction Model
+=================
+Move the mouse to create fire along the cursor path (throttled per 9px of travel). Click (or tap) fires a 45–70-particle radial burst at the pointer. Fire rises with buoyancy, wobbles, and fades; an ambient hearth line auto-spawns along the bottom so the canvas is always alive. Window resize resets the canvas transform.
+
+Stats
+=====
+Wall time: ~8 minutes (estimated — spec reading, single-pass file authoring, JS syntax verification via node --check, self-containment grep)
+Token count: n/a
+
+Output
+======
+File: 031-fire-particles.html — single self-contained page, all CSS/JS inline, no external dependencies, works fully offline.

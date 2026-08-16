@@ -1,0 +1,24 @@
+Creative Prompt (verbatim)
+===========================
+Create a digital kaleidoscope with 8-fold radial symmetry. Colorful dots move within a wedge and are mirrored across all segments, creating intricate symmetrical patterns. Connection lines between mirrored points add geometric structure. Radial guide lines emanate from the center. The colors cycle through the spectrum and shift over time. Clicking changes the hue offset and regenerates points. A subtle center glow anchors the composition. The background trails for smooth motion. The overall aesthetic is psychedelic, symmetric, and mesmerizing.
+
+Model
+=====
+Model: Qwen3.8-27B (thinking) — thinking effort: high
+
+Techniques Used
+===============
+Canvas 2D kaleidoscope engine, DPR-aware (capped 2x). True 8-fold symmetry via context transforms: 30 wedge-local points are drawn once per segment inside save/rotate(k·45°)/restore, with alternate wedges mirrored by scale(1,−1) so reflections read as genuine kaleidoscopic mirror lines rather than simple rotation. Points orbit organically: each has baseR (6–95% of max radius), baseAng confined to the 45° wedge (4–41° to avoid bleeding across mirror lines), and two independent sine oscillators — radius amplitude 4–16% of R at 0.25–0.8 rad/s and angular amplitude 2–9° at 0.2–0.7 rad/s — on per-point random phases. Dots: 1.6–4.2px cores with a 4.2× radial-gradient halo (white-hot center → saturated mid → transparent) and a 1.4 Hz size pulse (±25%). Spectrum cycling: global hueBase + a 0.35°/frame drift accumulator plus per-point 0–120° offsets, all mod 360. Connection structure: a thin (0.7px, 30% alpha) linear-gradient polyline linking each point to the next (hue-interpolated per segment) adds the geometric web. Radial guides: 8 spokes from 8% to 100% of R at 5.5% alpha and 4 faint concentric rings at 4% alpha. Center anchor: a white-hot radial glow at 16% of R whose mid stop tracks the live global hue. Additive blending ('lighter') for the whole mirrored pass so overlapping segments bloom. Trail fade: rgba(11,6,20,0.12) overdraw. Click/tap: hueBase jumps 90–180° and the full point configuration regenerates. Faint monospace "KALEIDOSCOPE" title (6s opacity pulse), "click to refract" hint, vignette overlay. Regenerates on resize.
+
+Interaction Model
+=================
+Passive kaleidoscopic animation — points orbit, hue drifts around the spectrum, and the pattern evolves continuously. Click (or tap) refracts the palette by a random 90–180° hue jump and regenerates the point configuration (radii, angles, amplitudes, speeds, sizes).
+
+Stats
+=====
+Wall time: ~8 minutes (estimated — spec reading, single-pass file authoring, dead-code cleanup, JS syntax verification via node --check, self-containment grep)
+Token count: n/a
+
+Output
+======
+File: 030-kaleidoscope.html — single self-contained page, all CSS/JS inline, no external dependencies, works fully offline.

@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fire Particles — Living Flame</title>
+<style>
+  *{ margin:0; padding:0; box-sizing:border-box; }
+  html,body{ height:100%; overflow:hidden; }
+  body{
+    background:radial-gradient(120% 100% at 50% 90%, #1c0703 0%, #120402 55%, #080201 100%);
+    cursor:crosshair;
+  }
+  #fire{ position:fixed; inset:0; display:block; }
+  .vignette{
+    position:fixed; inset:0; pointer-events:none;
+    background:radial-gradient(115% 95% at 50% 60%, rgba(0,0,0,0) 55%, rgba(0,0,0,.5) 100%);
+  }
+  .title{
+    position:fixed; left:0; right:0; bottom:26px;
+    text-align:center; pointer-events:none;
+    font-family:"SF Mono", Consolas, "Courier New", monospace;
+    font-size:clamp(15px, 2.4vw, 24px);
+    letter-spacing:.6em; text-indent:.6em;
+    text-transform:uppercase;
+    color:rgba(255,170,90,.32);
+    text-shadow:0 0 20px rgba(255,120,40,.35);
+    animation:tp 4s ease-in-out infinite;
+  }
+  @keyframes tp{ 0%,100%{ opacity:.5; } 50%{ opacity:1; } }
+  .hint{
+    position:fixed; top:20px; left:0; right:0;
+    text-align:center; pointer-events:none;
+    font-family:"SF Mono", Consolas, monospace;
+    font-size:10px; letter-spacing:.32em; text-transform:uppercase;
+    color:rgba(255,170,90,.3);
+  }
+</style>
+</head>
+<body>
+<canvas id="fire"></canvas>
+<div class="vignette"></div>
+<div class="hint">trace the cursor · click to burst</div>
+<div class="title">Fire Particles</div>
+<script>
+(function(){
+  "use strict";
+
+  var canvas = document.getElementById('fire');
+  var ctx = canvas.getContext('2d');
+  var W = 0, H = 0, DPR = 1;
+
+  var parts = [];
+  var MAX_PARTS = 900;
+  var mouse = { x: -9999, y: -9999, active: false };
+  var lastSpawn = { x: -9999, y: -9999 };
+
+  function rand(a, b){ return a + Math.random() * (b - a); }
+
+  function spawn(x, y, kind){
+    if (parts.length >= MAX_PARTS) parts.shift();
+
+    var ember = (kind === 'click' || Math.random() < 0.16) && Math.random() < 0.35;
+    var vy, vx;
+    if (kind === 'click'){
+      var ang = rand(0, Math.PI * 2);
+      var sp = rand(1, 5.5);
+      vx = Math.cos(ang) * sp;
+      vy = Math.sin(ang) * sp - rand(1.5, 3);
+    } else {
+      vx = rand(-0.6, 0.6);
+      vy = -rand(1.4, 3.4);
+    }
+
+    parts.push({
+      x: x + rand(-4, 4),
+      y: y + rand(-4, 4),
+      vx: vx, vy: vy,
+      size: ember ? rand(0.8, 1.8) : rand(1.6, 4.6),
+      life: 1,
+      decay: ember ? rand(0.004, 0.009) : rand(0.012, 0.03),
+      wobAmp: rand(0.2, 0.9),
+      wobSpd: rand(2, 6),
+      ph: rand(0, Math.PI * 2),
+      ember: ember,
+      flick: rand(0, Math.PI * 2)
+    });
+  }
+
+  function burst(x, y){
+    var n = Math.floor(rand(45, 70));
+    for (var i = 0; i < n; i++){
+      spawn(x, y, 'click');
+    }
+  }
+
+  function resize(){
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = Math.round(W * DPR);
+    canvas.height = Math.round(H * DPR);
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    ctx.fillStyle = '#120402';
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  function frame(t){
+    var time = t / 1000;
+
+    // warm dark-red-black trailing fade
+    ctx.fillStyle = 'rgba(18,4,2,0.26)';
+    ctx.fillRect(0, 0, W, H);
+
+    // ambient fire along the bottom — a quiet hearth line
+    var ambient = W < 640 ? 2 : 3;
+    for (var a = 0; a < ambient; a++){
+      if (Math.random() < 0.75){
+        spawn(rand(0, W), H - rand(0, 26), 'ambient');
+      }
+    }
+
+    ctx.globalCompositeOperation = 'lighter';
+
+    for (var i = parts.length - 1; i >= 0; i--){
+      var p = parts[i];
+
+      // physics: buoyancy + sine wobble
+      p.vy -= 0.045;            // upward acceleration (flame lift)
+      p.x += p.vx + Math.sin(time * p.wobSpd + p.ph) * p.wobAmp * 0.35;
+      p.y += p.vy;
+      p.vx *= 0.985;
+      p.life -= p.decay;
+
+      if (p.life <= 0 || p.y < -30){
+        parts.splice(i, 1);
+        continue;
+      }
+
+      var life = p.life;
+      // hue travels yellow (50) -> orange (30) -> deep red (10) as it ages
+      var hue = 50 - 40 * (1 - life) + Math.sin(time * 9 + p.flick) * 3;
+      var light = p.ember ? 62 : (55 + 15 * life);
+      var alpha = p.ember ? Math.min(1, life * 1.4) * (0.7 + 0.3 * Math.sin(time * 11 + p.flick))
+                          : Math.pow(life, 0.85);
+      var size = p.size * (0.5 + 0.8 * life);
+
+      // radial glow
+      var gr = size * (p.ember ? 6 : 9);
+      var g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, gr);
+      g.addColorStop(0, 'hsla(' + hue.toFixed(0) + ',100%,' + light + '%,' + (alpha * 0.9).toFixed(3) + ')');
+      g.addColorStop(0.35, 'hsla(' + (hue - 10).toFixed(0) + ',100%,' + (light - 10) + '%,' + (alpha * 0.38).toFixed(3) + ')');
+      g.addColorStop(1, 'hsla(' + (hue - 20).toFixed(0) + ',100%,30%,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, gr, 0, Math.PI * 2);
+      ctx.fill();
+
+      // bright core
+      ctx.fillStyle = 'hsla(' + Math.min(58, hue + 8).toFixed(0) + ',100%,' + (78 + 14 * life) + '%,' + alpha.toFixed(3) + ')';
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, size * 0.55, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.globalCompositeOperation = 'source-over';
+    requestAnimationFrame(frame);
+  }
+
+  window.addEventListener('mousemove', function(ev){
+    mouse.x = ev.clientX;
+    mouse.y = ev.clientY;
+    mouse.active = true;
+    var dx = mouse.x - lastSpawn.x;
+    var dy = mouse.y - lastSpawn.y;
+    if (dx * dx + dy * dy > 9 * 9){
+      var n = Math.random() < 0.5 ? 2 : 3;
+      for (var i = 0; i < n; i++) spawn(mouse.x, mouse.y, 'mouse');
+      lastSpawn.x = mouse.x;
+      lastSpawn.y = mouse.y;
+    }
+  });
+
+  window.addEventListener('mousedown', function(ev){
+    burst(ev.clientX, ev.clientY);
+  });
+
+  window.addEventListener('touchmove', function(ev){
+    var tp = ev.touches[0];
+    if (!tp) return;
+    var dx = tp.clientX - lastSpawn.x;
+    var dy = tp.clientY - lastSpawn.y;
+    if (dx * dx + dy * dy > 9 * 9){
+      spawn(tp.clientX, tp.clientY, 'mouse');
+      spawn(tp.clientX, tp.clientY, 'mouse');
+      lastSpawn.x = tp.clientX;
+      lastSpawn.y = tp.clientY;
+    }
+  }, { passive: true });
+
+  window.addEventListener('touchstart', function(ev){
+    var tp = ev.touches[0];
+    if (tp) burst(tp.clientX, tp.clientY);
+  }, { passive: true });
+
+  window.addEventListener('resize', resize);
+
+  resize();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

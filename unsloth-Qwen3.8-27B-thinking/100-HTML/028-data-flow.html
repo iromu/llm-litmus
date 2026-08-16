@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Data Flow — Network Topology</title>
+<style>
+  *{ margin:0; padding:0; box-sizing:border-box; }
+  html,body{ height:100%; overflow:hidden; }
+  body{
+    background:radial-gradient(120% 100% at 50% 40%, #071426 0%, #040b18 55%, #02050c 100%);
+  }
+  #net{ position:fixed; inset:0; display:block; }
+  .vignette{
+    position:fixed; inset:0; pointer-events:none;
+    background:
+      radial-gradient(115% 95% at 50% 45%, rgba(0,0,0,0) 55%, rgba(0,0,0,.55) 100%);
+  }
+  .hud{
+    position:fixed; left:0; right:0; bottom:24px;
+    display:flex; justify-content:space-between; align-items:flex-end;
+    padding:0 28px; pointer-events:none;
+    font-family:"SF Mono", "Cascadia Code", Consolas, "Courier New", monospace;
+    color:rgba(120,200,255,.55);
+  }
+  .hud .title{
+    font-size:clamp(16px, 2.4vw, 24px);
+    letter-spacing:.55em; text-indent:.55em;
+    text-transform:uppercase;
+    text-shadow:0 0 16px rgba(80,190,255,.35);
+  }
+  .hud .stats{
+    font-size:11px; letter-spacing:.18em; text-align:right; line-height:1.9;
+  }
+  .hud .stats b{ color:rgba(190,235,255,.85); font-weight:normal; }
+  .legend{
+    position:fixed; top:22px; left:28px; pointer-events:none;
+    font-family:"SF Mono", Consolas, monospace;
+    font-size:10px; letter-spacing:.3em; text-transform:uppercase;
+    color:rgba(120,200,255,.4); line-height:2;
+  }
+</style>
+</head>
+<body>
+<canvas id="net"></canvas>
+<div class="vignette"></div>
+<div class="legend">Live Topology<br>Read-Only Feed</div>
+<div class="hud">
+  <div class="title">Data Flow</div>
+  <div class="stats">
+    PACKETS <b id="pk">0</b> / 96<br>
+    NODES <b id="nd">0</b> · LINKS <b id="lk">0</b>
+  </div>
+</div>
+<script>
+(function(){
+  "use strict";
+
+  var canvas = document.getElementById('net');
+  var ctx = canvas.getContext('2d');
+  var W = 0, H = 0, DPR = 1;
+
+  var nodes = [];
+  var edges = [];
+  var packets = [];
+  var clusters = [];
+  var mouse = { x: -9999, y: -9999 };
+  var MAX_PACKETS = 96;
+
+  var pkEl = document.getElementById('pk');
+  var ndEl = document.getElementById('nd');
+  var lkEl = document.getElementById('lk');
+
+  function rand(a, b){ return a + Math.random() * (b - a); }
+  function randi(a, b){ return Math.floor(rand(a, b + 1)); }
+
+  var CLUSTER_DEFS = [
+    // layer: 0 = ingest (left), 1 = process (center), 2 = store (right)
+    { name: 'EDGE-01',   layer: 0, col: 0.13, row: 0.30, n: 8 },
+    { name: 'INGEST-02', layer: 0, col: 0.16, row: 0.70, n: 9 },
+    { name: 'ROUTE-03',  layer: 1, col: 0.40, row: 0.24, n: 9 },
+    { name: 'COMPUTE-04',layer: 1, col: 0.44, row: 0.56, n: 11 },
+    { name: 'ROUTE-05',  layer: 1, col: 0.56, row: 0.82, n: 8 },
+    { name: 'STORE-06',  layer: 2, col: 0.79, row: 0.34, n: 9 },
+    { name: 'CORE-07',   layer: 2, col: 0.84, row: 0.68, n: 10 }
+  ];
+
+  function build(){
+    nodes = [];
+    edges = [];
+    packets = [];
+    clusters = [];
+
+    var scale = Math.min(W / 1200, H / 760);
+    var spread = Math.max(0.55, Math.min(1.4, 1 / Math.max(scale, 0.4)));
+
+    CLUSTER_DEFS.forEach(function(def, ci){
+      var cx = def.col * W;
+      var cy = def.row * H;
+      var baseR = rand(64, 92) * spread;
+      var members = [];
+      for (var i = 0; i < def.n; i++){
+        var ang = (i / def.n) * Math.PI * 2 + rand(-0.4, 0.4);
+        var r = baseR * rand(0.35, 1.05);
+        members.push({
+          x: cx + Math.cos(ang) * r,
+          y: cy + Math.sin(ang) * r * 0.85,
+          r: rand(2.2, 4.4),
+          phase: rand(0, Math.PI * 2),
+          speed: rand(0.7, 1.6),
+          cluster: ci,
+          boost: 0
+        });
+      }
+      var c = {
+        name: def.name, layer: def.layer,
+        cx: cx, cy: cy, members: members
+      };
+      clusters.push(c);
+      nodes = nodes.concat(members);
+    });
+
+    // intra-cluster edges: connect near neighbours
+    clusters.forEach(function(c){
+      var m = c.members;
+      for (var i = 0; i < m.length; i++){
+        var cand = [];
+        for (var j = 0; j < m.length; j++){
+          if (i === j) continue;
+          var dx = m[i].x - m[j].x, dy = m[i].y - m[j].y;
+          cand.push({ j: j, d: dx * dx + dy * dy });
+        }
+        cand.sort(function(a, b){ return a.d - b.d; });
+        var deg = Math.min(2, m.length - 1) + (Math.random() < 0.4 ? 1 : 0);
+        for (var k = 0; k < deg; k++){
+          var j2 = cand[k].j;
+          if (j2 > i && !edgeExists(m[i], m[j2])){
+            edges.push(makeEdge(m[i], m[j2]));
+          }
+        }
+      }
+    });
+
+    // inter-cluster edges: each cluster links to 2-3 of its neighbours
+    for (var a = 0; a < clusters.length; a++){
+      var links = randi(2, 3);
+      for (var l = 0; l < links; l++){
+        var b = randi(0, clusters.length - 1);
+        if (b === a) { l--; continue; }
+        var na = clusters[a].members[randi(0, clusters[a].members.length - 1)];
+        var nb = clusters[b].members[randi(0, clusters[b].members.length - 1)];
+        if (!edgeExists(na, nb)){
+          edges.push(makeEdge(na, nb, true));
+        }
+      }
+    }
+
+    // seed packets
+    for (var p = 0; p < 40; p++) spawnPacket(true);
+
+    ndEl.textContent = nodes.length;
+    lkEl.textContent = edges.length;
+  }
+
+  var edgeSet = new Set();
+  function edgeKey(n, m){
+    return Math.min(nodes.indexOf(n), nodes.indexOf(m)) + ':' + Math.max(nodes.indexOf(n), nodes.indexOf(m));
+  }
+  function edgeExists(n, m){ return edgeSet.has(edgeKey(n, m)); }
+  function makeEdge(a, b, long){
+    var dx = b.x - a.x, dy = b.y - a.y;
+    var len = Math.sqrt(dx * dx + dy * dy);
+    var e = { a: a, b: b, len: len, long: !!long,
+              phase: rand(0, Math.PI * 2), speed: rand(0.4, 1.0) };
+    edgeSet.add(edgeKey(a, b));
+    return e;
+  }
+
+  function spawnPacket(anywhere){
+    if (packets.length >= MAX_PACKETS) return;
+    var e = edges[randi(0, edges.length - 1)];
+    var hue = rand(185, 265);
+    packets.push({
+      e: e,
+      p: anywhere ? Math.random() : 0,
+      spd: rand(0.004, 0.014) * (e.long ? 0.7 : 1.3),
+      dir: Math.random() < 0.5 ? 1 : -1,
+      hue: hue,
+      size: rand(2.2, 4.2)
+    });
+  }
+
+  function resize(){
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = Math.round(W * DPR);
+    canvas.height = Math.round(H * DPR);
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    ctx.fillStyle = '#040b18';
+    ctx.fillRect(0, 0, W, H);
+    edgeSet.clear();
+    build();
+  }
+
+  function frame(t){
+    var time = t / 1000;
+
+    // trailing fade
+    ctx.fillStyle = 'rgba(4,11,24,0.28)';
+    ctx.fillRect(0, 0, W, H);
+
+    var i, j, e;
+
+    // edges — alpha from length + slow pulse
+    ctx.shadowBlur = 0;
+    for (i = 0; i < edges.length; i++){
+      e = edges[i];
+      var wave = 0.5 + 0.5 * Math.sin(time * e.speed + e.phase);
+      var baseA = e.long ? 0.05 : 0.10;
+      var alpha = baseA + 0.10 * wave;
+      ctx.strokeStyle = 'rgba(70,170,255,' + alpha.toFixed(3) + ')';
+      ctx.lineWidth = e.long ? 0.7 : 1.0;
+      ctx.beginPath();
+      ctx.moveTo(e.a.x, e.a.y);
+      ctx.lineTo(e.b.x, e.b.y);
+      ctx.stroke();
+    }
+
+    // packets — additive glow
+    ctx.globalCompositeOperation = 'lighter';
+    for (i = packets.length - 1; i >= 0; i--){
+      var pk = packets[i];
+      pk.p += pk.spd;
+      if (pk.p >= 1 || pk.p <= 0){
+        packets.splice(i, 1);
+        continue;
+      }
+      var pos = pk.dir > 0 ? pk.p : 1 - pk.p;
+      var ex = pk.e.a.x + (pk.e.b.x - pk.e.a.x) * pos;
+      var ey = pk.e.a.y + (pk.e.b.y - pk.e.a.y) * pos;
+
+      // trail segment behind the projectile
+      var trail = 0.055;
+      var tx = pk.e.a.x + (pk.e.b.x - pk.e.a.x) * (pos - trail * pk.dir);
+      var ty = pk.e.a.y + (pk.e.b.y - pk.e.a.y) * (pos - trail * pk.dir);
+      var tg = ctx.createLinearGradient(tx, ty, ex, ey);
+      tg.addColorStop(0, 'hsla(' + pk.hue.toFixed(0) + ',100%,60%,0)');
+      tg.addColorStop(1, 'hsla(' + pk.hue.toFixed(0) + ',100%,65%,0.75)');
+      ctx.strokeStyle = tg;
+      ctx.lineWidth = 2.2;
+      ctx.beginPath();
+      ctx.moveTo(tx, ty);
+      ctx.lineTo(ex, ey);
+      ctx.stroke();
+
+      // head glow
+      var g = ctx.createRadialGradient(ex, ey, 0, ex, ey, pk.size * 5);
+      g.addColorStop(0, 'hsla(' + pk.hue.toFixed(0) + ',100%,85%,0.95)');
+      g.addColorStop(0.25, 'hsla(' + pk.hue.toFixed(0) + ',100%,60%,0.5)');
+      g.addColorStop(1, 'hsla(' + pk.hue.toFixed(0) + ',100%,55%,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(ex, ey, pk.size * 5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalCompositeOperation = 'source-over';
+
+    // nodes — breathing + mouse-proximity boost
+    for (i = 0; i < nodes.length; i++){
+      var n = nodes[i];
+      var breathe = 0.5 + 0.5 * Math.sin(time * n.speed + n.phase);
+      var mdx = mouse.x - n.x, mdy = mouse.y - n.y;
+      var md = Math.sqrt(mdx * mdx + mdy * mdy);
+      var target = md < 150 ? 1 - md / 150 : 0;
+      n.boost += (target - n.boost) * 0.12; // eased
+
+      var inten = breathe * 0.55 + n.boost;
+      var glowR = n.r * (3.0 + 3.4 * inten);
+      var g2 = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, glowR);
+      g2.addColorStop(0, 'rgba(150,225,255,' + Math.min(0.95, 0.45 + 0.5 * inten).toFixed(3) + ')');
+      g2.addColorStop(0.4, 'rgba(60,160,255,' + (0.22 * inten + 0.05).toFixed(3) + ')');
+      g2.addColorStop(1, 'rgba(60,160,255,0)');
+      ctx.fillStyle = g2;
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, glowR, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = 'rgba(220,245,255,' + (0.6 + 0.4 * inten).toFixed(3) + ')';
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, n.r * (0.9 + 0.4 * inten), 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // cluster labels (redrawn each frame so the trail doesn't smear them into mush
+    // — they sit in a cleared box)
+    ctx.font = '600 11px "SF Mono", Consolas, monospace';
+    ctx.textAlign = 'center';
+    clusters.forEach(function(c){
+      var lx = c.cx, ly = c.cy - 108;
+      var txt = c.name;
+      var w = ctx.measureText(txt).width + 18;
+      ctx.fillStyle = 'rgba(4,11,24,0.85)';
+      ctx.fillRect(lx - w / 2, ly - 13, w, 18);
+      ctx.strokeStyle = 'rgba(70,170,255,0.30)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(lx - w / 2, ly - 13, w, 18);
+      ctx.fillStyle = 'rgba(120,205,255,0.8)';
+      ctx.fillText(txt, lx, ly);
+    });
+
+    // maintain packet population
+    if (packets.length < MAX_PACKETS * 0.85 && Math.random() < 0.35){
+      spawnPacket(false);
+    }
+    pkEl.textContent = packets.length;
+
+    requestAnimationFrame(frame);
+  }
+
+  window.addEventListener('mousemove', function(ev){
+    mouse.x = ev.clientX;
+    mouse.y = ev.clientY;
+  });
+  window.addEventListener('mouseleave', function(){
+    mouse.x = -9999; mouse.y = -9999;
+  });
+  window.addEventListener('touchmove', function(ev){
+    if (ev.touches.length){
+      mouse.x = ev.touches[0].clientX;
+      mouse.y = ev.touches[0].clientY;
+    }
+  }, { passive: true });
+  window.addEventListener('touchend', function(){
+    mouse.x = -9999; mouse.y = -9999;
+  });
+  window.addEventListener('resize', resize);
+
+  resize();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

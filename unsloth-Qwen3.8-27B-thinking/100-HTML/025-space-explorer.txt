@@ -1,0 +1,32 @@
+Creative Prompt (verbatim)
+===========================
+Create an interactive 3D space exploration scene with a star field and various space objects (planets with optional rings, asteroids, nebula clouds). The camera moves forward continuously through space at a variable speed controlled by scroll wheel. Mouse drag rotates the view. Stars are distributed in a large volume and regenerate as they pass behind. Planets have radial gradient shading with ring ellipses. The UI shows position coordinates, star count, speed, and object count in a HUD-like overlay. The aesthetic is deep space, immersive, and exploratory.
+
+Model
+=====
+Model: Qwen3.8-27B (thinking) — thinking effort: high
+
+Techniques Used
+===============
+Hand-rolled canvas 3D pipeline — no libraries. Camera lives at (0,0,cam.z) and flies forward along +z; view orientation is a two-angle rotation (yaw about Y, then pitch about X) whose sin/cos values are cached once per frame. World→camera transform is a pair of 2D rotations; an exact inverse (camera→world) is used to respawn objects so that new stars and objects always spawn *ahead of the current view direction*, even while the camera is rotated up to ±1.25 rad of pitch. Perspective projection uses focal = min(W,H) × 0.9 with a near plane of 10 units; every renderable is depth-sorted (far-first) into a single item list and drawn back-to-front.
+
+Star field: 1,400 stars with per-star size (0.5–1.9), brightness (0.35–1.0), sine twinkle (frequency 0.4–2.4 Hz with random phase), and one of 5 temperature tints (pure white, blue-white ×2, warm white, orange-white). Stars that fall behind the near plane are re-placed in a 2,600-unit cube volume in camera space — so forward flight and free-look rotation both keep the field full. Larger stars get a 2.4× soft-alpha glow disc for a diffraction feel.
+
+Space objects: 7 planets (radius 30–110) from a 7-color palette; each is a radial gradient with an off-center (+35% radius) brightened highlight for a lit-sphere look, a 2.4× radial halo, and — on 55% of them — a tilted ring ellipse (tilt −0.85 to +0.85 rad, 1.9× major axis, 0.62× minor) drawn in two half-arcs so the back half renders behind the sphere and the front half in front. 10 asteroids: 8–11-vertex irregular polygons (radius jitter 0.65–1.35) with a gray radial gradient and slow individual spin, collapsing to a 2px point sprite when far. 6 nebulae: large (320–780 radius) semi-transparent radial gradients in violet/azure/teal/magenta/indigo/ember at 0.05–0.12 alpha, drawn first in depth order. Objects that pass behind the camera respawn 1,800–3,120 units ahead, offset 300–1,400 units to a random side so nothing pops in dead-center.
+
+Motion & feel: continuous forward travel at 0.5–90 units/s; scroll wheel steps the target speed by ±3 with frame-rate-independent exponential smoothing (lerp factor 1 − 0.001^dt); holding SPACE engages a boost to max speed. Background is a deep-space radial gradient (#0a1030 → #050a1c → #010207) plus a vignette pass each frame. DPR-aware canvas capped at 2×, delta-time clamped to 50 ms, aggressive off-screen culling per object type.
+
+HUD: four frosted-glass panels (backdrop-filter blur, 1px blue border, inset glow) — title block, data grid (POSITION in light-years, STARS, SPEED, OBJECTS, throttled to ~8 Hz), a THRUST bar with animated gradient fill, and a control hint strip. Tabular numerals prevent jitter. Responsive: HUD compacts below 640 px.
+
+Interaction Model
+=================
+Drag (mouse or touch) rotates the view — yaw is unbounded, pitch clamped to ±1.25 rad. Scroll wheel raises/lowers forward thrust (smoothed). Holding Space boosts to maximum speed. The camera flies forward continuously; stars and objects stream past and are regenerated ahead, so the voyage is effectively infinite. HUD readouts update live: position (ly), star count, current speed, object count, and thrust level.
+
+Stats
+=====
+Wall time: ~10 minutes (estimated — spec reading, single-pass file authoring, JS syntax verification via node --check, external-reference scan)
+Token count: n/a
+
+Output
+======
+File: 025-space-explorer.html — single self-contained page, all CSS/JS inline, no external dependencies, works fully offline.

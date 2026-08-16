@@ -1,0 +1,24 @@
+Creative Prompt (verbatim)
+===========================
+Create a network data flow visualization with nodes connected by edges, and data packets traveling between nodes. Nodes are arranged in layered clusters with labels, glowing with cyan/blue light. Packets travel along connections as bright projectiles with trailing glow and hue variety. The background has a trailing fade effect for smooth motion. Mouse proximity makes nodes glow brighter. New packets spawn randomly. The scene feels like a dynamic network topology visualization — futuristic, data-driven, and alive.
+
+Model
+=====
+Model: Qwen3.8-27B (thinking) — thinking effort: high
+
+Techniques Used
+===============
+Canvas 2D network graph, DPR-aware (capped 2x). Topology: 7 labeled clusters (EDGE-01, INGEST-02, ROUTE-03, COMPUTE-04, ROUTE-05, STORE-06, CORE-07) arranged in three horizontal layers (ingest → process → store), 64 nodes total, each cluster a ring of 8–11 nodes at 0.35–1.05× a randomized 64–92px radius (0.85 vertical squash) with angular jitter. Edges: intra-cluster k-nearest (2–3 nearest, deduped via a Set of sorted node-index keys); inter-cluster 2–3 random member-to-member links per cluster, flagged "long" and drawn dimmer/thinner (0.05–0.15 alpha). Every edge has a slow sinusoidal pulse (0.4–1.0 rad/s, random phase) modulating its alpha. Packet system: 40-seeded pool capped at 96, each packet bound to a random edge with progress p∈[0,1], per-packet speed (0.004–0.014, ×0.7 for long edges, ×1.3 for local), random direction, and hue in 185–265 (cyan→violet). Rendered with globalCompositeOperation 'lighter': a linear-gradient comet tail (5.5% of edge length, fading to transparent) plus a radial-gradient head glow at 5× the 2.2–4.2px core. When a packet reaches either endpoint it is removed; a restock rule (35% per frame below 85% of cap) keeps the feed alive. Nodes breathe (per-node sine, 0.7–1.6 rad/s) and ease toward a mouse-proximity boost: within 150px of the cursor, boost = 1 − d/150, lerped at 0.12/frame, scaling halo radius, halo alpha, and core size. Trail fade: rgba(4,11,24,0.28) overdraw each frame. Cluster labels are redrawn every frame inside cleared stroked boxes so the trail fade never smears them. HUD: monospace bottom bar with live packet counter (packets/96), node and link counts, plus a top-left "LIVE TOPOLOGY" legend. Mouse, touch, and resize all handled; topology regenerates on resize.
+
+Interaction Model
+=================
+Passive observation of packets flowing through the network — spawn, travel along edges, and dissipate at endpoints continuously. Mouse movement (or touch) near nodes intensifies their glow with a soft eased falloff within 150px. Window resize regenerates the topology.
+
+Stats
+=====
+Wall time: ~9 minutes (estimated — spec reading, single-pass file authoring, JS syntax verification via node --check, self-containment grep)
+Token count: n/a
+
+Output
+======
+File: 028-data-flow.html — single self-contained page, all CSS/JS inline, no external dependencies, works fully offline.

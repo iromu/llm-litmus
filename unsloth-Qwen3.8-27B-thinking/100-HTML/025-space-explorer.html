@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Space Explorer</title>
+<style>
+  :root {
+    --hud-color: rgba(160, 200, 255, 0.92);
+    --hud-dim: rgba(120, 160, 220, 0.55);
+    --hud-accent: #7fd4ff;
+    --hud-bg: rgba(6, 12, 28, 0.55);
+    --hud-border: rgba(110, 160, 255, 0.22);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; background: #020308; }
+  body {
+    font-family: "SF Mono", "Cascadia Code", Consolas, "Roboto Mono", monospace;
+    -webkit-font-smoothing: antialiased;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  #scene {
+    position: fixed;
+    inset: 0;
+    display: block;
+    cursor: grab;
+    touch-action: none;
+  }
+  #scene.dragging { cursor: grabbing; }
+
+  .hud {
+    position: fixed;
+    z-index: 10;
+    color: var(--hud-color);
+    background: var(--hud-bg);
+    border: 1px solid var(--hud-border);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border-radius: 6px;
+    pointer-events: none;
+    box-shadow: 0 0 24px rgba(30, 80, 180, 0.15), inset 0 0 18px rgba(80, 140, 255, 0.05);
+  }
+  .hud::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 6px;
+    background: linear-gradient(180deg, rgba(140, 190, 255, 0.07), transparent 40%);
+    pointer-events: none;
+  }
+
+  #hud-title { top: 22px; left: 22px; padding: 10px 16px 9px; }
+  #hud-title .t1 {
+    font-size: 13px;
+    letter-spacing: 0.42em;
+    font-weight: 700;
+    color: #e8f4ff;
+    text-shadow: 0 0 12px rgba(120, 190, 255, 0.9), 0 0 34px rgba(80, 150, 255, 0.5);
+  }
+  #hud-title .t2 {
+    margin-top: 4px;
+    font-size: 9px;
+    letter-spacing: 0.3em;
+    color: var(--hud-dim);
+  }
+
+  #hud-data {
+    right: 22px; top: 22px; padding: 12px 16px; min-width: 208px;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 5px 14px;
+    font-size: 11px;
+    letter-spacing: 0.12em;
+  }
+  #hud-data .label { color: var(--hud-dim); }
+  #hud-data .value {
+    color: var(--hud-color);
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    text-shadow: 0 0 8px rgba(120, 190, 255, 0.55);
+  }
+  #hud-data .value em { font-style: normal; color: var(--hud-accent); }
+
+  #hud-hint {
+    bottom: 22px; left: 50%; transform: translateX(-50%);
+    padding: 8px 18px;
+    font-size: 9.5px;
+    letter-spacing: 0.3em;
+    color: var(--hud-dim);
+    white-space: nowrap;
+  }
+  #hud-hint b { color: var(--hud-color); font-weight: 600; }
+
+  #hud-speedbar {
+    bottom: 22px; right: 22px; padding: 10px 14px;
+    display: flex; align-items: center; gap: 10px;
+    font-size: 9px; letter-spacing: 0.25em; color: var(--hud-dim);
+  }
+  #hud-speedbar .track {
+    width: 110px; height: 3px;
+    background: rgba(110, 160, 255, 0.15);
+    border-radius: 2px; overflow: hidden;
+  }
+  #hud-speedbar .fill {
+    height: 100%; width: 20%;
+    background: linear-gradient(90deg, #3a6fd8, #7fd4ff);
+    box-shadow: 0 0 10px rgba(127, 212, 255, 0.8);
+    border-radius: 2px; transition: width 0.2s ease;
+  }
+
+  @media (max-width: 640px) {
+    #hud-title { top: 14px; left: 14px; }
+    #hud-data { top: 14px; right: 14px; min-width: 168px; padding: 10px 12px; font-size: 10px; }
+    #hud-speedbar { display: none; }
+    #hud-hint { bottom: 14px; font-size: 8px; padding: 7px 12px; }
+  }
+</style>
+</head>
+<body>
+<canvas id="scene"></canvas>
+
+<div class="hud" id="hud-title">
+  <div class="t1">SPACE EXPLORER</div>
+  <div class="t2">DEEP FIELD TRAVERSE</div>
+</div>
+
+<div class="hud" id="hud-data">
+  <span class="label">POSITION</span><span class="value" id="hud-pos">0.000 ly</span>
+  <span class="label">STARS</span><span class="value" id="hud-stars">0</span>
+  <span class="label">SPEED</span><span class="value"><em id="hud-speed">8.0</em> u/s</span>
+  <span class="label">OBJECTS</span><span class="value" id="hud-objects">0</span>
+</div>
+
+<div class="hud" id="hud-speedbar">
+  <span>THRUST</span>
+  <div class="track"><div class="fill" id="speed-fill"></div></div>
+</div>
+
+<div class="hud" id="hud-hint">
+  <b>DRAG</b> ROTATE &nbsp;·&nbsp; <b>SCROLL</b> THRUST &nbsp;·&nbsp; <b>SPACE</b> BOOST
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var canvas = document.getElementById("scene");
+  var ctx = canvas.getContext("2d");
+
+  var W = 0, H = 0, CX = 0, CY = 0, DPR = 1;
+
+  // Tunables
+  var NEAR = 10;
+  var STAR_SPAN = 2600;
+  var STAR_COUNT = 1400;
+  var PLANET_COUNT = 7;
+  var ASTEROID_COUNT = 10;
+  var NEBULA_COUNT = 6;
+  var FOV = 0.9;
+  var MAX_SPEED = 90;
+  var MIN_SPEED = 0.5;
+
+  var cam = { yaw: 0, pitch: 0, z: 0, speed: 8, targetSpeed: 8 };
+
+  var stars = [];
+  var planets = [];
+  var asteroids = [];
+  var nebulae = [];
+
+  var STAR_TINTS = [
+    [255, 255, 255],
+    [200, 220, 255],
+    [170, 205, 255],
+    [255, 235, 210],
+    [255, 210, 190]
+  ];
+
+  var NEBULA_HUES = [
+    { r: 90, g: 60, b: 200 },
+    { r: 40, g: 110, b: 230 },
+    { r: 60, g: 190, b: 200 },
+    { r: 200, g: 70, b: 170 },
+    { r: 120, g: 70, b: 220 },
+    { r: 230, g: 110, b: 90 }
+  ];
+
+  var PLANET_COLORS = [
+    { base: [96, 140, 255], dark: [20, 30, 80], ring: "rgba(170,190,255,0.5)" },
+    { base: [255, 170, 90], dark: [90, 40, 15], ring: "rgba(255,200,140,0.45)" },
+    { base: [120, 230, 210], dark: [15, 60, 60], ring: null },
+    { base: [220, 110, 220], dark: [70, 20, 80], ring: "rgba(230,170,240,0.4)" },
+    { base: [240, 240, 250], dark: [80, 80, 110], ring: "rgba(255,255,255,0.35)" },
+    { base: [110, 180, 120], dark: [20, 55, 30], ring: null },
+    { base: [250, 130, 130], dark: [90, 25, 30], ring: "rgba(255,170,170,0.4)" }
+  ];
+
+  function rand(a, b) { return a + Math.random() * (b - a); }
+  function pick(arr) { return arr[(Math.random() * arr.length) | 0]; }
+
+  function resize() {
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = Math.round(W * DPR);
+    canvas.height = Math.round(H * DPR);
+    canvas.style.width = W + "px";
+    canvas.style.height = H + "px";
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    CX = W / 2;
+    CY = H / 2;
+  }
+  window.addEventListener("resize", resize);
+  resize();
+
+  // ---- 3D math: yaw about Y, then pitch about X ----
+  var cy_, sy_, cp_, sp_;
+  function updateRotation() {
+    cy_ = Math.cos(cam.yaw); sy_ = Math.sin(cam.yaw);
+    cp_ = Math.cos(cam.pitch); sp_ = Math.sin(cam.pitch);
+  }
+
+  // world -> camera space (camera at (0,0,cam.z), forward +z after rotation)
+  function toCam(x, y, z, out) {
+    var dz = z - cam.z;
+    var x1 = x * cy_ - dz * sy_;
+    var z1 = x * sy_ + dz * cy_;
+    var y1 = y * cp_ - z1 * sp_;
+    var z2 = y * sp_ + z1 * cp_;
+    out[0] = x1; out[1] = y1; out[2] = z2;
+    return out;
+  }
+
+  // camera space -> world (for respawning ahead of the camera)
+  function toWorld(xc, yc, zc) {
+    var y1 = yc * cp_ + zc * sp_;
+    var z1 = -yc * sp_ + zc * cp_;
+    var x2 = xc * cy_ + z1 * sy_;
+    var z2 = -xc * sy_ + z1 * cy_;
+    return [x2, y1, cam.z + z2];
+  }
+
+  var v3 = [0, 0, 0];
+  // ---- Star field ----
+  function placeStar(s) {
+    var p = toWorld(
+      rand(-STAR_SPAN / 2, STAR_SPAN / 2),
+      rand(-STAR_SPAN / 2, STAR_SPAN / 2),
+      rand(NEAR + 60, STAR_SPAN)
+    );
+    s.x = p[0]; s.y = p[1]; s.z = p[2];
+  }
+
+  function makeStar(reuse) {
+    var s = reuse || {};
+    s.size = rand(0.5, 1.9);
+    s.brightness = rand(0.35, 1.0);
+    s.twinkleSpeed = rand(0.4, 2.4);
+    s.phase = rand(0, Math.PI * 2);
+    s.tint = pick(STAR_TINTS);
+    placeStar(s);
+    return s;
+  }
+
+  function initStars() {
+    stars.length = 0;
+    for (var i = 0; i < STAR_COUNT; i++) stars.push(makeStar());
+  }
+
+  // ---- Space objects ----
+  function placeObject(o) {
+    // spawn ahead, offset to the side so it never pops in dead-center
+    var side = rand(300, 1400) * (Math.random() < 0.5 ? -1 : 1);
+    var p = toWorld(side, rand(-900, 900), rand(1800, STAR_SPAN * 1.2));
+    o.x = p[0]; o.y = p[1]; o.z = p[2];
+  }
+
+  function makePlanet() {
+    var p = {
+      radius: rand(30, 110),
+      color: pick(PLANET_COLORS),
+      hasRing: Math.random() < 0.55,
+      ringTilt: rand(-0.85, 0.85)
+    };
+    placeObject(p);
+    return p;
+  }
+
+  function makeAsteroid() {
+    var n = 8 + ((Math.random() * 4) | 0);
+    var verts = [];
+    for (var i = 0; i < n; i++) verts.push(rand(0.65, 1.35));
+    var a = {
+      radius: rand(8, 26),
+      verts: verts,
+      rot: rand(0, Math.PI * 2),
+      spin: rand(-0.5, 0.5)
+    };
+    placeObject(a);
+    return a;
+  }
+
+  function makeNebula() {
+    var n = {
+      radius: rand(320, 780),
+      hue: pick(NEBULA_HUES),
+      alpha: rand(0.05, 0.12)
+    };
+    placeObject(n);
+    return n;
+  }
+
+  function initObjects() {
+    planets.length = 0;
+    asteroids.length = 0;
+    nebulae.length = 0;
+    for (var i = 0; i < PLANET_COUNT; i++) planets.push(makePlanet());
+    for (var j = 0; j < ASTEROID_COUNT; j++) asteroids.push(makeAsteroid());
+    for (var k = 0; k < NEBULA_COUNT; k++) nebulae.push(makeNebula());
+  }
+
+  initStars();
+  initObjects();
+
+  // ---- Interaction ----
+  var dragging = false;
+  var lastX = 0, lastY = 0;
+  var boostHeld = false;
+
+  canvas.addEventListener("mousedown", function (e) {
+    dragging = true;
+    lastX = e.clientX; lastY = e.clientY;
+    canvas.classList.add("dragging");
+  });
+  window.addEventListener("mousemove", function (e) {
+    if (!dragging) return;
+    var dx = e.clientX - lastX;
+    var dy = e.clientY - lastY;
+    lastX = e.clientX; lastY = e.clientY;
+    cam.yaw += dx * 0.0032;
+    cam.pitch = Math.max(-1.25, Math.min(1.25, cam.pitch + dy * 0.0032));
+  });
+  window.addEventListener("mouseup", function () {
+    dragging = false;
+    canvas.classList.remove("dragging");
+  });
+
+  canvas.addEventListener("touchstart", function (e) {
+    if (e.touches.length === 1) {
+      dragging = true;
+      lastX = e.touches[0].clientX;
+      lastY = e.touches[0].clientY;
+    }
+  }, { passive: true });
+  canvas.addEventListener("touchmove", function (e) {
+    if (!dragging || e.touches.length !== 1) return;
+    var dx = e.touches[0].clientX - lastX;
+    var dy = e.touches[0].clientY - lastY;
+    lastX = e.touches[0].clientX;
+    lastY = e.touches[0].clientY;
+    cam.yaw += dx * 0.004;
+    cam.pitch = Math.max(-1.25, Math.min(1.25, cam.pitch + dy * 0.004));
+  }, { passive: true });
+  canvas.addEventListener("touchend", function () { dragging = false; });
+
+  window.addEventListener("wheel", function (e) {
+    e.preventDefault();
+    var delta = (e.deltaY > 0 ? -1 : 1) * 3;
+    cam.targetSpeed = Math.max(MIN_SPEED, Math.min(MAX_SPEED, cam.targetSpeed + delta));
+  }, { passive: false });
+
+  window.addEventListener("keydown", function (e) {
+    if (e.code === "Space") { boostHeld = true; e.preventDefault(); }
+  });
+  window.addEventListener("keyup", function (e) {
+    if (e.code === "Space") boostHeld = false;
+  });
+
+  // ---- HUD ----
+  var hudPos = document.getElementById("hud-pos");
+  var hudStars = document.getElementById("hud-stars");
+  var hudSpeed = document.getElementById("hud-speed");
+  var hudObjects = document.getElementById("hud-objects");
+  var speedFill = document.getElementById("speed-fill");
+
+  function updateHUD() {
+    hudPos.textContent = (cam.z / 1000).toFixed(3) + " ly";
+    hudStars.textContent = stars.length;
+    hudSpeed.textContent = cam.speed.toFixed(1);
+    hudObjects.textContent = planets.length + asteroids.length + nebulae.length;
+    speedFill.style.width = Math.round((cam.speed / MAX_SPEED) * 100) + "%";
+  }
+  // ---- Rendering ----
+  var t = 0;
+  var lastTime = performance.now();
+  var focal = 1;
+
+  function computeFocal() { focal = Math.min(W, H) * FOV; }
+
+  function drawBackground() {
+    var g = ctx.createRadialGradient(CX, CY, 0, CX, CY, Math.max(W, H) * 0.75);
+    g.addColorStop(0, "#0a1030");
+    g.addColorStop(0.5, "#050a1c");
+    g.addColorStop(1, "#010207");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  function drawStar(sx, sy, s, scale) {
+    var tw = 0.62 + 0.38 * Math.sin(t * s.twinkleSpeed + s.phase);
+    var a = s.brightness * tw;
+    var r = Math.max(0.4, s.size * scale * 3);
+    var c = s.tint;
+    ctx.globalAlpha = a;
+    ctx.fillStyle = "rgb(" + c[0] + "," + c[1] + "," + c[2] + ")";
+    ctx.beginPath();
+    ctx.arc(sx, sy, r, 0, Math.PI * 2);
+    ctx.fill();
+    if (r > 1.6) {
+      ctx.globalAlpha = a * 0.35;
+      ctx.beginPath();
+      ctx.arc(sx, sy, r * 2.4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function drawNebula(sx, sy, n, scale) {
+    var r = n.radius * scale;
+    if (r < 4) return;
+    var h = n.hue;
+    var g = ctx.createRadialGradient(sx, sy, 0, sx, sy, r);
+    g.addColorStop(0, "rgba(" + h.r + "," + h.g + "," + h.b + "," + n.alpha + ")");
+    g.addColorStop(0.6, "rgba(" + h.r + "," + h.g + "," + h.b + "," + (n.alpha * 0.35).toFixed(4) + ")");
+    g.addColorStop(1, "rgba(" + h.r + "," + h.g + "," + h.b + ",0)");
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(sx, sy, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  function drawPlanet(sx, sy, p, scale) {
+    var r = Math.max(1, p.radius * scale);
+    var b = p.color.base;
+
+    // halo
+    var glow = ctx.createRadialGradient(sx, sy, r * 0.5, sx, sy, r * 2.4);
+    glow.addColorStop(0, "rgba(" + b[0] + "," + b[1] + "," + b[2] + ",0.2)");
+    glow.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(sx, sy, r * 2.4, 0, Math.PI * 2);
+    ctx.fill();
+
+    // ring: back half
+    if (p.hasRing) {
+      ctx.save();
+      ctx.translate(sx, sy);
+      ctx.rotate(p.ringTilt);
+      ctx.strokeStyle = p.color.ring;
+      ctx.lineWidth = Math.max(1, r * 0.16);
+      ctx.beginPath();
+      ctx.ellipse(0, 0, r * 1.9, r * 0.62, 0, Math.PI, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // sphere with off-center highlight
+    var off = r * 0.35;
+    var g = ctx.createRadialGradient(sx - off, sy - off, r * 0.1, sx, sy, r * 1.05);
+    g.addColorStop(0, "rgb(" + Math.min(255, b[0] + 90) + "," + Math.min(255, b[1] + 90) + "," + Math.min(255, b[2] + 90) + ")");
+    g.addColorStop(0.45, "rgb(" + b[0] + "," + b[1] + "," + b[2] + ")");
+    g.addColorStop(1, "rgb(" + p.color.dark[0] + "," + p.color.dark[1] + "," + p.color.dark[2] + ")");
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(sx, sy, r, 0, Math.PI * 2);
+    ctx.fill();
+
+    // ring: front half
+    if (p.hasRing) {
+      ctx.save();
+      ctx.translate(sx, sy);
+      ctx.rotate(p.ringTilt);
+      ctx.strokeStyle = p.color.ring;
+      ctx.lineWidth = Math.max(1, r * 0.16);
+      ctx.beginPath();
+      ctx.ellipse(0, 0, r * 1.9, r * 0.62, 0, 0, Math.PI);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  function drawAsteroid(sx, sy, a, scale) {
+    var r = Math.max(1, a.radius * scale);
+    if (r < 1.5) {
+      ctx.globalAlpha = 0.8;
+      ctx.fillStyle = "#8a93a8";
+      ctx.fillRect(sx - 1, sy - 1, 2, 2);
+      ctx.globalAlpha = 1;
+      return;
+    }
+    ctx.save();
+    ctx.translate(sx, sy);
+    ctx.rotate(a.rot + t * a.spin * 0.15);
+    var g = ctx.createRadialGradient(-r * 0.3, -r * 0.3, r * 0.1, 0, 0, r * 1.2);
+    g.addColorStop(0, "#aeb6c8");
+    g.addColorStop(0.55, "#6a7288");
+    g.addColorStop(1, "#232a3a");
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    var n = a.verts.length;
+    for (var i = 0; i < n; i++) {
+      var ang = (i / n) * Math.PI * 2;
+      var rr = r * a.verts[i];
+      var px = Math.cos(ang) * rr;
+      var py = Math.sin(ang) * rr;
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  var items = [];
+
+  function render(dt) {
+    updateRotation();
+    computeFocal();
+    drawBackground();
+
+    items.length = 0;
+    var i, s, p, cullR;
+
+    for (i = 0; i < stars.length; i++) {
+      s = stars[i];
+      p = toCam(s.x, s.y, s.z, v3);
+      if (p[2] < NEAR) { placeStar(s); p = toCam(s.x, s.y, s.z, v3); }
+      if (p[2] < NEAR) continue;
+      items.push({ type: 0, ref: s, x: p[0], y: p[1], z: p[2] });
+    }
+
+    for (i = 0; i < planets.length; i++) {
+      s = planets[i];
+      p = toCam(s.x, s.y, s.z, v3);
+      if (p[2] < -s.radius * 1.6) { placeObject(s); continue; }
+      if (p[2] < NEAR) continue;
+      items.push({ type: 1, ref: s, x: p[0], y: p[1], z: p[2] });
+    }
+
+    for (i = 0; i < asteroids.length; i++) {
+      s = asteroids[i];
+      p = toCam(s.x, s.y, s.z, v3);
+      if (p[2] < -s.radius * 2) { placeObject(s); continue; }
+      if (p[2] < NEAR) continue;
+      items.push({ type: 2, ref: s, x: p[0], y: p[1], z: p[2] });
+    }
+
+    for (i = 0; i < nebulae.length; i++) {
+      s = nebulae[i];
+      p = toCam(s.x, s.y, s.z, v3);
+      if (p[2] < -s.radius) { placeObject(s); continue; }
+      if (p[2] < NEAR * 0.5) continue;
+      items.push({ type: 3, ref: s, x: p[0], y: p[1], z: p[2] });
+    }
+
+    items.sort(function (a, b) { return b.z - a.z; });
+
+    for (i = 0; i < items.length; i++) {
+      var it = items[i];
+      var scale = focal / it.z;
+      var sx = CX + it.x * scale;
+      var sy = CY + it.y * scale;
+      var ref = it.ref;
+      cullR = it.type === 3 ? ref.radius * scale
+        : it.type === 1 ? ref.radius * 2.5 * scale
+        : ref.size * scale * 8;
+      if (sx < -cullR || sx > W + cullR || sy < -cullR || sy > H + cullR) continue;
+
+      if (it.type === 3) drawNebula(sx, sy, ref, scale);
+      else if (it.type === 1) drawPlanet(sx, sy, ref, scale);
+      else if (it.type === 2) drawAsteroid(sx, sy, ref, scale);
+      else drawStar(sx, sy, ref, scale);
+    }
+
+    var vg = ctx.createRadialGradient(CX, CY, Math.min(W, H) * 0.42, CX, CY, Math.max(W, H) * 0.72);
+    vg.addColorStop(0, "rgba(0,0,0,0)");
+    vg.addColorStop(1, "rgba(0,0,5,0.5)");
+    ctx.fillStyle = vg;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  // ---- Main loop ----
+  var hudTimer = 0;
+
+  function frame(now) {
+    var dt = Math.min(0.05, (now - lastTime) / 1000);
+    lastTime = now;
+    t += dt;
+
+    var goal = boostHeld ? MAX_SPEED : cam.targetSpeed;
+    cam.speed += (goal - cam.speed) * (1 - Math.pow(0.001, dt));
+    cam.z += cam.speed * dt;
+
+    render(dt);
+
+    hudTimer += dt;
+    if (hudTimer > 0.12) { updateHUD(); hudTimer = 0; }
+    requestAnimationFrame(frame);
+  }
+
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

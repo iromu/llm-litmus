@@ -1,0 +1,24 @@
+Creative Prompt (verbatim)
+===========================
+Create a vintage analog aesthetic page with heavy film grain texture, warm sepia/brown tones, and editorial layout. The container has a subtle noise overlay with grain animation, vignette shading, and flickering. Content includes a header with date, title, and italic subtitle, a photo placeholder, a two-column body text with drop cap, a vintage badge, and a footer. The typography is serif (Georgia) with warm cream/dark brown colors. Elements fade in sequentially with float-up animation. The overall aesthetic is aged, warm, nostalgic — like reading a mid-century literary journal.
+
+Model
+=====
+Model: Qwen3.8-27B (thinking) — thinking effort: high
+
+Techniques Used
+===============
+Pure-CSS page (no JavaScript at all — the spec is fully passive). Animated film grain: full-page overlay of an inline SVG data-URI (feTurbulence fractalNoise, baseFrequency 0.9, 2 octaves, desaturated via feColorMatrix) at 7% opacity with multiply blend mode, jittered across 6 keyframe positions using steps(6) over a 1.2s loop so the grain "rolls" like a film projector. Flicker: 9s steps(1) brightness keyframe on the page container with small dips (~.98–1.012) at irregular offsets, mimicking lamp/projector instability. Vignette: radial-gradient overlay pseudo-element fading to rgba(36,20,6,.38) at the corners. Palette: warm cream paper (#f2e7d3 → #e0d0b4), ink browns (#3a2b1d / #5d4a36), rust accent (#8c4a2f), over a dark-brown radial room backdrop. Editorial masthead with double-rule borders (3px double), a dateline row (No. 47 / Autumn, 1962 / 25¢), clamp-sized headline (40–72px) with italic rust emphasis, and an italic subtitle. Photo placeholder: pure-CSS duotone "photograph" — layered linear-gradient dusk sky, radial-gradient sun with glow, two rounded hill silhouettes, two birds drawn from radial-gradient ring pairs, scanline multiply overlay and inset shadow for aged-print depth, with a small-caps "Plate I" figcaption. Body text: 2-column layout with 38px gap and 1px column-rule, justified, hyphenated; 3.35em rust drop cap on the first letter; italic section heads; a double-ruled centered pull quote. Vintage badge: rust double-frame stamp ("Printed on Paper") rotated -1.4deg with star pseudo-elements. Footer: double-rule, three-part small-caps colophon. Sequential fade-up: .reveal elements rise 18px and fade in over .9s cubic-bezier(.22,.61,.36,1) with 0.3s staggered delays (d1–d5). Responsive: single column below 680px, reduced padding, stacked dateline; honors prefers-reduced-motion (grain/flicker/reveals disabled).
+
+Interaction Model
+=================
+Purely passive — the grain rolls continuously, the page flickers subtly at irregular intervals, and all content sections fade in sequentially on load. No direct user interaction, per the spec.
+
+Stats
+=====
+Wall time: ~10 minutes (estimated — spec reading, single-pass page authoring, CSS typo fix, self-containment grep verification)
+Token count: n/a
+
+Output
+======
+File: 026-vintage-grain.html — single self-contained page, all CSS/JS inline (zero JS by design), no external dependencies, works fully offline.

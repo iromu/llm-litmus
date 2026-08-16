@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Prism — Glass Analytics</title>
+<style>
+  :root{
+    --cyan:#38e1ff; --green:#3ddc97; --blue:#5b8cff; --yellow:#ffcf5b;
+    --pink:#ff6bd6; --violet:#9d7bff;
+    --glass:rgba(255,255,255,.055);
+    --glass-border:rgba(255,255,255,.13);
+    --text:#eef1ff;
+    --text-dim:rgba(226,231,255,.55);
+    --text-faint:rgba(226,231,255,.34);
+  }
+  *{ margin:0; padding:0; box-sizing:border-box; }
+  html{ scroll-behavior:smooth; }
+  body{
+    min-height:100vh;
+    font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color:var(--text);
+    background:#0d0a1f;
+    overflow-x:hidden;
+  }
+
+  /* ---------- background orbs ---------- */
+  .orb{ position:fixed; border-radius:50%; filter:blur(90px); opacity:.55; pointer-events:none; z-index:0; }
+  .orb.a{ width:520px; height:520px; left:-140px; top:-120px;
+    background:radial-gradient(circle at 35% 35%, #4a2fb8, transparent 65%);
+    animation:driftA 26s ease-in-out infinite alternate; }
+  .orb.b{ width:460px; height:460px; right:-120px; top:18%;
+    background:radial-gradient(circle at 40% 40%, #0e5f8a, transparent 65%);
+    animation:driftB 32s ease-in-out infinite alternate; }
+  .orb.c{ width:420px; height:420px; left:22%; bottom:-160px;
+    background:radial-gradient(circle at 45% 40%, #8a2f7a, transparent 65%);
+    animation:driftC 38s ease-in-out infinite alternate; }
+  .orb.d{ width:300px; height:300px; right:24%; bottom:8%;
+    background:radial-gradient(circle at 50% 50%, #2f4a8a, transparent 65%);
+    animation:driftA 44s ease-in-out infinite alternate-reverse; }
+  @keyframes driftA{ to{ transform:translate(70px,50px) scale(1.12); } }
+  @keyframes driftB{ to{ transform:translate(-60px,-70px) scale(.92); } }
+  @keyframes driftC{ to{ transform:translate(50px,-60px) scale(1.08); } }
+  .bg{
+    position:fixed; inset:0; z-index:0; pointer-events:none;
+    background:
+      radial-gradient(130% 100% at 50% 0%, #1a1240 0%, #0d0a1f 55%, #080614 100%);
+  }
+
+  .wrap{
+    position:relative; z-index:1;
+    max-width:1120px; margin:0 auto;
+    padding:40px 24px 56px;
+  }
+
+  /* ---------- header ---------- */
+  .top{
+    display:flex; justify-content:space-between; align-items:center;
+    gap:16px; flex-wrap:wrap; margin-bottom:28px;
+  }
+  .brand{ display:flex; align-items:center; gap:14px; }
+  .brand .logo{
+    width:42px; height:42px; border-radius:12px;
+    background:linear-gradient(135deg, var(--violet), var(--cyan));
+    display:grid; place-items:center;
+    box-shadow:0 8px 24px rgba(120,90,255,.35);
+  }
+  .brand h1{ font-size:21px; font-weight:700; letter-spacing:.01em; }
+  .brand .sub{ font-size:12px; color:var(--text-dim); letter-spacing:.06em; margin-top:2px; }
+  .top-right{ display:flex; align-items:center; gap:12px; }
+  .live{
+    display:flex; align-items:center; gap:8px;
+    padding:8px 14px; border-radius:999px;
+    background:var(--glass); border:1px solid var(--glass-border);
+    backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
+    font-size:12px; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--text-dim);
+  }
+  .live .dot{ width:8px; height:8px; border-radius:50%; background:var(--green);
+    box-shadow:0 0 10px var(--green); animation:blink 2s ease-in-out infinite; }
+  @keyframes blink{ 0%,100%{ opacity:1; } 50%{ opacity:.35; } }
+  .date{
+    padding:8px 16px; border-radius:999px;
+    background:var(--glass); border:1px solid var(--glass-border);
+    backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
+    font-size:12.5px; color:var(--text-dim); letter-spacing:.04em;
+  }
+
+  /* ---------- glass card ---------- */
+  .card{
+    position:relative;
+    background:var(--glass);
+    border:1px solid var(--glass-border);
+    border-radius:18px;
+    backdrop-filter:blur(18px) saturate(140%);
+    -webkit-backdrop-filter:blur(18px) saturate(140%);
+    box-shadow:0 10px 34px rgba(4,2,16,.45), inset 0 1px 0 rgba(255,255,255,.08);
+    transition:transform .35s cubic-bezier(.2,.7,.3,1.2), border-color .35s, box-shadow .35s;
+  }
+  .card:hover{
+    transform:translateY(-5px);
+    border-color:rgba(255,255,255,.26);
+    box-shadow:0 22px 48px rgba(4,2,16,.6), inset 0 1px 0 rgba(255,255,255,.12);
+  }
+
+  /* ---------- KPI row ---------- */
+  .kpis{
+    display:grid; grid-template-columns:repeat(4, 1fr); gap:18px;
+    margin-bottom:20px;
+  }
+  .kpi{ padding:20px 20px 18px; overflow:hidden; }
+  .kpi .accent{ position:absolute; inset:0 auto auto 0; width:100%; height:3px;
+    background:linear-gradient(90deg, var(--ac), transparent 70%); opacity:.9; }
+  .kpi .head{ display:flex; justify-content:space-between; align-items:center; }
+  .kpi .label{ font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:var(--text-dim); }
+  .kpi .ico{
+    width:34px; height:34px; border-radius:10px;
+    display:grid; place-items:center;
+    background:color-mix(in srgb, var(--ac) 16%, transparent);
+    border:1px solid color-mix(in srgb, var(--ac) 34%, transparent);
+  }
+  .kpi .ico svg{ width:17px; height:17px; stroke:var(--ac); fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+  .kpi .value{ font-size:29px; font-weight:700; margin:12px 0 6px; letter-spacing:-.01em; }
+  .kpi .delta{ font-size:12.5px; display:flex; align-items:center; gap:6px; color:var(--text-dim); }
+  .kpi .delta b{ font-weight:600; color:var(--ac); }
+  .kpi .spark{ position:absolute; right:14px; bottom:14px; opacity:.5; }
+
+  /* ---------- charts row ---------- */
+  .charts{
+    display:grid; grid-template-columns:1.5fr 1fr; gap:18px;
+    margin-bottom:20px;
+  }
+  .chart{ padding:22px; }
+  .chart .c-head{ display:flex; justify-content:space-between; align-items:baseline; margin-bottom:18px; }
+  .chart h3{ font-size:15px; font-weight:600; letter-spacing:.02em; }
+  .chart .c-sub{ font-size:11.5px; color:var(--text-faint); letter-spacing:.1em; text-transform:uppercase; }
+
+  /* bar chart */
+  .bars{ display:flex; align-items:flex-end; gap:4.5%; height:190px; padding:0 4px; }
+  .bar{ flex:1; display:flex; flex-direction:column; align-items:center; gap:9px; height:100%; justify-content:flex-end; }
+  .bar .col{
+    width:100%; max-width:34px; height:calc(var(--h) * 1%);
+    border-radius:8px 8px 4px 4px;
+    background:linear-gradient(180deg, var(--cyan) 0%, var(--violet) 90%);
+    box-shadow:0 0 18px rgba(56,225,255,.25);
+    transform-origin:bottom;
+    animation:grow 1s cubic-bezier(.25,.9,.3,1.1) backwards;
+    transition:filter .25s, transform .25s;
+    position:relative;
+  }
+  .bar:hover .col{ filter:brightness(1.25); transform:scaleY(1.02); }
+  .bar .col::after{
+    content:attr(data-v);
+    position:absolute; top:-26px; left:50%; transform:translateX(-50%);
+    font-size:11px; font-weight:600; color:var(--text);
+    background:rgba(20,14,44,.9); border:1px solid var(--glass-border);
+    padding:3px 8px; border-radius:6px; white-space:nowrap;
+    opacity:0; transition:opacity .2s;
+  }
+  .bar:hover .col::after{ opacity:1; }
+  @keyframes grow{ from{ transform:scaleY(0); } }
+  .bar .day{ font-size:11px; color:var(--text-dim); letter-spacing:.08em; }
+  .bar:nth-child(1) .col{ animation-delay:.05s } .bar:nth-child(2) .col{ animation-delay:.12s }
+  .bar:nth-child(3) .col{ animation-delay:.19s } .bar:nth-child(4) .col{ animation-delay:.26s }
+  .bar:nth-child(5) .col{ animation-delay:.33s } .bar:nth-child(6) .col{ animation-delay:.40s }
+  .bar:nth-child(7) .col{ animation-delay:.47s }
+
+  /* donut */
+  .donut-wrap{ display:flex; flex-direction:column; align-items:center; gap:18px; }
+  .donut-box{ position:relative; width:196px; height:196px; }
+  .donut-box svg{ transform:rotate(-90deg); width:100%; height:100%; }
+  .donut-box circle{ fill:none; stroke-width:20; }
+  .donut .track{ stroke:rgba(255,255,255,.06); }
+  .center{
+    position:absolute; inset:0; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; gap:3px;
+  }
+  .center .big{ font-size:26px; font-weight:700; }
+  .center .small{ font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--text-faint); }
+  .legend{ width:100%; display:grid; grid-template-columns:1fr 1fr; gap:9px 14px; }
+  .legend .li{ display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--text-dim); }
+  .legend .sw{ width:9px; height:9px; border-radius:3px; background:var(--c); box-shadow:0 0 8px var(--c); }
+  .legend .pct{ margin-left:auto; font-weight:600; color:var(--text); }
+
+  /* activity feed */
+  .feed{ padding:22px; }
+  .feed ul{ list-style:none; display:grid; gap:4px; }
+  .feed li{
+    display:flex; align-items:center; gap:14px;
+    padding:11px 12px; border-radius:12px;
+    transition:background .25s;
+  }
+  .feed li:hover{ background:rgba(255,255,255,.045); }
+  .feed .ind{ width:9px; height:9px; border-radius:50%; background:var(--c); box-shadow:0 0 10px var(--c); flex:none; }
+  .feed .txt{ font-size:13.5px; color:var(--text); flex:1; }
+  .feed .txt b{ font-weight:600; }
+  .feed .txt span{ color:var(--text-dim); }
+  .feed .time{ font-size:11.5px; color:var(--text-faint); letter-spacing:.06em; white-space:nowrap; }
+
+  @media (max-width:900px){
+    .kpis{ grid-template-columns:repeat(2, 1fr); }
+    .charts{ grid-template-columns:1fr; }
+  }
+  @media (max-width:560px){
+    .kpis{ grid-template-columns:1fr; }
+    .feed .time{ display:none; }
+    .wrap{ padding:28px 14px 44px; }
+  }
+  @media (prefers-reduced-motion:reduce){
+    .orb{ animation:none; }
+    .bar .col{ animation:none; }
+    .card, .card:hover{ transition:none; transform:none; }
+  }
+</style>
+</head>
+<body>
+  <div class="bg"></div>
+  <div class="orb a"></div><div class="orb b"></div><div class="orb c"></div><div class="orb d"></div>
+
+  <div class="wrap">
+    <!-- header -->
+    <header class="top">
+      <div class="brand">
+        <div class="logo">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2 L21 20 H3 Z"></path>
+          </svg>
+        </div>
+        <div>
+          <h1>Prism Analytics</h1>
+          <div class="sub">Acquisition &amp; revenue overview</div>
+        </div>
+      </div>
+      <div class="top-right">
+        <div class="live"><span class="dot"></span> Live</div>
+        <div class="date" id="datechip"></div>
+      </div>
+    </header>
+
+    <!-- KPIs -->
+    <section class="kpis">
+      <div class="card kpi" style="--ac:var(--cyan)">
+        <div class="accent"></div>
+        <div class="head">
+          <span class="label">Revenue</span>
+          <span class="ico"><svg viewBox="0 0 24 24"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg></span>
+        </div>
+        <div class="value">$128.4K</div>
+        <div class="delta"><b>▲ 8.2%</b> vs last week</div>
+      </div>
+      <div class="card kpi" style="--ac:var(--green)">
+        <div class="accent"></div>
+        <div class="head">
+          <span class="label">Active Users</span>
+          <span class="ico"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"></path></svg></span>
+        </div>
+        <div class="value">48,920</div>
+        <div class="delta"><b>▲ 3.1%</b> vs last week</div>
+      </div>
+      <div class="card kpi" style="--ac:var(--blue)">
+        <div class="accent"></div>
+        <div class="head">
+          <span class="label">Conversion</span>
+          <span class="ico"><svg viewBox="0 0 24 24"><path d="M3 3v18h18"></path><path d="M7 14l4-4 4 3 5-6"></path></svg></span>
+        </div>
+        <div class="value">4.72%</div>
+        <div class="delta"><b>▼ 0.4%</b> vs last week</div>
+      </div>
+      <div class="card kpi" style="--ac:var(--yellow)">
+        <div class="accent"></div>
+        <div class="head">
+          <span class="label">Bounce Rate</span>
+          <span class="ico"><svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"></path><path d="M4 9h11a5 5 0 0 1 0 10h-3"></path></svg></span>
+        </div>
+        <div class="value">32.1%</div>
+        <div class="delta"><b>▲ 1.2%</b> vs last week</div>
+      </div>
+    </section>
+
+    <!-- charts -->
+    <section class="charts">
+      <div class="card chart">
+        <div class="c-head">
+          <h3>Weekly Sessions</h3>
+          <span class="c-sub">Mon — Sun</span>
+        </div>
+        <div class="bars">
+          <div class="bar"><div class="col" style="--h:46" data-v="6.2K"></div><span class="day">Mon</span></div>
+          <div class="bar"><div class="col" style="--h:62" data-v="8.3K"></div><span class="day">Tue</span></div>
+          <div class="bar"><div class="col" style="--h:58" data-v="7.8K"></div><span class="day">Wed</span></div>
+          <div class="bar"><div class="col" style="--h:74" data-v="9.9K"></div><span class="day">Thu</span></div>
+          <div class="bar"><div class="col" style="--h:91" data-v="12.2K"></div><span class="day">Fri</span></div>
+          <div class="bar"><div class="col" style="--h:83" data-v="11.1K"></div><span class="day">Sat</span></div>
+          <div class="bar"><div class="col" style="--h:67" data-v="9.0K"></div><span class="day">Sun</span></div>
+        </div>
+      </div>
+
+      <div class="card chart">
+        <div class="c-head">
+          <h3>Traffic Sources</h3>
+          <span class="c-sub">This week</span>
+        </div>
+        <div class="donut-wrap">
+          <div class="donut-box">
+            <svg class="donut" viewBox="0 0 160 160" id="donut">
+              <circle class="track" cx="80" cy="80" r="58"></circle>
+              <!-- segments injected/animated by JS -->
+            </svg>
+            <div class="center">
+              <div class="big">24.8K</div>
+              <div class="small">Sessions</div>
+            </div>
+          </div>
+          <div class="legend">
+            <div class="li"><span class="sw" style="--c:var(--cyan)"></span> Organic <span class="pct">42%</span></div>
+            <div class="li"><span class="sw" style="--c:var(--violet)"></span> Direct <span class="pct">26%</span></div>
+            <div class="li"><span class="sw" style="--c:var(--green)"></span> Social <span class="pct">19%</span></div>
+            <div class="li"><span class="sw" style="--c:var(--pink)"></span> Referral <span class="pct">13%</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- activity -->
+    <section class="card feed">
+      <div class="c-head" style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:10px;">
+        <h3 style="font-size:15px; font-weight:600;">Recent Activity</h3>
+        <span class="c-sub">Last 24 hours</span>
+      </div>
+      <ul>
+        <li style="--c:var(--green)"><span class="ind"></span>
+          <span class="txt"><b>New enterprise plan</b> <span>— Acme Corp upgraded to Scale (annual)</span></span>
+          <span class="time">12 min ago</span></li>
+        <li style="--c:var(--cyan)"><span class="ind"></span>
+          <span class="txt"><b>Traffic spike</b> <span>— organic sessions up 34% on the pricing page</span></span>
+          <span class="time">1 hr ago</span></li>
+        <li style="--c:var(--violet)"><span class="ind"></span>
+          <span class="txt"><b>New API key</b> <span>— service account created in the EU region</span></span>
+          <span class="time">3 hrs ago</span></li>
+        <li style="--c:var(--yellow)"><span class="ind"></span>
+          <span class="txt"><b>Churn warning</b> <span>— 4 accounts idle for 14+ days, outreach suggested</span></span>
+          <span class="time">5 hrs ago</span></li>
+        <li style="--c:var(--pink)"><span class="ind"></span>
+          <span class="txt"><b>Referral surge</b> <span>— 212 signups from the design-tools newsletter</span></span>
+          <span class="time">9 hrs ago</span></li>
+      </ul>
+    </section>
+  </div>
+
+<script>
+(function(){
+  "use strict";
+
+  // date chip
+  var d = new Date();
+  var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  document.getElementById('datechip').textContent =
+    d.getDate() + ' ' + months[d.getMonth()] + ' ' + d.getFullYear();
+
+  // donut segments: build circles, animate dash from 0 to target
+  var svg = document.getElementById('donut');
+  var NS = 'http://www.w3.org/2000/svg';
+  var R = 58;
+  var C = 2 * Math.PI * R;
+  var segs = [
+    { pct: 42, color: 'var(--cyan)'  },
+    { pct: 26, color: 'var(--violet)'},
+    { pct: 19, color: 'var(--green)' },
+    { pct: 13, color: 'var(--pink)'  }
+  ];
+  var cum = 0;
+  segs.forEach(function(s, i){
+    var el = document.createElementNS(NS, 'circle');
+    el.setAttribute('cx', 80);
+    el.setAttribute('cy', 80);
+    el.setAttribute('r', R);
+    el.style.stroke = s.color; // var() only resolves in CSS, not presentation attributes
+    var target = s.pct / 100 * C;
+    el.setAttribute('stroke-dasharray', '0 ' + C);
+    el.setAttribute('stroke-dashoffset', -cum / 100 * C);
+    el.setAttribute('stroke-linecap', 'butt');
+    svg.appendChild(el);
+    s.el = el;
+    s.target = target;
+    cum += s.pct;
+  });
+
+  function animateDonut(){
+    var t0 = null;
+    var DUR = 1100;
+    function step(ts){
+      if (!t0) t0 = ts;
+      var raw = Math.min(1, (ts - t0) / DUR);
+      var e = 1 - Math.pow(1 - raw, 3); // cubic ease-out
+      segs.forEach(function(s){
+        s.el.setAttribute('stroke-dasharray', (s.target * e).toFixed(2) + ' ' + C.toFixed(2));
+      });
+      if (raw < 1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }
+
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches){
+    segs.forEach(function(s){
+      s.el.setAttribute('stroke-dasharray', s.target.toFixed(2) + ' ' + C.toFixed(2));
+    });
+  } else {
+    setTimeout(animateDonut, 250);
+  }
+})();
+</script>
+</body>
+</html>

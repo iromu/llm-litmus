@@ -1,0 +1,24 @@
+Creative Prompt (verbatim)
+===========================
+Create an expanding ring visualization with colorful concentric circles that pulse outward from various points. Each ring has a unique hue, expands at its own speed, fades as it grows, and has both a main stroke and a glow stroke. Rings spawn at the mouse position on move, in bursts on click, and randomly across the canvas. The background trails with a slow fade for smooth motion. The overall aesthetic is sonar-like, hypnotic, and colorful — like a frequency visualization.
+
+Model
+=====
+Model: Qwen3.8-27B (thinking) — thinking effort: high
+
+Techniques Used
+===============
+Canvas 2D ring pool, DPR-aware (capped 2x), additive rendering via globalCompositeOperation 'lighter' for luminous color mixing. Ring object: {x, y, r, maxR (120–260px random), speed (0.9–2.2 px/frame), hue, hueShift, width (1.2–2.4px)}; pool capped at 240 with ring-shift eviction. Per-ring HSL hue: seeded from a slowly drifting global hue (t/40 mod 360) plus a ±70° offset, then each ring drifts its own hue by 0.24°/frame so the field stays polychromatic. Fade: alpha = (1 − life)^1.4 (ease-out) where life = r/maxR. Dual-stroke rendering per ring: a wide soft glow stroke (5.5× width, 16% of alpha) plus a thin bright main stroke (lightness 65–85%, alpha 0.25–1.0). Young rings (life < 0.18) additionally paint a radial inner fill glow at up to 35% alpha, so pings "ignite" before the ring takes over. Slow exponential background fade (rgba(10,7,20,0.085) overdraw) leaves long sonar trails. Spawning: mouse-move spawns a ring when the cursor travels ≥26px from the last spawn; click/tap bursts 5 rings at the cursor with staggered r0 (2 + i×5px) and faster speeds (1.2–2.6); an auto-spawn probability of 0.14/frame keeps the field alive with no input; 26 rings seeded on load. Faint monospace "PULSE RINGS" title with 6s opacity pulse, a "move to ping · click to burst" hint line, vignette overlay, crosshair cursor. Touch supported (move pings, tap bursts). Regenerates cleanly on resize.
+
+Interaction Model
+=================
+Move the mouse to ping rings along the cursor path (throttled to 26px travel). Click (or tap) bursts 5 rings at the cursor. Rings expand at individual speeds, hue-shift as they grow, and fade out on a (1−life)^1.4 curve; the field auto-spawns continuously so the canvas is always active.
+
+Stats
+=====
+Wall time: ~8 minutes (estimated — spec reading, single-pass file authoring, JS syntax verification via node --check, self-containment grep)
+Token count: n/a
+
+Output
+======
+File: 029-pulse-rings.html — single self-contained page, all CSS/JS inline, no external dependencies, works fully offline.
