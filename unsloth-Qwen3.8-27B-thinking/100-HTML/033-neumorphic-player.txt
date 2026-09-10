@@ -1,0 +1,24 @@
+Creative Prompt (verbatim)
+===========================
+Create a music player with a soft neumorphism (neuromorphic) design style. The player features a gradient album art with a animated shine sweep, song title and artist, a progress bar with knob, time stamps, main controls (previous, play/pause, next), and secondary controls (shuffle, repeat, volume slider with bar, favorite). All buttons have neumorphic shadows (light top-left, dark bottom-right) and depress on click. The play button has a gradient fill. The progress bar animates to simulate playback. The color palette is soft gray/white with purple-blue gradient accents. The aesthetic is soft, tactile, and premium — like a high-end audio app.
+
+Model
+=====
+Model: Qwen3.8-27B (thinking) — thinking effort: high
+
+Techniques Used
+===============
+Single-page DOM/CSS neumorphism player with a vanilla-JS playback simulation layer. Palette defined in :root custom properties: soft gray background #e8ebf3, neumorphic light #ffffff and dark #c3c9d9, ink #4a4f66, dim ink #8b90a8, and a purple-blue accent gradient from #7b6cff to #4f8cff. Every surface uses the classic dual box-shadow — light top-left, dark bottom-right — with proportional blur: the 400px-wide card (36px radius) gets 18px 18px 40px dark / -18px -18px 40px light; the 230px rounded album art (28px radius, 135° linear-gradient in the accent pair) layers inset white/dark shadows for an embossed frame plus an outer soft shadow; 52px circular buttons use 8px 8px 16px pairs; knobs use 3px pairs. Pressed state inverts the shadows to inset 5px 5px 10px dark / -5px -5px 10px light and scales to 0.94 via a --press-scale custom property, with .18s ease transitions on shadow/transform. Album art shine: an ::after pseudo-element inset -60% with a 115° translucent-white gradient band animating translateX from -75% to +75% over 4.2s (cubic-bezier(.6,.1,.3,.9)) on an infinite loop. Track title 19px/700 with 13.5px dim artist line below. Progress bar: 8px inset-shadowed track, gradient fill bar, 18px circular knob translated -50%,-50% and positioned by JS percentage; 11.5px tabular-nums time stamps on either side. Main controls: 46px prev/next round buttons and a 72px play button filled with the purple-blue gradient (white 28px icon, 8px 8px 18px rgba(123,108,255,.42) glow shadow) that swaps play/pause inline-SVG icons via a .playing class. Secondary row: 42px shuffle and repeat toggles (accent color + drop-shadow glow when .on), an 86px inset-track volume slider with gradient fill and 16px knob, and a 42px favorite button that swaps line-heart to fill-heart and turns pink #ff5c8a with a soft glow when active. Icons are all inline SVG (stroke-based, currentColor). JS: a 4-track library with per-track gradient pairs, a requestAnimationFrame tick loop with delta-time clamping (max 0.1s per frame) advancing simulated position, formatted m:ss timestamps, play/pause toggle, prev (restart if >4s in, else previous track), next with shuffle-aware random pick, repeat loop, and pointer-capture click+drag seeking on both the progress track and the volume slider. Auto-starts playing on load so the progress animation is visible. Responsive at 420px (smaller art/volume track) and honors prefers-reduced-motion (shine animation disabled).
+
+Interaction Model
+=================
+Play/pause toggles the simulated playback; while playing, the progress fill, knob, and current-time stamp advance continuously via requestAnimationFrame and the album art gradient crossfades (1s ease) between tracks. Prev/next change tracks (prev restarts the track if more than 4 seconds in). The progress bar and volume slider both support click-to-seek and drag-to-scrub with pointer capture. Shuffle and repeat toggle on/off with a purple glow state, and the favorite heart fills pink when active. All buttons give neumorphic press feedback (inset shadow + 0.94 scale) and turn accent-purple on hover.
+
+Stats
+=====
+Wall time: ~12 minutes (estimated — spec reading, single-pass page authoring, syntax verification, self-containment grep)
+Token count: n/a
+
+Output
+======
+File: 033-neumorphic-player.html — single self-contained page, all CSS/JS inline, no external dependencies, works fully offline.

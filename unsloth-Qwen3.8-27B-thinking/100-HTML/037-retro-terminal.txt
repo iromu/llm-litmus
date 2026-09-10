@@ -1,0 +1,30 @@
+Creative Prompt (verbatim)
+=========================
+
+Create a retro CRT terminal emulator with a glowing green monochrome display. The terminal window has macOS-style traffic light dots, a title bar, scanline overlay, and a scanning horizontal line. Output text appears with a typewriter fade-in effect. Pre-programmed commands auto-execute sequentially (whoami, uptime, ls, etc.) with realistic responses. A blinking cursor sits at the prompt. Clicking triggers a random command. The color palette is black background with various shades of green text. The aesthetic is nostalgic, cyberpunk-adjacent, and authentically retro.
+
+Model
+=====
+
+Model: Qwen3.8-27B (thinking) — thinking effort: high
+
+Techniques Used
+===============
+
+A pure DOM/CSS implementation (no canvas) renders a CRT terminal as layered absolutely-positioned overlays inside a windowed "bezel". The palette is defined in :root CSS variables — five green phosphor shades (--g-bright #43ff8e, --g-mid #2bd46b, --g-dim #1f9c53, --g-faint #0d5229, --g-hl #8dffc6) over a near-black background (#010403) with dark-green bezel gradients (#141b16 → #0d120f) and a #0a0f0c title bar. The terminal window is min(880px, 96vw) wide with a 16px border radius, and its box-shadow stack includes two green ambient glows (0 0 90px rgba(52,255,122,0.10) and 0 0 22px rgba(52,255,122,0.08)) plus a heavy black drop shadow. A tubeOn keyframe (0.7s cubic-bezier(0.2,0.8,0.3,1)) animates the whole window from scaleY(0.006)/brightness(3) to full size over a 1.04 overshoot — the CRT "tube warming up". The macOS-style title bar carries three 12px traffic-light dots (#ff5f57, #febc2e, #28c840), a 12px letter-spaced (0.14em) dim-green title "guest@retro — /dev/tty1 — 80×24", and a 44px right spacer. The screen (height clamp(320px, 56vh, 560px)) has a radial background gradient (#04140b → #020a05 → #010603), an inset black shadow, and a flicker animation — 4.2s steps(1,end) infinite with brief opacity dips to 0.955/0.98/0.985 at the 88%/93%/97.5% marks. Three pointer-events:none overlays sit on top: .scanlines (a double repeating-linear-gradient — horizontal rgba(0,0,0,0.30) 1px lines on a 3px period plus faint vertical rgba(0,0,0,0.07) lines — with mix-blend-mode: multiply), .scanbar (a 16%-tall translucent green band rgba(141,255,198,≤0.10) sweeping top: -18% → 104% over 6.5s linear infinite), and .glare (top-left highlight + edge-darkening radial gradients). Text lines are .line divs in a scrollable .lines container (font-size clamp(12.5px, 1.55vw, 15.5px), line-height 1.6, pre-wrap, thin styled scrollbar) with per-role classes — boot (bright, bold, 12px glow, 0.08em tracking), dim, info (#3fe97f), success, error (#b8ffce bold), highlight (#8dffc6 bold, 14px glow), cmd — each carrying its own green text-shadow for the phosphor bloom. The prompt line renders "guest@retro" in bright .u and "~$" in dim .d spans, and a 0.62em × 1.02em block cursor with a double green glow blinks on a 1.06s steps(1) cycle. Below the window, a status strip (10.5px, 0.16em tracking) reads "MODE: VT100 / PHOSPHOR: P1 GREEN / REFRESH: 60Hz" and a 0.3em-tracked caption reads "CLICK ANYWHERE · TTY1 EMULATOR". Typography is a ui-monospace/"SFMono-Regular"/Menlo/Consolas/Liberation Mono stack throughout; a 560px media query compresses padding and font sizes for mobile. The JS engine (a strict-mode IIFE) types text character-by-character via a typeText promise — each character scheduled at a base speed plus up to 60% random jitter — at 2 ms/char for the 6-line boot banner, 34 ms/char for typed commands, and 6 ms/char for output lines. The script prunes the DOM to a max of 80 lines, auto-scrolls to the bottom after each line, and serializes all output through a single busy flag. Content is two hardcoded data tables: a 7-command SCRIPT (whoami, uname -a, uptime, ls -la, df -h, fortune) and a 13-command POOL (pwd, date, nproc, free -m, ping -c 5 127.0.0.1, sudo reboot, curl phosphor.local/status, ls /dev, cat /etc/motd, top -bn1 | head -6, man ls, echo "hello, phosphor", du -sh .), each entry pairing a command with categorized output lines (info/success/error/highlight/dim) — including joke failures like "guest is not in the sudoers file. This incident will be reported."
+
+Interaction Model
+=================
+
+On page load the screen boots automatically: after a 900ms "tube warm-up" pause it types the RETRO/OS 3.7 boot banner (6 lines, 2 ms/char, 160–280ms gaps), waits 600ms, then executes the 7 pre-programmed SCRIPT commands in sequence with 500–900ms pauses between them. Each execution types a fresh "guest@retro:~$" prompt, types the command at 34 ms/char with a 180–340ms think delay, prints its output lines (6 ms/char; error lines get an extra 320ms beat, others 90–230ms), and ends on a new prompt with the blinking cursor reattached. Clicking anywhere on the terminal window (the whole .term is cursor:pointer, user-select:none, role="application" with an aria-label) runs one random command from the 13-entry POOL, with the previous pick excluded to avoid immediate repeats; clicks are ignored while a command is in flight (busy lock). There is no keyboard input and no free-form typing — the terminal is read-only simulation with clicks as the sole input. Under prefers-reduced-motion, the tubeOn, flicker, and scanbar animations are disabled (scanbar hidden), the cursor becomes a static solid block, the typewriter is bypassed (text appears instantly), all delays clamp to ≤60ms (initial pause 80ms, inter-command gap 120ms), so the full boot and command sequence still runs but without any per-frame motion.
+
+Stats
+=====
+
+Wall time: ~12 minutes (estimated — spec reading, single-pass page authoring, JS syntax verification via node --check, self-containment grep)
+Token count: n/a
+
+Output
+======
+
+File: 037-retro-terminal.html — single self-contained page, all CSS/JS inline, no external dependencies, works fully offline.

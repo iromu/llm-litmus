@@ -1,0 +1,24 @@
+Creative Prompt (verbatim)
+===========================
+Create an animated thunderstorm visualization with dark clouds, lightning flashes, and lightning bolts. Clouds are composed of multiple overlapping radial gradient puffs with subtle wobble animation. Periodically, a random cloud flashes and a lightning bolt descends. The background is a dark stormy sky with trailing fade. Clicking triggers a dramatic flash and multiple lightning bolts. The overall aesthetic is dramatic, atmospheric, and electric — like watching a storm roll in.
+
+Model
+=====
+Model: Qwen3.8-27B (thinking) — thinking effort: high
+
+Techniques Used
+===============
+Canvas 2D rendering with a main display canvas plus an off-screen "trail" buffer canvas. The sky is a vertical linear gradient (#060910 → #0c1220 at 55% → #151d31) redrawn each frame, tinted with an ambient blue flash overlay (rgba(148,168,215, skyFlash·0.2), decaying at ×5/s). Storm clouds are n = max(4, W/340) clusters, each holding 10–15 overlapping radial-gradient puffs (three stops: a0, 0.22·a0 at 0.55R, 0 at R), with cluster scale m·0.16–0.30 where m = min(W,H). Puff colors mix from a dark blue-gray (56·dark, 64·dark, 86·dark) toward an electric blue (+122·lit, +138·lit, +196·lit) driven by illumination level, with a0 = 0.5 + 0.3·lit. Each puff carries its own sine/cosine wobble (amplitudes 2–6.5px scaled by m/800, frequencies 0.5–1.4, independent phases) and a slight radius breathing (±3.5%); each cluster drifts horizontally at 3–14 px/s (m/800 scale, 78% in one direction) with edge wrap-around so the sky stays populated. Lightning bolts are generated as random-walk polylines (12–34px vertical steps) with a kink variable damped by ×0.82 each step for that forked-but-descending shape, plus 1–3 secondary branches spliced off at random mid-points (kink ×0.8 damping). Bolts are drawn onto the off-screen trail buffer: each frame the buffer fades via globalCompositeOperation "destination-out" with rgba(0,0,0,0.22) fillRect (the trailing fade), then strokes composite back with "lighter" and are blitted to the main canvas. Each bolt is stroked in two passes — a glow pass (shadowBlur 22, shadowColor rgba(140,170,255,0.9), 7px rgba(120,150,255,0.35·a) stroke, branches at half width) and a white 1.8px core pass — with life decaying life −= dt·1.6 and a random flicker term while life > 0.55. Flash: a full-screen overlay rgba(208,226,255, flashA·0.5) with exponential alpha decay flashA *= exp(−dt·6); the struck cloud cluster gets a per-cluster illumination (c.fl, decaying ×4/s) that mixes its puffs toward electric blue. Auto-strikes fire on a timer (first at now + 1600–3200ms, re-armed at now + 2600–7400ms) targeting a random cluster. Rain adds atmosphere: 90–240 drops (scaled by width) falling at 700–1300 px/s with 0.06–0.2 slant, drawn as 1px rgba(175,195,225) lines (10–26px long, alpha 0.05–0.16) that wrap at the edges. A CSS radial+linear vignette, an upper-left HUD title, and a fading hint line frame the scene; DPR-aware sizing caps devicePixelRatio at 2 and regenerates clouds after large resize jumps. Under prefers-reduced-motion, wobble is scaled ×0.15, drift ×0.1, rain drops drop to 70, auto-strikes are disabled, and a CSS media query disables the hint animation.
+
+Interaction Model
+=================
+Clicking (pointerdown) anywhere on the page triggers a dramatic storm burst: a full-strength flash (flashA = 1) and 3–5 lightning bolts queued with staggered delays of 40–120ms each, at random horizontal positions (6–94% of the width), each anchored to the nearest cloud bank so bolts emerge from the clouds. The scene is otherwise self-running: ambient auto-strikes flash a random cloud and drop a single bolt every 2.6–7.4 seconds. No hover interaction is required. The hint text ("click anywhere · call the lightning") fades out automatically after ~8 seconds.
+
+Stats
+=====
+Wall time: ~12 minutes (estimated — spec reading, single-pass page authoring, JS syntax verification via node --check, self-containment grep)
+Token count: n/a
+
+Output
+======
+File: 035-storm-clouds.html — single self-contained page, all CSS/JS inline, no external dependencies, works fully offline.

@@ -1,0 +1,24 @@
+Creative Prompt (verbatim)
+===========================
+Create a 3D origami paper crane scene with multiple cranes floating in space. Each crane is built from CSS 3D-transformed triangular faces (wings, body, tail, neck) with warm paper tones. Smaller paper "petals" drift and rotate around them with floating animations. The entire group rotates slowly, creating a sense of weightlessness. The background is warm cream/beige. The title "Origami" appears faintly at the bottom. The overall aesthetic is delicate, handcrafted, and serene — like paper sculptures suspended in air.
+
+Model
+=====
+Model: Qwen3.8-27B (thinking) — thinking effort: high
+
+Techniques Used
+===============
+Pure CSS 3D origami scene driven by a small vanilla-JS generator layer. The 3D stage is a fixed full-viewport `.stage` with perspective: 1300px and perspective-origin at 50% 44%, so the flock sits slightly above eye level. Inside it a `.scene` (transform-style: preserve-3d) carries the responsive scale and a slow 24s sceneSway keyframe that combines scale, a rotateX tilt between 8deg and 3deg, and a full 360deg rotateY. Nested within, a `.flock` wrapper runs a separate 46s linear flockSpin (rotateX(-10deg) while sweeping rotateY 0→360deg) so the whole group turns slowly like objects weightless in air. Three cranes are placed in 3D space via inline translate3d/rotateY/scale on `.crane-wrap` elements (center crane at 0,0,0 scale 1.00; a smaller one at -210,46,-180 scale 0.70 rotated 40deg; a mid one at 200,-58,-140 scale 0.82 rotated -35deg) to give real depth and parallax. Each crane is a faceted silhouette assembled from seven clip-path-polygon paper faces with backface-visibility: hidden and an inset 0.5px hairline box-shadow: a flattened diamond body (190×62px, rotateX(76deg)) filled with a 115deg gradient, two large up-folded wings (152×150px triangles, rotateX(-58deg) rotateZ(±16deg)), a thin forward neck (30×104px, rotateX(-16deg)), a small terracotta head/beak at the neck tip, a sweeping up-back tail (34×92px, rotateX(16deg)), and a blurred radial shadow plate (168×54px, blur(6px), rotateX(88deg)) floating beneath for a sense of grounding-in-air. Every face is painted with per-face linear gradients from a warm paper palette (#faf3e8 → #f4e6cf → #ecce9f → #dda978 → #cf8f5f → #bd6f45, plus lighter #f1ddbb / #e3b083) to fake the shading of folded paper. Each crane's `.float` wrapper runs an independent 9.5–11.5s craneBob ease-in-out keyframe (translateY up to -18px with a 3deg rotateZ) staggered by --delay so the cranes bob out of sync. Sixteen paper "petals" are generated in JS into a fixed `.petals` layer as small clip-path triangles (10–36px, opacity 0.28–0.78) positioned via per-petal CSS custom properties (--x vw, --y vh) and animated on two independent keyframes — petalDrift (moving the `translate` property through a 26px/-70px loop on 10–22s) and petalTumble (moving the `rotate` property to random 180–540deg per axis on 9–25s) — using the separate `translate`/`rotate` properties so the two motions compose without transform conflicts; negative animation-delays scatter their start phases. The background is a warm cream multi-radial/linear gradient (stages #f8f1e4 / #efe0c8 / #e6d2b0) softened by a multiply-blended radial vignette and a two-layer 3px/5px grain texture for a handmade, non-flat feel. The title "Origami" sits faintly fixed at the bottom (uppercase, letter-spacing 0.34em, color rgba(109,79,52,0.16)) with a smaller "paper suspended in air" sub-line, fading in on load. Responsive scaling: a JS fitScale() computes m = min(innerWidth, innerHeight) and sets --s = clamp(m/860) into [0.45, 1.15], applied as scale(var(--s)) on the scene; a 120ms-debounced resize listener re-runs it. prefers-reduced-motion disables the sceneSway, flockSpin, craneBob, petal and title animations and forces the title to full opacity.
+
+Interaction Model
+=================
+Passive observation only — no direct user input. The flock continuously spins and sways, each crane bobs independently on its own cadence, and the surrounding paper petals drift upward and tumble on randomized 9–25s loops, so the scene is always gently in motion like paper sculptures suspended in still air.
+
+Stats
+=====
+Wall time: ~12 minutes (estimated — spec reading, single-pass page authoring, JS syntax verification via node --check, self-containment grep)
+Token count: n/a
+
+Output
+======
+File: 034-origami.html — single self-contained page, all CSS/JS inline, no external dependencies, works fully offline.

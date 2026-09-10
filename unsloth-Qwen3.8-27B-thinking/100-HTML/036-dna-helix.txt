@@ -1,0 +1,30 @@
+Creative Prompt (verbatim)
+=========================
+
+Create a 3D DNA double helix visualization with glowing base pairs. Two colored strands (blue-cyan and pink-magenta) spiral around a central axis, connected by horizontal bonds. Each base pair is a sphere with glow, sized and faded based on its Z-depth. Backbone lines trace the two strands. Mouse position affects the twist phase. The background is a deep dark blue with trailing fade. The overall aesthetic is scientific, bioluminescent, and futuristic — like a molecular biology visualization.
+
+Model
+=====
+
+Model: Qwen3.8-27B (thinking) — thinking effort: high
+
+Techniques Used
+===============
+
+A full Canvas-2D 3D pipeline renders 36 base pairs (PAIRS=36) as a trigonometric double helix: each pair i sits at height y = (i − 17.5) * pitch, strand A at angle a1 = phase + i * 0.34 + wobble and strand B at a1 + PI, where pitch is clamped 14–30 px (derived from viewport height) and the helix radius R is clamped 78–170 px on resize. Points pass through a rotY rotation matrix, a fixed 0.46 rad X-tilt matrix, and a perspective divide with focal length F = 900 (scale = F / (F − z2)). Every draw item — backbone segment, base-pair bond, or nucleotide sphere — is pushed to a single items array with a z value and sorted back-to-front (painter's algorithm, ~146 items/frame). Depth drives both opacity (alpha = 0.16 + 0.84 * (z + zMax) / (2*zMax), so the far strand fades to 16%) and sphere size (r = (6.5 + 5.5 * perspective scale) * 0.9). Each nucleotide gets a bioluminescent radial-gradient glow: a 3.4x halo gradient fading to transparent plus a 3-stop core gradient with an offset highlight for a 3D sphere read. Colors cycle in HSL along the helix and over time — strand A hue 193 ± 14 (blue-cyan), strand B 322 ± 14 (pink-magenta), offset per pair by sin/cos(t*0.6 + i*0.35). Bonds and backbone lines are drawn as two-pass glow strokes (wide low-alpha underlay, thin bright core). The background uses a trailing fade — each frame repaints a translucent rgba(4,9,24,0.22) rectangle instead of clearing, leaving motion trails; a CSS radial-gradient body background plus a fixed .vignette overlay (radial + vertical edge gradients) deepens the deep-dark-blue field. 70 ambient "plankton" particles (40 under reduced motion) in hues 195/322/225 drift upward with sinusoidal sway for the bioluminescent atmosphere. A DOM HUD overlay (pointer-events: none, system font stack, clamp() typography) carries the scientific framing: "MOLECULAR VISUALIZATION · SEQ 036" overline, a weight-200 letter-spaced "DNA Helix" title, a "B-form · 10.5 bp / turn" subtitle, and corner readouts (5′→3′ strand directions, 3.4 nm/turn, 0.34 nm rise). The canvas is DPR-aware (capped at 2x) and re-clamps R and pitch on resize.
+
+Interaction Model
+=================
+
+The helix rotates passively at 0.32 rad/s (rotY = 0.6 + t*0.32) with a gentle per-pair wobble (sin(t*0.9 + i*0.25)*0.06) so the structure never looks frozen. The mouse X position drives the twist phase: mouseX is mapped to a target phase in ±1.2*PI (2.4*PI range centered), and the actual phase lerps toward it at 0.05 per frame, so moving the cursor horizontally "untwists" or re-twists the helix with a smooth lagged feel; touching and dragging does the same via touchmove, and window blur releases mouse control. With no input (and motion allowed), the phase auto-oscillates at 0.4 + sin(t*0.16)*0.55 so the page is alive on load. A bottom-center hint ("Move mouse ↔ to twist the helix") pulses on a 4.5s cycle. Under prefers-reduced-motion, auto-rotation, wobble, and particle drift are all disabled, the trail becomes a full opaque clear, the phase lerp is sped up (0.25), the hint's CSS pulse is disabled, and only the pointer-driven twist remains.
+
+Stats
+=====
+
+Wall time: ~12 minutes (estimated — spec reading, single-pass page authoring, JS syntax verification via node --check, self-containment grep)
+Token count: n/a
+
+Output
+======
+
+File: 036-dna-helix.html — single self-contained page, all CSS/JS inline, no external dependencies, works fully offline.

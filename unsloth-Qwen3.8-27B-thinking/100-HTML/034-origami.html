@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Origami</title>
+<style>
+  :root {
+    /* warm paper palette */
+    --paper-0: #faf3e8;
+    --paper-1: #f4e6cf;
+    --paper-2: #ecce9f;
+    --paper-3: #dda978;
+    --paper-4: #cf8f5f;
+    --paper-5: #bd6f45;
+    --paper-6: #f1ddbb;
+    --paper-7: #e3b083;
+    --ink: #6d4f34;
+    --stage-bg-1: #f8f1e4;
+    --stage-bg-2: #efe0c8;
+    --stage-bg-3: #e6d2b0;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body { height: 100%; }
+
+  body {
+    font-family: "Georgia", "Times New Roman", ui-serif, Georgia, serif;
+    background:
+      radial-gradient(120% 100% at 50% 8%, var(--stage-bg-1) 0%, transparent 55%),
+      radial-gradient(140% 120% at 50% 118%, var(--stage-bg-3) 0%, transparent 60%),
+      linear-gradient(180deg, var(--stage-bg-1) 0%, var(--stage-bg-2) 55%, var(--stage-bg-3) 100%);
+    min-height: 100vh;
+    overflow: hidden;
+    position: relative;
+    color: var(--ink);
+  }
+
+  /* soft warm vignette + grain so the cream feels handmade, not flat */
+  .vignette {
+    position: fixed;
+    inset: 0;
+    z-index: 3;
+    pointer-events: none;
+    background:
+      radial-gradient(120% 90% at 50% 46%, transparent 55%, rgba(120, 84, 48, 0.10) 100%);
+    mix-blend-mode: multiply;
+  }
+  .grain {
+    position: fixed;
+    inset: 0;
+    z-index: 3;
+    pointer-events: none;
+    opacity: 0.5;
+    background-image:
+      radial-gradient(rgba(120, 84, 48, 0.05) 1px, transparent 1px),
+      radial-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px);
+    background-size: 3px 3px, 5px 5px;
+    background-position: 0 0, 1px 2px;
+    mix-blend-mode: multiply;
+  }
+
+  /* ============ 3D stage ============ */
+  .stage {
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+    perspective: 1300px;
+    perspective-origin: 50% 44%;
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+  }
+
+  /* responsive scale handled by JS via --s */
+  .scene {
+    position: relative;
+    width: 0;
+    height: 0;
+    transform-style: preserve-3d;
+    transform: scale(var(--s, 1));
+    animation: sceneSway 24s ease-in-out infinite;
+  }
+  @keyframes sceneSway {
+    0%   { transform: scale(var(--s, 1)) rotateX(8deg) rotateY(0deg); }
+    50%  { transform: scale(var(--s, 1)) rotateX(3deg) rotateY(180deg); }
+    100% { transform: scale(var(--s, 1)) rotateX(8deg) rotateY(360deg); }
+  }
+
+  /* the whole flock slowly rotates as a group (weightlessness) */
+  .flock {
+    position: absolute;
+    transform-style: preserve-3d;
+    animation: flockSpin 46s linear infinite;
+  }
+  @keyframes flockSpin {
+    from { transform: rotateX(-10deg) rotateY(0deg) rotateZ(0deg); }
+    to   { transform: rotateX(-10deg) rotateY(360deg) rotateZ(0deg); }
+  }
+
+  /* ============ A single crane ============ */
+  .crane {
+    position: absolute;
+    transform-style: preserve-3d;
+  }
+  /* gentle independent bob so the cranes don't move in perfect lockstep */
+  .crane .float {
+    position: absolute;
+    transform-style: preserve-3d;
+    animation: craneBob var(--dur, 9s) ease-in-out infinite;
+    animation-delay: var(--delay, 0s);
+  }
+  @keyframes craneBob {
+    0%   { transform: translate3d(0, 0, 0) rotateZ(0deg); }
+    50%  { transform: translate3d(0, -18px, 0) rotateZ(3deg); }
+    100% { transform: translate3d(0, 0, 0) rotateZ(0deg); }
+  }
+
+  /* every paper face is a clip-pathed triangle */
+  .face {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    backface-visibility: hidden;
+    box-shadow: inset 0 0 0 0.5px rgba(120, 78, 40, 0.16);
+  }
+
+  /* body: a flattened diamond lying roughly horizontal */
+  .f-body {
+    width: 190px;
+    height: 62px;
+    clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+    background: linear-gradient(115deg, var(--paper-1) 0%, var(--paper-2) 45%, var(--paper-3) 100%);
+    transform: translate(-50%, -50%) rotateX(76deg) rotateZ(0deg);
+  }
+
+  /* wings: large triangles folded up from the body */
+  .f-wing-l, .f-wing-r {
+    width: 152px;
+    height: 150px;
+    clip-path: polygon(0 100%, 100% 100%, 50% 0);
+    transform-origin: 50% 100%;
+  }
+  .f-wing-l {
+    background: linear-gradient(180deg, var(--paper-0) 0%, var(--paper-6) 55%, var(--paper-2) 100%);
+    transform: translate(-50%, -50%) translate3d(-16px, 4px, 4px) rotateX(-58deg) rotateZ(-16deg);
+  }
+  .f-wing-r {
+    background: linear-gradient(180deg, var(--paper-6) 0%, var(--paper-2) 55%, var(--paper-3) 100%);
+    transform: translate(-50%, -50%) translate3d(16px, 4px, -4px) rotateX(-58deg) rotateZ(16deg);
+  }
+
+  /* neck: thin triangle reaching forward and up */
+  .f-neck {
+    width: 30px;
+    height: 104px;
+    clip-path: polygon(50% 0%, 100% 100%, 0% 100%);
+    background: linear-gradient(180deg, var(--paper-5) 0%, var(--paper-3) 40%, var(--paper-2) 100%);
+    transform-origin: 50% 100%;
+    transform: translate(-50%, -50%) translate3d(78px, -2px, 2px) rotateX(-16deg) rotateZ(4deg);
+  }
+
+  /* head / beak: small terracotta triangle at the neck tip */
+  .f-head {
+    width: 30px;
+    height: 26px;
+    clip-path: polygon(50% 0%, 100% 100%, 0% 100%);
+    background: linear-gradient(180deg, var(--paper-5) 0%, var(--paper-4) 100%);
+    transform: translate(-50%, -50%) translate3d(82px, -104px, 4px) rotateZ(-6deg);
+  }
+
+  /* tail: thin triangle sweeping up and back */
+  .f-tail {
+    width: 34px;
+    height: 92px;
+    clip-path: polygon(50% 100%, 100% 0%, 0% 0%);
+    background: linear-gradient(0deg, var(--paper-4) 0%, var(--paper-7) 55%, var(--paper-2) 100%);
+    transform-origin: 50% 0%;
+    transform: translate(-50%, -50%) translate3d(-84px, 4px, -6px) rotateX(16deg) rotateZ(-8deg);
+  }
+
+  /* a faint shadow plate under the body for a sense of grounding-in-air */
+  .f-shadow {
+    width: 168px;
+    height: 54px;
+    clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+    background: radial-gradient(closest-side, rgba(120, 80, 40, 0.20), transparent 72%);
+    filter: blur(6px);
+    transform: translate(-50%, -50%) translate3d(0, 150px, -8px) rotateX(88deg);
+    opacity: 0.5;
+  }
+
+  /* ============ Drifting petals ============ */
+  .petals {
+    position: fixed;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+  }
+  .petal {
+    position: absolute;
+    top: var(--y);
+    left: var(--x);
+    width: var(--sz);
+    height: var(--sz);
+    clip-path: polygon(50% 0%, 100% 100%, 0% 100%);
+    background: var(--c);
+    opacity: var(--o);
+    transform-style: preserve-3d;
+    animation:
+      petalDrift var(--dr) ease-in-out infinite,
+      petalTumble var(--tt) linear infinite;
+    animation-delay: var(--pd);
+    will-change: transform, opacity;
+  }
+  @keyframes petalDrift {
+    0%   { translate: 0 0; }
+    25%  { translate: 26px -34px; }
+    50%  { translate: -18px -70px; }
+    75%  { translate: 22px -38px; }
+    100% { translate: 0 0; }
+  }
+  @keyframes petalTumble {
+    from { rotate: 0deg 0deg 0deg; }
+    to   { rotate: var(--rx) var(--ry) var(--rz); }
+  }
+
+  /* ============ Faint title ============ */
+  .title {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: clamp(1.4rem, 5vh, 3.2rem);
+    z-index: 4;
+    text-align: center;
+    font-weight: 300;
+    font-size: clamp(2.2rem, 7vw, 4.6rem);
+    letter-spacing: 0.34em;
+    text-indent: 0.34em; /* balance the trailing letter-spacing */
+    text-transform: uppercase;
+    color: rgba(109, 79, 52, 0.16);
+    pointer-events: none;
+    user-select: none;
+    animation: titleFade 3s ease-out both;
+  }
+  .title .sub {
+    display: block;
+    margin-top: 0.6rem;
+    font-size: clamp(0.62rem, 1.5vw, 0.8rem);
+    letter-spacing: 0.42em;
+    text-indent: 0.42em;
+    color: rgba(109, 79, 52, 0.24);
+  }
+  @keyframes titleFade {
+    from { opacity: 0; transform: translateY(14px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ============ Reduced motion ============ */
+  @media (prefers-reduced-motion: reduce) {
+    .scene, .flock, .crane .float, .petal, .title {
+      animation: none;
+    }
+    .title { opacity: 1; }
+  }
+</style>
+</head>
+<body>
+  <div class="stage" aria-hidden="true">
+    <div class="scene" id="scene">
+      <div class="flock" id="flock"></div>
+    </div>
+  </div>
+  <div class="petals" id="petals" aria-hidden="true"></div>
+  <div class="vignette" aria-hidden="true"></div>
+  <div class="grain" aria-hidden="true"></div>
+
+  <h1 class="title" aria-hidden="true">
+    Origami
+    <span class="sub">paper suspended in air</span>
+  </h1>
+
+<script>
+(function () {
+  "use strict";
+
+  /* Three cranes placed in 3D space with varied size, depth and tilt */
+  var cranes = [
+    // x,      y,      z,       scale, ry,   bobDur, bobDelay
+    [   0,    0,       0,       1.00,   0,   9.5,    0    ],
+    [ -210,  46,    -180,       0.70,  40,  11.5,    1.4  ],
+    [  200, -58,    -140,       0.82, -35,  10.2,    2.6  ]
+  ];
+
+  var flock = document.getElementById("flock");
+  var html = "";
+  for (var i = 0; i < cranes.length; i++) {
+    var c = cranes[i];
+    html +=
+      '<div class="crane-wrap" style="' +
+        "position:absolute; transform-style:preserve-3d; " +
+        "transform: translate3d(" + c[0] + "px, " + c[1] + "px, " + c[2] + "px) " +
+        "rotateY(" + c[4] + "deg) scale(" + c[3] + ");" +
+      '">' +
+        '<div class="float" style="--dur:' + c[5] + 's; --delay:' + c[6] + 's;">' +
+          '<div class="face f-shadow"></div>' +
+          '<div class="face f-body"></div>' +
+          '<div class="face f-wing-l"></div>' +
+          '<div class="face f-wing-r"></div>' +
+          '<div class="face f-tail"></div>' +
+          '<div class="face f-neck"></div>' +
+          '<div class="face f-head"></div>' +
+        '</div>' +
+      '</div>';
+  }
+  flock.innerHTML = html;
+
+  /* ---------- Drifting petals ---------- */
+  var petalColors = [
+    "rgba(236,206,159,0.9)",
+    "rgba(221,169,120,0.85)",
+    "rgba(207,143,95,0.8)",
+    "rgba(241,221,187,0.9)",
+    "rgba(227,176,131,0.85)",
+    "rgba(189,111,69,0.6)"
+  ];
+
+  var petalWrap = document.getElementById("petals");
+  var PETAL_COUNT = 16;
+  var ph = "";
+  for (var p = 0; p < PETAL_COUNT; p++) {
+    var x = (Math.random() * 100).toFixed(2);
+    var y = (Math.random() * 100).toFixed(2);
+    var sz = (10 + Math.random() * 26).toFixed(1);
+    var o = (0.28 + Math.random() * 0.5).toFixed(2);
+    var dr = (10 + Math.random() * 12).toFixed(1);
+    var tt = (9 + Math.random() * 16).toFixed(1);
+    var pd = (-Math.random() * 12).toFixed(2);
+    var rx = (180 + Math.random() * 360).toFixed(0);
+    var ry = (180 + Math.random() * 360).toFixed(0);
+    var rz = (180 + Math.random() * 360).toFixed(0);
+    var col = petalColors[Math.floor(Math.random() * petalColors.length)];
+    ph +=
+      '<div class="petal" style="' +
+        "--x:" + x + "vw; --y:" + y + "vh; --sz:" + sz + "px; --o:" + o + "; " +
+        "--dr:" + dr + "s; --tt:" + tt + "s; --pd:" + pd + "s; " +
+        "--rx:" + rx + "deg; --ry:" + ry + "deg; --rz:" + rz + "deg; " +
+        "--c:" + col + ';' +
+      '"></div>';
+  }
+  petalWrap.innerHTML = ph;
+
+  /* ---------- Responsive scale of the whole scene ---------- */
+  var scene = document.getElementById("scene");
+  function fitScale() {
+    var m = Math.min(window.innerWidth, window.innerHeight);
+    var s = Math.max(0.45, Math.min(1.15, m / 860));
+    scene.style.setProperty("--s", s.toFixed(3));
+  }
+  fitScale();
+  var rt;
+  window.addEventListener("resize", function () {
+    clearTimeout(rt);
+    rt = setTimeout(fitScale, 120);
+  });
+})();
+</script>
+</body>
+</html>

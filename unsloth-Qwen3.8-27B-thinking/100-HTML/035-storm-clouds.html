@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Storm Clouds</title>
+<style>
+  :root {
+    --ink: rgba(214, 226, 248, 0.62);
+    --ink-dim: rgba(214, 226, 248, 0.34);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    background: #070a12;
+    overflow: hidden;
+    font-family: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  }
+  #storm {
+    position: fixed;
+    inset: 0;
+    display: block;
+    width: 100vw;
+    height: 100vh;
+    cursor: crosshair;
+  }
+  .vignette {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(ellipse 130% 100% at 50% 60%, transparent 55%, rgba(2, 4, 9, 0.55) 100%),
+      linear-gradient(180deg, rgba(3, 5, 10, 0.5) 0%, transparent 18%);
+  }
+  .hud {
+    position: fixed;
+    top: clamp(1.1rem, 3.5vh, 2.4rem);
+    left: clamp(1.1rem, 3.5vw, 2.6rem);
+    z-index: 2;
+    pointer-events: none;
+    user-select: none;
+  }
+  .hud h1 {
+    font-size: clamp(0.72rem, 1.4vw, 0.95rem);
+    font-weight: 600;
+    letter-spacing: 0.52em;
+    text-transform: uppercase;
+    color: var(--ink);
+    text-shadow: 0 0 18px rgba(130, 165, 255, 0.45);
+  }
+  .hud .sub {
+    margin-top: 0.5rem;
+    font-size: 0.7rem;
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+  }
+  .hint {
+    position: fixed;
+    left: 50%;
+    bottom: clamp(1.2rem, 4.5vh, 2.6rem);
+    transform: translateX(-50%);
+    font-size: 0.68rem;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+    animation: hintIn 1.2s ease 0.8s both, hintOut 1.4s ease 8s forwards;
+    white-space: nowrap;
+  }
+  @keyframes hintIn { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes hintOut { to { opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) {
+    .hint { animation: hintIn 0.01s both; }
+  }
+</style>
+</head>
+<body>
+<canvas id="storm"></canvas>
+<div class="vignette"></div>
+<header class="hud">
+  <h1>Storm Clouds</h1>
+  <p class="sub">thunder &mdash; electric atmosphere</p>
+</header>
+<p class="hint">click anywhere &middot; call the lightning</p>
+<script>
+(() => {
+  "use strict";
+
+  const cv = document.getElementById("storm");
+  const ctx = cv.getContext("2d");
+  // Off-screen buffer for lightning: faded out each frame with
+  // destination-out so bright strokes leave a trailing fade.
+  const trail = document.createElement("canvas");
+  const tctx = trail.getContext("2d");
+
+  const RM = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  let W = 0, H = 0, DPR = 1;
+  let skyGrad = null;
+  let clouds = [];    // cluster: {px,py,scale,drift,fl,puffs:[]}
+  let rain = [];      // drops
+  let bolts = [];     // {pts, br, life}
+  let pending = [];   // queued click strikes {t, x}
+  let flashA = 0;     // full-screen white flash alpha
+  let skyFlash = 0;   // ambient sky-blue tint
+  let nextStrike = 0;
+  const t0 = performance.now();
+
+  const rand = (a, b) => a + Math.random() * (b - a);
+  const TAU = Math.PI * 2;
+
+  function makeClouds() {
+    const m = Math.min(W, H);
+    const n = Math.max(4, Math.round(W / 340));
+    clouds = [];
+    for (let i = 0; i < n; i++) {
+      const scale = m * rand(0.16, 0.30);
+      const puffs = [];
+      const np = 10 + Math.floor(rand(0, 6));
+      for (let j = 0; j < np; j++) {
+        puffs.push({
+          dx: rand(-0.85, 0.85),
+          dy: rand(-0.42, 0.42),
+          R: rand(0.34, 0.78),
+          phase: rand(0, TAU),
+          wf: rand(0.5, 1.4),
+          amp: rand(2, 6.5) * (m / 800),
+          dark: rand(0.72, 1.12)
+        });
+      }
+      clouds.push({
+        px: rand(-0.3, 1.0) * W,
+        py: rand(0.02, 0.44) * H,
+        scale: scale,
+        drift: rand(3, 14) * (m / 800) * (Math.random() < 0.78 ? 1 : -1),
+        fl: 0,
+        puffs: puffs
+      });
+    }
+  }
+
+  function makeRain() {
+    const n = RM ? 70 : Math.max(90, Math.min(240, Math.round(W / 7)));
+    rain = [];
+    for (let i = 0; i < n; i++) {
+      rain.push({
+        x: Math.random() * W,
+        y: Math.random() * H,
+        len: rand(10, 26),
+        sp: rand(700, 1300),
+        slant: rand(0.06, 0.2),
+        a: rand(0.05, 0.16)
+      });
+    }
+  }
+
+  function resize() {
+    const w = window.innerWidth, h = window.innerHeight;
+    DPR = Math.min(2, window.devicePixelRatio || 1);
+    const bigChange = W > 0 && (Math.abs(w - W) > 200 || Math.abs(h - H) > 200);
+    W = w; H = h;
+    cv.width = Math.round(W * DPR);
+    cv.height = Math.round(H * DPR);
+    trail.width = cv.width;
+    trail.height = cv.height;
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    tctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    skyGrad = ctx.createLinearGradient(0, 0, 0, H);
+    skyGrad.addColorStop(0, "#060910");
+    skyGrad.addColorStop(0.55, "#0c1220");
+    skyGrad.addColorStop(1, "#151d31");
+    if (bigChange || clouds.length === 0) makeClouds();
+    makeRain();
+  }
+
+  function genBolt(x, y0, y1) {
+    const pts = [{ x: x, y: y0 }];
+    let px = x, py = y0, kink = rand(-14, 14);
+    while (py < y1) {
+      py += rand(12, 34);
+      kink += rand(-16, 16);
+      kink *= 0.82;
+      px += kink * rand(0.5, 1.1) + rand(-10, 10);
+      pts.push({ x: px, y: Math.min(py, y1) });
+    }
+    const br = [];
+    const nb = 1 + Math.floor(Math.random() * 3);
+    for (let b = 0; b < nb; b++) {
+      const idx = 2 + Math.floor(Math.random() * (pts.length - 4));
+      const start = pts[idx];
+      if (!start) continue;
+      const dir = Math.random() < 0.5 ? -1 : 1;
+      let bx = start.x, by = start.y;
+      const endY = start.y + (y1 - start.y) * rand(0.35, 0.75);
+      const bpts = [{ x: bx, y: by }];
+      let bk = dir * rand(10, 30);
+      while (by < endY) {
+        by += rand(10, 26);
+        bk += rand(-12, 12);
+        bk *= 0.8;
+        bx += bk * 0.7;
+        bpts.push({ x: bx, y: by });
+      }
+      br.push(bpts);
+    }
+    bolts.push({ pts: pts, br: br, life: 1 });
+  }
+
+  function strokePath(c, p) {
+    c.beginPath();
+    c.moveTo(p[0].x, p[0].y);
+    for (let i = 1; i < p.length; i++) c.lineTo(p[i].x, p[i].y);
+    c.stroke();
+  }
+
+  function doStrike(cx, dramatic) {
+    // Anchor the bolt near the closest cloud bank so it emerges from it.
+    let y0 = H * 0.3, best = Infinity;
+    for (let i = 0; i < clouds.length; i++) {
+      const c = clouds[i];
+      const d = Math.abs(c.px - cx);
+      if (d < best) {
+        best = d;
+        y0 = c.py + c.scale * rand(0.25, 0.5);
+        c.fl = 1;
+      }
+    }
+    genBolt(cx, Math.max(10, y0), H * rand(0.72, 0.95));
+    if (dramatic) { flashA = Math.max(flashA, 1); skyFlash = 1; }
+    else { flashA = Math.max(flashA, 0.42); skyFlash = 0.85; }
+  }
+
+  window.addEventListener("resize", resize);
+  window.addEventListener("pointerdown", (e) => {
+    const now = performance.now();
+    flashA = 1;
+    skyFlash = 1;
+    const count = 3 + Math.floor(Math.random() * 3);
+    for (let i = 0; i < count; i++) {
+      pending.push({ t: now + i * rand(40, 120) + Math.random() * 90, x: rand(0.06, 0.94) * W });
+    }
+    e.preventDefault();
+  });
+
+  let last = t0;
+
+  function frame(now) {
+    let dt = (now - last) / 1000;
+    last = now;
+    if (dt > 0.05) dt = 0.05;
+    const t = (now - t0) / 1000;
+
+    // Process queued click strikes.
+    for (let i = pending.length - 1; i >= 0; i--) {
+      if (now >= pending[i].t) {
+        doStrike(pending[i].x, true);
+        pending.splice(i, 1);
+      }
+    }
+
+    // Auto-strike schedule (disabled under reduced motion).
+    if (!RM) {
+      if (nextStrike === 0) nextStrike = now + rand(1600, 3200);
+      if (now >= nextStrike) {
+        const c = clouds[Math.floor(Math.random() * clouds.length)];
+        doStrike(c ? c.px + rand(-0.5, 0.5) * (c ? c.scale : 100) : W / 2, false);
+        nextStrike = now + rand(2600, 7400);
+      }
+    }
+
+    // ---- Sky ----
+    ctx.globalCompositeOperation = "source-over";
+    ctx.fillStyle = skyGrad;
+    ctx.fillRect(0, 0, W, H);
+    if (skyFlash > 0.003) {
+      ctx.fillStyle = "rgba(148, 168, 215, " + (skyFlash * 0.2).toFixed(3) + ")";
+      ctx.fillRect(0, 0, W, H);
+    }
+    skyFlash -= skyFlash * dt * 5;
+
+    // ---- Clouds ----
+    const wob = RM ? 0.15 : 1;
+    const driftMul = RM ? 0.1 : 1;
+    for (let i = 0; i < clouds.length; i++) {
+      const c = clouds[i];
+      c.px += c.drift * driftMul * dt;
+      const pad = c.scale * 1.3;
+      if (c.px > W + pad) c.px = -pad;
+      if (c.px < -pad) c.px = W + pad;
+      c.fl -= c.fl * dt * 4;
+      const lit = Math.min(1, flashA * 0.85 + c.fl);
+      for (let j = 0; j < c.puffs.length; j++) {
+        const p = c.puffs[j];
+        const wx = c.px + p.dx * c.scale + Math.sin(t * 0.6 * p.wf + p.phase) * p.amp * wob;
+        const wy = c.py + p.dy * c.scale * 0.7 + Math.cos(t * 0.5 * p.wf + p.phase * 1.7) * p.amp * 0.7 * wob;
+        const R = p.R * c.scale * (1 + 0.035 * Math.sin(t * 0.8 * p.wf + p.phase));
+        const cr = (56 * p.dark + 122 * lit) | 0;
+        const cg = (64 * p.dark + 138 * lit) | 0;
+        const cb = (86 * p.dark + 196 * lit) | 0;
+        const a0 = 0.5 + 0.3 * lit;
+        const g = ctx.createRadialGradient(wx, wy, 0, wx, wy, R);
+        g.addColorStop(0, "rgba(" + cr + "," + cg + "," + cb + "," + a0.toFixed(3) + ")");
+        g.addColorStop(0.55, "rgba(" + cr + "," + cg + "," + cb + "," + (a0 * 0.22).toFixed(3) + ")");
+        g.addColorStop(1, "rgba(" + cr + "," + cg + "," + cb + ",0)");
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(wx, wy, R, 0, TAU);
+        ctx.fill();
+      }
+    }
+
+    // ---- Rain ----
+    ctx.lineWidth = 1;
+    for (let i = 0; i < rain.length; i++) {
+      const d = rain[i];
+      d.y += d.sp * dt;
+      d.x -= d.slant * d.sp * dt;
+      if (d.y > H + 30) { d.y = -10; d.x = Math.random() * (W + 40); }
+      if (d.x < -10) d.x += W + 20;
+      ctx.strokeStyle = "rgba(175, 195, 225, " + d.a.toFixed(3) + ")";
+      ctx.beginPath();
+      ctx.moveTo(d.x, d.y);
+      ctx.lineTo(d.x + d.slant * d.len, d.y - d.len);
+      ctx.stroke();
+    }
+
+    // ---- Lightning (trail buffer with trailing fade) ----
+    tctx.globalCompositeOperation = "destination-out";
+    tctx.fillStyle = "rgba(0, 0, 0, 0.22)";
+    tctx.fillRect(0, 0, W, H);
+    tctx.globalCompositeOperation = "lighter";
+    for (let i = bolts.length - 1; i >= 0; i--) {
+      const b = bolts[i];
+      b.life -= dt * 1.6;
+      if (b.life <= 0) { bolts.splice(i, 1); continue; }
+      const a = b.life > 0.55 ? 0.75 + 0.25 * Math.random() : b.life / 0.55;
+      // Glow pass
+      tctx.shadowColor = "rgba(140, 170, 255, 0.9)";
+      tctx.shadowBlur = 22;
+      tctx.strokeStyle = "rgba(120, 150, 255, " + (0.35 * a).toFixed(3) + ")";
+      tctx.lineWidth = 7 * (0.4 + 0.6 * b.life);
+      strokePath(tctx, b.pts);
+      tctx.lineWidth *= 0.5;
+      for (let k = 0; k < b.br.length; k++) strokePath(tctx, b.br[k]);
+      // White core pass
+      tctx.shadowBlur = 0;
+      tctx.strokeStyle = "rgba(255, 255, 255, " + (0.9 * a).toFixed(3) + ")";
+      tctx.lineWidth = 1.8;
+      strokePath(tctx, b.pts);
+      tctx.lineWidth = 1.1;
+      for (let k = 0; k < b.br.length; k++) strokePath(tctx, b.br[k]);
+      tctx.shadowBlur = 0;
+    }
+    ctx.drawImage(trail, 0, 0, W, H);
+
+    // ---- Full-screen flash ----
+    if (flashA > 0.003) {
+      ctx.fillStyle = "rgba(208, 226, 255, " + (flashA * 0.5).toFixed(3) + ")";
+      ctx.fillRect(0, 0, W, H);
+    }
+    flashA *= Math.exp(-dt * 6);
+
+    requestAnimationFrame(frame);
+  }
+
+  resize();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

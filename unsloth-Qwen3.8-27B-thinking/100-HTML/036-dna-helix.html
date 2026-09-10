@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DNA Helix</title>
+<style>
+  :root {
+    --bg-deep: #040918;
+    --bg-mid: #0a1633;
+    --ink: #dfe9ff;
+    --ink-dim: rgba(178, 200, 240, 0.55);
+    --ink-faint: rgba(140, 168, 216, 0.34);
+    --cyan: #35d6ff;
+    --magenta: #ff4fd8;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body { height: 100%; overflow: hidden; }
+
+  body {
+    background: radial-gradient(120% 90% at 50% 42%, var(--bg-mid) 0%, var(--bg-deep) 62%, #02040d 100%);
+    color: var(--ink);
+    font-family: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+    position: relative;
+  }
+
+  #scene {
+    position: fixed;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  .vignette {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(120% 95% at 50% 50%, transparent 55%, rgba(2, 4, 12, 0.55) 100%),
+      linear-gradient(to bottom, rgba(2, 4, 12, 0.45), transparent 14% 86%, rgba(2, 4, 12, 0.5));
+  }
+
+  .hud {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    padding: clamp(18px, 3.5vw, 44px);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    z-index: 2;
+  }
+
+  header { text-align: center; }
+
+  .overline {
+    font-size: clamp(9px, 1.1vw, 12px);
+    letter-spacing: 0.55em;
+    text-transform: uppercase;
+    color: var(--cyan);
+    opacity: 0.75;
+    text-shadow: 0 0 18px rgba(53, 214, 255, 0.6);
+    margin-bottom: clamp(8px, 1.4vh, 16px);
+  }
+
+  h1 {
+    font-size: clamp(26px, 5.2vw, 54px);
+    font-weight: 200;
+    letter-spacing: 0.42em;
+    text-indent: 0.42em;
+    text-transform: uppercase;
+    color: var(--ink);
+    text-shadow:
+      0 0 24px rgba(53, 214, 255, 0.45),
+      0 0 60px rgba(255, 79, 216, 0.3);
+  }
+
+  .sub {
+    margin-top: clamp(8px, 1.6vh, 18px);
+    font-size: clamp(10px, 1.2vw, 13px);
+    letter-spacing: 0.3em;
+    color: var(--ink-dim);
+    text-transform: uppercase;
+  }
+
+  .foot {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  .corner {
+    font-size: clamp(9px, 1vw, 11px);
+    letter-spacing: 0.22em;
+    line-height: 1.9;
+    color: var(--ink-dim);
+    text-transform: uppercase;
+  }
+  .corner .big {
+    display: block;
+    font-size: clamp(12px, 1.4vw, 16px);
+    letter-spacing: 0.3em;
+    color: var(--ink);
+    text-shadow: 0 0 14px rgba(53, 214, 255, 0.35);
+  }
+  .corner.right { text-align: right; }
+  .corner .alpha { color: var(--cyan); opacity: 0.9; }
+  .corner .beta { color: var(--magenta); opacity: 0.9; }
+
+  .hint {
+    position: absolute;
+    left: 50%;
+    bottom: clamp(18px, 3.5vw, 44px);
+    transform: translateX(-50%);
+    font-size: clamp(9px, 1vw, 11px);
+    letter-spacing: 0.35em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    white-space: nowrap;
+    animation: hintPulse 4.5s ease-in-out infinite;
+  }
+
+  @keyframes hintPulse {
+    0%, 100% { opacity: 0.45; }
+    50% { opacity: 1; }
+  }
+
+  @media (max-width: 620px) {
+    .foot { flex-direction: column; align-items: center; gap: 20px; }
+    .corner.right { text-align: center; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .hint { animation: none; opacity: 0.8; }
+  }
+</style>
+</head>
+<body>
+<canvas id="scene"></canvas>
+<div class="vignette" aria-hidden="true"></div>
+
+<div class="hud" aria-hidden="true">
+  <header>
+    <div class="overline">Molecular Visualization &middot; SEQ 036</div>
+    <h1>DNA Helix</h1>
+    <p class="sub">Double-stranded nucleic acid &middot; B-form &middot; 10.5 bp / turn</p>
+  </header>
+  <div class="foot">
+    <div class="corner left">
+      <span class="big">5&prime; &rarr; 3&prime;</span>
+      <span class="alpha">strand &alpha; &middot; AT-rich</span><br>
+      <span class="beta">strand &beta; &middot; GC-rich</span>
+    </div>
+    <div class="corner right">
+      <span class="big">3.4 nm / turn</span>
+      0.34 nm rise / base pair<br>
+      &phi; twist &middot; &mu; x-driven
+    </div>
+  </div>
+  <div class="hint">Move mouse &harr; to twist the helix</div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var canvas = document.getElementById("scene");
+  var ctx = canvas.getContext("2d");
+  var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  var W = 0, H = 0, DPR = 1, cx = 0, cy = 0;
+  var R = 120;          // helix radius in px
+  var pitch = 24;       // vertical rise per base pair
+
+  var PAIRS = 36;       // base pairs in view
+  var TWIST = 0.34;     // radians of twist per pair (~2 full turns)
+  var TILT = 0.46;      // camera tilt around X (rad)
+  var F = 900;          // perspective focal length
+  var BG_TRAIL = "rgba(4, 9, 24, 0.22)";
+
+  var t = 0;
+  var last = performance.now();
+  var rotY = 0.6;
+  var phase = 0.4;
+  var phaseTarget = 0.4;
+  var mouseX = 0.5;
+  var hasMouse = false;
+
+  var PARTS = [];
+  function seedParticles() {
+    PARTS.length = 0;
+    var n = reduceMotion ? 40 : 70;
+    for (var i = 0; i < n; i++) {
+      var kind = Math.random();
+      PARTS.push({
+        x: Math.random() * W,
+        y: Math.random() * H,
+        vx: (Math.random() - 0.5) * 8,
+        vy: -4 - Math.random() * 12,
+        r: 0.6 + Math.random() * 1.6,
+        hue: kind < 0.45 ? 195 : kind < 0.8 ? 322 : 225,
+        a: 0.05 + Math.random() * 0.16,
+        ph: Math.random() * Math.PI * 2
+      });
+    }
+  }
+
+  function resize() {
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = Math.round(W * DPR);
+    canvas.height = Math.round(H * DPR);
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    cx = W / 2;
+    cy = H / 2;
+    var hMin = Math.min(W, H);
+    R = Math.max(78, Math.min(170, hMin * 0.17));
+    pitch = Math.max(14, Math.min(30, (H * 0.72) / PAIRS));
+    seedParticles();
+    ctx.fillStyle = "#040918";
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  function project(angle, y, out) {
+    var x = Math.cos(angle) * R;
+    var z = Math.sin(angle) * R;
+    var c = Math.cos(rotY), s = Math.sin(rotY);
+    var x1 = x * c - z * s;
+    var z1 = x * s + z * c;
+    var ct = Math.cos(TILT), st = Math.sin(TILT);
+    var y1 = y * ct - z1 * st;
+    var z2 = y * st + z1 * ct;
+    var sc = F / (F - z2);
+    out.x = cx + x1 * sc;
+    out.y = cy + y1 * sc;
+    out.z = z2;
+    out.s = sc;
+  }
+
+  function depthAlpha(z, zMax) {
+    return 0.16 + 0.84 * ((z + zMax) / (2 * zMax));
+  }
+
+  function paintSphere(p, hue, alpha) {
+    var r = (6.5 + 5.5 * p.s) * 0.9;
+    var halo = r * 3.4;
+    var g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, halo);
+    g.addColorStop(0, "hsla(" + hue + ", 100%, 70%, " + (0.8 * alpha).toFixed(3) + ")");
+    g.addColorStop(0.28, "hsla(" + hue + ", 96%, 60%, " + (0.32 * alpha).toFixed(3) + ")");
+    g.addColorStop(1, "hsla(" + hue + ", 96%, 55%, 0)");
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, halo, 0, 7);
+    ctx.fill();
+
+    var c = ctx.createRadialGradient(p.x - r * 0.32, p.y - r * 0.34, r * 0.1, p.x, p.y, r);
+    c.addColorStop(0, "hsla(" + (hue - 16) + ", 100%, 93%, " + alpha.toFixed(3) + ")");
+    c.addColorStop(0.6, "hsla(" + hue + ", 98%, 66%, " + (0.95 * alpha).toFixed(3) + ")");
+    c.addColorStop(1, "hsla(" + (hue + 10) + ", 92%, 50%, " + (0.85 * alpha).toFixed(3) + ")");
+    ctx.fillStyle = c;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, r, 0, 7);
+    ctx.fill();
+  }
+
+  function paintBond(a, b, hueA, hueB, alpha) {
+    var g = ctx.createLinearGradient(a.x, a.y, b.x, b.y);
+    g.addColorStop(0, "hsla(" + hueA + ", 100%, 64%, " + (0.75 * alpha).toFixed(3) + ")");
+    g.addColorStop(1, "hsla(" + hueB + ", 100%, 64%, " + (0.75 * alpha).toFixed(3) + ")");
+    ctx.lineCap = "round";
+    ctx.strokeStyle = g;
+    ctx.lineWidth = 6;
+    ctx.globalAlpha = 0.16 * alpha;
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
+    ctx.stroke();
+    ctx.globalAlpha = 0.8 * alpha;
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+
+  function paintSegment(a, b, hue, alpha) {
+    ctx.strokeStyle = "hsla(" + hue + ", 95%, 62%, " + (0.8 * alpha).toFixed(3) + ")";
+    ctx.lineCap = "round";
+    ctx.lineWidth = 7;
+    ctx.globalAlpha = 0.12 * alpha;
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
+    ctx.stroke();
+    ctx.lineWidth = 2.4;
+    ctx.globalAlpha = 0.85 * alpha;
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+
+  var pa = { x: 0, y: 0, z: 0, s: 1 };
+  var pb = { x: 0, y: 0, z: 0, s: 1 };
+  var paPrev = { x: 0, y: 0, z: 0, s: 1 };
+  var pbPrev = { x: 0, y: 0, z: 0, s: 1 };
+  var items = [];
+
+  function frame(now) {
+    var dt = Math.min(0.05, (now - last) / 1000);
+    last = now;
+    if (!reduceMotion) t += dt;
+
+    // passive rotation + mouse-driven twist (smoothed)
+    rotY = 0.6 + (reduceMotion ? 0 : t * 0.32);
+    if (hasMouse) {
+      phaseTarget = (mouseX - 0.5) * Math.PI * 2.4;
+    } else if (!reduceMotion) {
+      phaseTarget = 0.4 + Math.sin(t * 0.16) * 0.55;
+    }
+    phase += (phaseTarget - phase) * (reduceMotion ? 0.25 : 0.05);
+
+    // trailing fade (full clear under reduced motion)
+    ctx.fillStyle = reduceMotion ? "#040918" : BG_TRAIL;
+    ctx.fillRect(0, 0, W, H);
+
+    // ambient plankton
+    for (var i = 0; i < PARTS.length; i++) {
+      var pt = PARTS[i];
+      if (!reduceMotion) {
+        pt.x += pt.vx * dt + Math.sin(t * 0.5 + pt.ph) * 6 * dt;
+        pt.y += pt.vy * dt;
+        if (pt.y < -6) { pt.y = H + 6; pt.x = Math.random() * W; }
+        if (pt.x < -6) pt.x = W + 6;
+        if (pt.x > W + 6) pt.x = -6;
+      }
+      ctx.fillStyle = "hsla(" + pt.hue + ", 90%, 68%, " + pt.a.toFixed(3) + ")";
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, pt.r, 0, 7);
+      ctx.fill();
+    }
+
+    var zMax = R + (PAIRS / 2) * pitch * Math.sin(TILT) + 1;
+    items.length = 0;
+
+    // project all 36 base pairs (two strands, offset by PI)
+    for (i = 0; i < PAIRS; i++) {
+      var y = (i - (PAIRS - 1) / 2) * pitch;
+      var wobble = reduceMotion ? 0 : Math.sin(t * 0.9 + i * 0.25) * 0.06;
+      var a1 = phase + i * TWIST + wobble;
+      project(a1, y, i === 0 ? paPrev : pa);
+      project(a1 + Math.PI, y, i === 0 ? pbPrev : pb);
+      if (i === 0) {
+        // store first pair
+        paPrev.x = pa.x; paPrev.y = pa.y; paPrev.z = pa.z; paPrev.s = pa.s;
+        pbPrev.x = pb.x; pbPrev.y = pb.y; pbPrev.z = pb.z; pbPrev.s = pb.s;
+        continue;
+      }
+      // backbone segments
+      items.push({ z: (paPrev.z + pa.z) / 2, kind: 0, a: paPrev, b: pa });
+      items.push({ z: (pbPrev.z + pb.z) / 2, kind: 0, a: pbPrev, b: pb, beta: true });
+      // base pair bond
+      items.push({ z: (pa.z + pb.z) / 2, kind: 1, a: pa, b: pb, i: i });
+      // nucleotide spheres (A then B so both glow)
+      items.push({ z: pa.z, kind: 2, p: pa, i: i });
+      items.push({ z: pb.z, kind: 3, p: pb, i: i });
+    }
+    // first pair's own bond + spheres
+    items.push({ z: (paPrev.z + pbPrev.z) / 2, kind: 1, a: paPrev, b: pbPrev, i: 0 });
+    items.push({ z: paPrev.z, kind: 2, p: paPrev, i: 0 });
+    items.push({ z: pbPrev.z, kind: 3, p: pbPrev, i: 0 });
+
+    // painter's algorithm: far first
+    items.sort(function (a, b) { return a.z - b.z; });
+
+    for (i = 0; i < items.length; i++) {
+      var it = items[i];
+      var alpha = depthAlpha(it.z, zMax);
+      var hueA = 193 + Math.sin(t * 0.6 + it.i * 0.35) * 14;   // blue-cyan, HSL cycled
+      var hueB = 322 + Math.cos(t * 0.6 + it.i * 0.35) * 14;   // pink-magenta, HSL cycled
+      if (it.kind === 0) {
+        paintSegment(it.a, it.b, it.beta ? 322 : 197, alpha);
+      } else if (it.kind === 1) {
+        paintBond(it.a, it.b, hueA, hueB, alpha);
+      } else {
+        paintSphere(it.p, it.kind === 2 ? hueA : hueB, alpha);
+      }
+    }
+
+    requestAnimationFrame(frame);
+  }
+
+  // ---------- input ----------
+  window.addEventListener("mousemove", function (e) {
+    mouseX = e.clientX / W;
+    hasMouse = true;
+  });
+  window.addEventListener("touchmove", function (e) {
+    if (e.touches && e.touches[0]) {
+      mouseX = e.touches[0].clientX / W;
+      hasMouse = true;
+    }
+  }, { passive: true });
+  window.addEventListener("blur", function () { hasMouse = false; });
+  window.addEventListener("resize", resize);
+
+  resize();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

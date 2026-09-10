@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Retro Terminal</title>
+<style>
+  :root {
+    --g-bright: #43ff8e;
+    --g-mid:    #2bd46b;
+    --g-dim:    #1f9c53;
+    --g-faint:  #0d5229;
+    --g-hl:     #8dffc6;
+    --bg:       #010403;
+    --bezel:    #0d120f;
+    --bezel-2:  #141b16;
+    --titlebar: #0a0f0c;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body { height: 100%; }
+
+  body {
+    background:
+      radial-gradient(ellipse 90% 70% at 50% 42%, rgba(20, 60, 36, 0.35), transparent 70%),
+      radial-gradient(ellipse 140% 100% at 50% 50%, #04100a 0%, #020704 55%, var(--bg) 100%);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    padding: 4vmin;
+    overflow-x: hidden;
+    font-family: ui-monospace, "SFMono-Regular", "Menlo", "Consolas", "Liberation Mono", monospace;
+  }
+
+  /* ============ Terminal window ============ */
+  .term {
+    width: min(880px, 96vw);
+    background: linear-gradient(180deg, var(--bezel-2), var(--bezel));
+    border: 1px solid #1d2a21;
+    border-radius: 16px;
+    padding: 10px;
+    box-shadow:
+      0 0 0 1px rgba(0, 0, 0, 0.6),
+      0 30px 80px rgba(0, 0, 0, 0.85),
+      0 0 90px rgba(52, 255, 122, 0.10),
+      0 0 22px rgba(52, 255, 122, 0.08);
+    animation: tubeOn 0.7s cubic-bezier(0.2, 0.8, 0.3, 1) both;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  @keyframes tubeOn {
+    0%   { transform: scaleY(0.006) scaleX(0.7); filter: brightness(3); }
+    55%  { transform: scaleY(1.04) scaleX(1);    filter: brightness(1.6); }
+    100% { transform: scaleY(1) scaleX(1);       filter: brightness(1); }
+  }
+
+  .titlebar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--titlebar);
+    border: 1px solid #1a251e;
+    border-radius: 8px 8px 0 0;
+    padding: 11px 14px;
+  }
+
+  .dot { width: 12px; height: 12px; border-radius: 50%; flex: none; box-shadow: inset 0 -1px 2px rgba(0,0,0,.35); }
+  .dot.r { background: #ff5f57; }
+  .dot.y { background: #febc2e; }
+  .dot.g { background: #28c840; }
+
+  .titlebar .title {
+    flex: 1;
+    text-align: center;
+    font-size: 12px;
+    letter-spacing: 0.14em;
+    color: var(--g-dim);
+    text-shadow: 0 0 8px rgba(67, 255, 142, 0.25);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .titlebar .spacer { width: 44px; flex: none; }
+
+  /* ============ Screen ============ */
+  .screen {
+    position: relative;
+    height: clamp(320px, 56vh, 560px);
+    background:
+      radial-gradient(ellipse 120% 90% at 50% 45%, #04140b 0%, #020a05 60%, #010603 100%);
+    border: 1px solid #1a251e;
+    border-radius: 0 0 8px 8px;
+    overflow: hidden;
+    box-shadow:
+      inset 0 0 60px rgba(0, 0, 0, 0.85),
+      inset 0 0 12px rgba(52, 255, 122, 0.06);
+    animation: flicker 4.2s steps(1, end) infinite;
+  }
+
+  @keyframes flicker {
+    0%, 100% { opacity: 1; }
+    87%      { opacity: 1; }
+    88%      { opacity: 0.955; }
+    89%      { opacity: 1; }
+    93%      { opacity: 0.98; }
+    94%      { opacity: 1; }
+    97.5%    { opacity: 0.985; }
+  }
+
+  .lines {
+    position: absolute;
+    inset: 0;
+    padding: 22px 26px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    font-size: clamp(12.5px, 1.55vw, 15.5px);
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-break: break-word;
+    scrollbar-width: thin;
+    scrollbar-color: var(--g-faint) transparent;
+  }
+  .lines::-webkit-scrollbar { width: 8px; }
+  .lines::-webkit-scrollbar-thumb { background: var(--g-faint); border-radius: 4px; }
+
+  .line { text-shadow: 0 0 7px rgba(67, 255, 142, 0.35); color: var(--g-mid); min-height: 1.6em; }
+  .line.boot     { color: var(--g-bright); font-weight: 700; text-shadow: 0 0 12px rgba(67,255,142,.65); letter-spacing: .08em; }
+  .line.dim      { color: var(--g-dim); text-shadow: 0 0 5px rgba(43,212,107,.25); }
+  .line.info     { color: #3fe97f; }
+  .line.success  { color: var(--g-bright); text-shadow: 0 0 10px rgba(67,255,142,.55); }
+  .line.error    { color: #b8ffce; font-weight: 700; text-shadow: 0 0 12px rgba(67,255,142,.7); }
+  .line.highlight{ color: var(--g-hl); font-weight: 700; text-shadow: 0 0 14px rgba(141,255,198,.7); }
+  .line.cmd      { color: var(--g-bright); font-weight: 700; text-shadow: 0 0 11px rgba(67,255,142,.6); }
+
+  .line .u { color: var(--g-hl); font-weight: 700; }
+  .line .d { color: var(--g-dim); }
+
+  .cursor {
+    display: inline-block;
+    width: 0.62em;
+    height: 1.02em;
+    margin-left: 3px;
+    vertical-align: text-bottom;
+    background: var(--g-bright);
+    box-shadow: 0 0 10px rgba(67, 255, 142, 0.9), 0 0 3px rgba(67,255,142,1);
+    animation: blink 1.06s steps(1) infinite;
+  }
+  @keyframes blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+
+  /* ============ CRT overlays ============ */
+  .scanlines {
+    position: absolute; inset: 0; z-index: 3; pointer-events: none;
+    background:
+      repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.30) 0 1px, transparent 1px 3px),
+      repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.07) 0 1px, transparent 1px 3px);
+    mix-blend-mode: multiply;
+  }
+  .scanbar {
+    position: absolute; left: 0; right: 0; top: -18%; z-index: 4; pointer-events: none;
+    height: 16%;
+    background: linear-gradient(180deg,
+      transparent 0%,
+      rgba(141, 255, 198, 0.055) 42%,
+      rgba(141, 255, 198, 0.10) 50%,
+      rgba(141, 255, 198, 0.055) 58%,
+      transparent 100%);
+    animation: scan 6.5s linear infinite;
+  }
+  @keyframes scan {
+    from { top: -18%; }
+    to   { top: 104%; }
+  }
+  .glare {
+    position: absolute; inset: 0; z-index: 5; pointer-events: none;
+    background:
+      radial-gradient(ellipse 75% 42% at 30% 8%, rgba(190, 255, 215, 0.055), transparent 65%),
+      radial-gradient(ellipse 120% 80% at 50% 50%, transparent 55%, rgba(0, 0, 0, 0.42) 100%);
+  }
+
+  /* ============ Status strip ============ */
+  .status {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 9px 6px 2px;
+    font-size: 10.5px;
+    letter-spacing: 0.16em;
+    color: var(--g-faint);
+    text-shadow: 0 0 6px rgba(43, 212, 107, 0.3);
+    white-space: nowrap;
+    overflow: hidden;
+  }
+  .status b { color: var(--g-dim); font-weight: 700; }
+
+  .caption {
+    font-size: 11px;
+    letter-spacing: 0.3em;
+    color: var(--g-faint);
+    text-shadow: 0 0 8px rgba(43, 212, 107, 0.25);
+    user-select: none;
+  }
+
+  ::selection { background: rgba(67, 255, 142, 0.3); color: #eafff2; }
+
+  @media (max-width: 560px) {
+    .titlebar { padding: 9px 11px; }
+    .lines { padding: 14px 14px; }
+    .screen { height: clamp(280px, 52vh, 420px); }
+    .status { font-size: 9px; letter-spacing: 0.1em; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .term   { animation: none; }
+    .screen { animation: none; }
+    .scanbar { display: none; }
+    .cursor { animation: none; opacity: 1; }
+  }
+</style>
+</head>
+<body>
+
+  <div class="term" id="term" role="application" aria-label="Retro CRT terminal emulator. Click anywhere to run a command.">
+    <div class="titlebar">
+      <span class="dot r"></span>
+      <span class="dot y"></span>
+      <span class="dot g"></span>
+      <span class="title">guest@retro — /dev/tty1 — 80&times;24</span>
+      <span class="spacer"></span>
+    </div>
+
+    <div class="screen" id="screen">
+      <div class="lines" id="lines"></div>
+      <div class="scanlines"></div>
+      <div class="scanbar"></div>
+      <div class="glare"></div>
+    </div>
+
+    <div class="status">
+      <span>MODE: <b>VT100</b></span>
+      <span>PHOSPHOR: <b>P1 GREEN</b></span>
+      <span>REFRESH: <b>60Hz</b></span>
+    </div>
+  </div>
+
+  <div class="caption">CLICK ANYWHERE &middot; TTY1 EMULATOR</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var linesEl = document.getElementById("lines");
+  var termEl  = document.getElementById("term");
+  var cursor  = null;
+  var busy    = false;
+  var lastPick = -1;
+
+  /* ---------- helpers ---------- */
+  function delay(ms) {
+    return new Promise(function (r) { setTimeout(r, reduced ? Math.min(ms, 60) : ms); });
+  }
+
+  function prune() {
+    while (linesEl.children.length > 80) linesEl.removeChild(linesEl.firstChild);
+  }
+
+  function scrollDown() { linesEl.scrollTop = linesEl.scrollHeight; }
+
+  function makeLine(cls) {
+    var d = document.createElement("div");
+    d.className = "line" + (cls ? " " + cls : "");
+    linesEl.appendChild(d);
+    prune();
+    scrollDown();
+    return d;
+  }
+
+  function removeCursor() { if (cursor && cursor.parentNode) cursor.parentNode.removeChild(cursor); }
+
+  function attachCursor(line) {
+    removeCursor();
+    cursor = document.createElement("span");
+    cursor.className = "cursor";
+    cursor.setAttribute("aria-hidden", "true");
+    line.appendChild(cursor);
+  }
+
+  function typeText(el, text, speed) {
+    return new Promise(function (resolve) {
+      if (reduced || speed <= 0) { el.textContent = text; resolve(); return; }
+      var i = 0;
+      (function step() {
+        el.textContent = text.slice(0, ++i);
+        scrollDown();
+        if (i < text.length) setTimeout(step, speed + Math.random() * speed * 0.6);
+        else resolve();
+      })();
+    });
+  }
+
+  function promptLine() {
+    var el = makeLine("");
+    el.innerHTML = '<span class="u">guest@retro</span>:<span class="d">~</span>$ ';
+    return el;
+  }
+
+  /* ---------- command engine ---------- */
+  // Each entry: [command, [ [output line, class], ... ]]
+  var SCRIPT = [
+    ["whoami", [["guest", "highlight"]]],
+    ["uname -a", [["RETRO/OS retro 3.7.1 tty1 x86_64 phosphor-gpu", "info"]]],
+    ["uptime", [[" 19:47:02 up 14 days, 3 users, load averages: 0.42 0.55 0.61", "info"]]],
+    ["ls -la", [
+      ["total 42", "dim"],
+      ["drwxr-xr-x   6 guest  users  4096 Aug 16 09:12 .", "dim"],
+      ["drwxr-xr-x  12 root   root   4096 Aug 14 03:02 ..", "dim"],
+      ["-rw-r--r--   1 guest  users  1204 Aug 16 18:44 .bashrc", "dim"],
+      ["-rw-r--r--   1 guest  users  8841 Aug 15 22:17 phosphor.log", "dim"],
+      ["drwxr-xr-x   3 guest  users  4096 Aug 16 11:30 artifacts", "dim"],
+      ["-rwxr-xr-x   1 guest  users   372 Aug 12 07:59 crt-check.sh", "dim"]
+    ]],
+    ["df -h", [
+      ["Filesystem      Size  Used Avail Use% Mounted on", "dim"],
+      ["dev/crt0         256G  142G  114G  56% /", "dim"],
+      ["/dev/phosphor    32G  9.4G  22.6G 30% /usr/local", "dim"]
+    ]],
+    ["fortune", [
+      ["\"The terminal is a window into a machine that remembers everything.\"", "dim"],
+      ["Try clicking the screen to run a command.", "success"]
+    ]]
+  ];
+
+  var POOL = [
+    ["pwd", [["/home/guest", "highlight"]]],
+    ["date", [["Sun Aug 16 19:47:36 UTC 2026", "info"]]],
+    ["nproc", [["8", "highlight"]]],
+    ["free -m", [
+      ["              total   used   free", "dim"],
+      ["Mem:          16384   7240   9144", "dim"],
+      ["Swap:          4096      0   4096", "dim"]
+    ]],
+    ["ping -c 5 127.0.0.1", [
+      ["PING 127.0.0.1 (127.0.0.1): 56 data bytes", "dim"],
+      ["64 bytes from 127.0.0.1: icmp_seq=1 ttl=64 time=0.041 ms", "dim"],
+      ["64 bytes from 127.0.0.1: icmp_seq=2 ttl=64 time=0.038 ms", "dim"],
+      ["64 bytes from 127.0.0.1: icmp_seq=3 ttl=64 time=0.044 ms", "dim"],
+      ["5 packets transmitted, 5 received, 0% packet loss", "success"]
+    ]],
+    ["sudo reboot", [["guest is not in the sudoers file. This incident will be reported.", "error"]]],
+    ["curl phosphor.local/status", [
+      ["curl: (6) could not resolve host: phosphor.local", "error"],
+      ["(the phosphor daemon is down; the tube still glows)", "dim"]
+    ]],
+    ["ls /dev", [["crt0  kbd0  mouse0  phosphor  tty1  zero", "info"]]],
+    ["cat /etc/motd", [["RETRO/OS 3.7 — welcome back, guest. The screen never sleeps.", "highlight"]]],
+    ["top -bn1 | head -6", [
+      ["PID   USER   CPU   MEM  COMMAND", "dim"],
+      ["  1   root     0.0  0.1  init", "dim"],
+      ["  42 root     0.0  0.3  phosphord", "dim"],
+      [" 118 guest    3.2  1.4  terminal", "dim"],
+      [" 201 guest    0.4  0.2  fortune", "dim"]
+    ]],
+    ["man ls", [["No manual entry for ls in this terminal. (It never slept; it never needed one.)", "error"]]],
+    ["echo \"hello, phosphor\"", [["hello, phosphor", "highlight"]]],
+    ["du -sh .", [["214M  .", "info"]]]
+  ];
+
+  function runCommand(cmd, out, noPrompt) {
+    return new Promise(function (resolve) {
+      if (busy) { resolve(); return; }
+      busy = true;
+      (async function () {
+        var line;
+        if (!noPrompt) {
+          line = promptLine();
+          attachCursor(line);
+          await typeText(line, cmd, 34);
+          await delay(180 + Math.random() * 160);
+        }
+        for (var i = 0; i < out.length; i++) {
+          removeCursor();
+          line = makeLine(out[i][1]);
+          await typeText(line, out[i][0], 6);
+          await delay(out[i][1] === "error" ? 320 : 90 + Math.random() * 140);
+        }
+        removeCursor();
+        line = promptLine();
+        attachCursor(line);
+        scrollDown();
+        busy = false;
+        resolve();
+      })();
+    });
+  }
+
+  /* ---------- boot banner + auto script ---------- */
+  var BOOT = [
+    ["RETRO/OS 3.7 (tty1)", "boot"],
+    ["BIOS OK — 256K RAM detected", "dim"],
+    ["Mounting /dev/crt0 .......... [ OK ]", "dim"],
+    ["Starting phosphor subsystems .. [ OK ]", "dim"],
+    ["", "dim"],
+    ["Last login: Sun Aug 16 19:46:58 2026 from 10.0.0.7", "dim"]
+  ];
+
+  (async function main() {
+    await delay(reduced ? 80 : 900); // let the tube finish warming up
+    for (var i = 0; i < BOOT.length; i++) {
+      var line = makeLine(BOOT[i][1]);
+      await typeText(line, BOOT[i][0], 2);
+      await delay(i === BOOT.length - 1 ? 500 : 160 + Math.random() * 120);
+    }
+    await delay(600);
+    for (var j = 0; j < SCRIPT.length; j++) {
+      await runCommand(SCRIPT[j][0], SCRIPT[j][1]);
+      await delay(reduced ? 120 : 500 + Math.random() * 400);
+    }
+  })();
+
+  /* ---------- click → random command ---------- */
+  function pickRandom() {
+    var i;
+    do { i = Math.floor(Math.random() * POOL.length); } while (i === lastPick && POOL.length > 1);
+    lastPick = i;
+    return POOL[i];
+  }
+
+  termEl.addEventListener("click", function () {
+    if (busy) return;
+    var e = pickRandom();
+    runCommand(e[0], e[1]);
+  });
+})();
+</script>
+</body>
+</html>
